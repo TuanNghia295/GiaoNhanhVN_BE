@@ -21,7 +21,7 @@ export class AuthGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-
+    // If the route is public, allow access
     if (isPublic) return true;
 
     const isAuthOptional = this.reflector.getAllAndOverride<boolean>(
@@ -29,19 +29,29 @@ export class AuthGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
-    const request: Request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     const accessToken = this.extractTokenFromHeader(request);
 
-    if (isAuthOptional && !accessToken) {
+    // If authentication is optional and no token is provided, allow access
+    if ((isAuthOptional && !accessToken) || accessToken === 'undefined') {
       return true;
     }
+
+    // If no token is provided and authentication is not optional, deny access
     if (!accessToken) {
       throw new UnauthorizedException();
     }
 
-    request['user'] = await this.authService.verifyAccessToken(accessToken);
-
-    return true;
+    try {
+      // Verify the token
+      request['user'] = await this.authService.verifyAccessToken(accessToken);
+      return true;
+    } catch (error) {
+      console.log(error);
+      // If token verification fails, deny access
+      throw new UnauthorizedException('Invalid or expired token');
+    }
   }
 
   private extractTokenFromHeader(request: Request): string | undefined {

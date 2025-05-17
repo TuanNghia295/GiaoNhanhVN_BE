@@ -1,16 +1,16 @@
 import {
-  EmailField,
+  NumberFieldOptional,
   PasswordField,
   StringField,
 } from '@/decorators/field.decorators';
 
 export class CreateUserReqDto {
-  @EmailField()
-  email: string;
+  @StringField()
+  phone!: string;
 
   @PasswordField()
-  password: string;
+  password!: string;
 
-  @StringField()
-  full_name: string;
+  @NumberFieldOptional()
+  areaId?: number;
 }

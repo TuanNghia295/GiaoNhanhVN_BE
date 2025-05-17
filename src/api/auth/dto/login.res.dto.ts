@@ -1,21 +1,35 @@
-import { NumberField, StringField } from '@/decorators/field.decorators';
+import { RoleEnum } from '@/database/schemas';
+import {
+  EnumField,
+  NumberField,
+  NumberFieldOptional,
+  StringField,
+} from '@/decorators/field.decorators';
 import { Exclude, Expose } from 'class-transformer';
 
 @Exclude()
 export class LoginResDto {
-  @Expose()
-  @StringField()
-  user_id!: string;
-
-  @Expose()
-  @StringField()
-  access_token!: string;
-
-  @Expose()
-  @StringField()
-  refresh_token!: string;
-
-  @Expose()
   @NumberField()
-  token_expires!: number;
+  @Expose()
+  userId!: number;
+
+  @NumberFieldOptional()
+  @Expose()
+  areaId?: number;
+
+  @StringField()
+  @Expose()
+  accessToken!: string;
+
+  @StringField()
+  @Expose()
+  refreshToken!: string;
+
+  @NumberField()
+  @Expose()
+  expires!: number;
+
+  @EnumField(() => RoleEnum)
+  @Expose()
+  role!: RoleEnum;
 }

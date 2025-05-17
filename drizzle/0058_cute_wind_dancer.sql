@@ -1,0 +1,1 @@
+ALTER TABLE "service_fees" RENAME COLUMN "setting_id" TO "settingId";

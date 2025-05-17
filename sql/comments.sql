@@ -1,0 +1,11 @@
+INSERT INTO public.comments (id, comment, created_at, updated_at, type, deleted_at, "commentUsedId") VALUES (1, 'Đóng gói đẹp', '2025-01-16 07:49:44.880', '2025-01-16 07:49:44.880', 'STORE', null, null);
+INSERT INTO public.comments (id, comment, created_at, updated_at, type, deleted_at, "commentUsedId") VALUES (2, 'Món ăn ngon', '2025-01-16 07:49:44.880', '2025-01-16 07:49:44.880', 'STORE', null, null);
+INSERT INTO public.comments (id, comment, created_at, updated_at, type, deleted_at, "commentUsedId") VALUES (3, 'Shop làm nhanh', '2025-01-16 07:49:44.880', '2025-01-16 07:49:44.880', 'STORE', null, null);
+INSERT INTO public.comments (id, comment, created_at, updated_at, type, deleted_at, "commentUsedId") VALUES (4, 'Đóng gói không kỹ', '2025-01-16 07:49:44.880', '2025-01-16 07:49:44.880', 'STORE', null, null);
+INSERT INTO public.comments (id, comment, created_at, updated_at, type, deleted_at, "commentUsedId") VALUES (5, 'Shop làm lâu', '2025-01-16 07:49:44.880', '2025-01-16 07:49:44.880', 'STORE', null, null);
+INSERT INTO public.comments (id, comment, created_at, updated_at, type, deleted_at, "commentUsedId") VALUES (6, 'Giao nhanh', '2025-01-16 07:49:44.880', '2025-01-16 07:49:44.880', 'DELIVER', null, null);
+INSERT INTO public.comments (id, comment, created_at, updated_at, type, deleted_at, "commentUsedId") VALUES (7, 'Nhiệt tình', '2025-01-16 07:49:44.880', '2025-01-16 07:49:44.880', 'DELIVER', null, null);
+INSERT INTO public.comments (id, comment, created_at, updated_at, type, deleted_at, "commentUsedId") VALUES (8, 'Thân thiện', '2025-01-16 07:49:44.880', '2025-01-16 07:49:44.880', 'DELIVER', null, null);
+INSERT INTO public.comments (id, comment, created_at, updated_at, type, deleted_at, "commentUsedId") VALUES (9, 'Nóng tính', '2025-01-16 07:49:44.880', '2025-01-16 07:49:44.880', 'DELIVER', null, null);
+INSERT INTO public.comments (id, comment, created_at, updated_at, type, deleted_at, "commentUsedId") VALUES (10, 'Khó chịu', '2025-01-16 07:49:44.880', '2025-01-16 07:49:44.880', 'DELIVER', null, null);
+INSERT INTO public.comments (id, comment, created_at, updated_at, type, deleted_at, "commentUsedId") VALUES (11, 'Giao chậm', '2025-01-16 07:49:44.880', '2025-01-16 07:49:44.880', 'DELIVER', null, null);

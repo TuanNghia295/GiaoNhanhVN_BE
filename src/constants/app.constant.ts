@@ -1,5 +1,6 @@
 export const IS_PUBLIC = 'isPublic';
 export const IS_AUTH_OPTIONAL = 'isAuthOptional';
+export const ROLE_KEY = 'role';
 
 export enum Environment {
   LOCAL = 'local',
@@ -16,8 +17,8 @@ export enum LogService {
 }
 
 export enum Order {
-  ASC = 'ASC',
-  DESC = 'DESC',
+  ASC = 'asc',
+  DESC = 'desc',
 }
 
 // Redact value of these paths from logs

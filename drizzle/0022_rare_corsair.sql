@@ -1,0 +1,1 @@
+ALTER TABLE "ratings" ADD COLUMN "order_id" varchar(255) NOT NULL;

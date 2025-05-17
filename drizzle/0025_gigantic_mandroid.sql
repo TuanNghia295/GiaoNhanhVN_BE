@@ -1,0 +1,1 @@
+ALTER TABLE "ratings" ALTER COLUMN "deliver_id" DROP NOT NULL;

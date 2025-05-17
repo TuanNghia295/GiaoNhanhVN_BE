@@ -1,0 +1,1 @@
+ALTER TABLE "order_details" ADD COLUMN "product_id" integer NOT NULL;

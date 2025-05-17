@@ -1,0 +1,1 @@
+ALTER TABLE "transactions" ADD COLUMN "method" varchar(50);

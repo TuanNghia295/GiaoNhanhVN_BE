@@ -1,0 +1,1 @@
+ALTER TABLE "distances" ALTER COLUMN "service_fee_id" DROP NOT NULL;

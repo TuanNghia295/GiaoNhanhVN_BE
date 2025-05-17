@@ -407,6 +407,24 @@ export function EnumFieldOptional<TEnum extends object>(
   );
 }
 
+export function EnumArrayField<TEnum extends object>(
+  getEnum: () => TEnum,
+  options: Omit<ApiPropertyOptions, 'type' | 'enum'> & IEnumFieldOptions = {},
+): PropertyDecorator {
+  return applyDecorators(EnumField(getEnum, { ...options, each: true }));
+}
+
+export function EnumArrayFieldOptional<TEnum extends object>(
+  getEnum: () => TEnum,
+  options: Omit<ApiPropertyOptions, 'type' | 'required' | 'enum'> &
+    IEnumFieldOptions = {},
+): PropertyDecorator {
+  return applyDecorators(
+    IsOptional(),
+    EnumArrayField(getEnum, { required: false, ...options }),
+  );
+}
+
 export function ClassField<TClass extends Constructor>(
   getClass: () => TClass,
   options: Omit<ApiPropertyOptions, 'type'> & IClassFieldOptions = {},
@@ -453,4 +471,39 @@ export function ClassFieldOptional<TClass extends Constructor>(
 
 function getVariableName(variableFunction: () => any) {
   return variableFunction.toString().split('.').pop();
+}
+
+export function FileField(
+  options: Omit<ApiPropertyOptions, 'type'> & IFieldOptions = {},
+): PropertyDecorator {
+  const decorators = [Type(() => Object)];
+
+  if (options.nullable) {
+    decorators.push(IsNullable());
+  } else {
+    decorators.push(NotEquals(null));
+  }
+
+  if (options.swagger !== false) {
+    const { required = true, ...restOptions } = options;
+    decorators.push(
+      ApiProperty({
+        type: 'string',
+        format: 'binary',
+        required: !!required,
+        ...restOptions,
+      }),
+    );
+  }
+
+  return applyDecorators(...decorators);
+}
+
+export function FileFieldOptional(
+  options: Omit<ApiPropertyOptions, 'type' | 'required'> & IFieldOptions = {},
+): PropertyDecorator {
+  return applyDecorators(
+    IsOptional(),
+    FileField({ required: false, ...options }),
+  );
 }

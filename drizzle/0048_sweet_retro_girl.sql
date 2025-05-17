@@ -1,0 +1,20 @@
+CREATE TABLE "vouchers" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"code" varchar NOT NULL,
+	"value" numeric(10, 2) NOT NULL,
+	"type" varchar(50) NOT NULL,
+	"start_date" timestamp NOT NULL,
+	"end_date" timestamp NOT NULL,
+	"max_uses" integer NOT NULL,
+	"use_per_user" integer NOT NULL,
+	"used_count" integer DEFAULT 0 NOT NULL,
+	"status" varchar(50) DEFAULT 'PENDING' NOT NULL,
+	"description" varchar(255) NOT NULL,
+	"manager_id" integer,
+	"user_id" integer,
+	"deleted_at" timestamp,
+	"is_hidden" boolean DEFAULT false NOT NULL,
+	"min_order_value" numeric(10, 2),
+	"max_order_value" numeric(10, 2),
+	"area_id" integer
+);

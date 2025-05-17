@@ -1,0 +1,242 @@
+import { AreasService } from '@/api/areas/areas.service';
+import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
+import { NotificationsService } from '@/api/notifications/notifications.service';
+import { CreateStoreReqDto } from '@/api/store-requests/dto/create-store-req.dto';
+import { PageStoreRequestReqDto } from '@/api/store-requests/dto/page-store-request-req.dto';
+import { StoreRequestResDto } from '@/api/store-requests/dto/store-request.res.dto';
+import { StoresService } from '@/api/stores/stores.service';
+import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
+import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
+import { ErrorCode } from '@/constants/error-code.constant';
+import { DRIZZLE, queryWithCount, withPagination } from '@/database/global';
+import {
+  RoleEnum,
+  storeRequests,
+  StoreRequestStatusEnum,
+  stores,
+  users,
+} from '@/database/schemas';
+import {
+  notifications,
+  NotificationTypeEnum,
+} from '@/database/schemas/notification.schema';
+import { DrizzleDB } from '@/database/types/drizzle';
+import { ValidationException } from '@/exceptions/validation.exception';
+import { Inject, Injectable } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { and, asc, count, desc, eq, getTableColumns, ilike } from 'drizzle-orm';
+
+@Injectable()
+export class StoreRequestsService {
+  constructor(
+    private readonly areasService: AreasService,
+    private readonly storesService: StoresService,
+    private readonly notificationsService: NotificationsService,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
+  ) {}
+
+  async getPageStoreRequests(
+    reqDto: PageStoreRequestReqDto,
+    payload: JwtPayloadType,
+  ) {
+    const qb = this.db
+      .select({
+        ...getTableColumns(storeRequests),
+        user: users,
+      })
+      .from(storeRequests)
+      .leftJoin(users, eq(users.id, storeRequests.userId))
+      .where(
+        and(
+          ilike(users.phone, `%${reqDto.q ?? ''}%`),
+          ...(reqDto.areaId ? [eq(storeRequests.areaId, reqDto.areaId)] : []),
+          ...(payload.role === RoleEnum.MANAGEMENT && payload.areaId
+            ? [eq(storeRequests.areaId, payload.areaId)]
+            : []),
+        ),
+      )
+      .orderBy(
+        reqDto.order === 'desc'
+          ? desc(storeRequests.createdAt)
+          : asc(storeRequests.createdAt),
+      )
+      .$dynamic();
+
+    await withPagination(
+      qb,
+
+      reqDto.limit,
+      reqDto.offset,
+    );
+    const [entities, totalCount] = await queryWithCount(qb);
+
+    const meta = new OffsetPaginationDto(totalCount, reqDto);
+    return new OffsetPaginatedDto(
+      entities.map((e) => plainToInstance(StoreRequestResDto, e)),
+      meta,
+    );
+  }
+
+  async getCount(payload: JwtPayloadType) {
+    const qb = this.db
+      .select({ totalCount: count() })
+      .from(storeRequests)
+      .where(
+        and(
+          ...(payload.role === RoleEnum.MANAGEMENT && payload.areaId
+            ? [eq(storeRequests.areaId, payload.areaId)]
+            : []),
+          eq(storeRequests.status, StoreRequestStatusEnum.PENDING),
+        ),
+      );
+
+    const [{ totalCount }] = await qb.execute();
+    console.log('totalCount', totalCount);
+    return totalCount;
+  }
+
+  async existStoreRequestById(storeRequestId: number): Promise<{
+    id: number;
+    status: StoreRequestStatusEnum;
+    userId: number;
+    areaId: number;
+  }> {
+    return await this.db
+      .select({
+        id: storeRequests.id,
+        status: storeRequests.status,
+        userId: storeRequests.userId,
+        areaId: storeRequests.areaId,
+      })
+      .from(storeRequests)
+      .where(eq(storeRequests.id, storeRequestId))
+      .execute()
+      .then((res) => res[0] ?? null);
+  }
+
+  async existStoreRequestByUserId(
+    userId: number,
+  ): Promise<{ id: number; status: StoreRequestStatusEnum }> {
+    return await this.db
+      .select({
+        id: storeRequests.id,
+        status: storeRequests.status,
+      })
+      .from(storeRequests)
+      .where(and(eq(storeRequests.userId, userId)))
+      .execute()
+      .then((res) => res[0] ?? null);
+  }
+
+  async registerStore(payload: JwtPayloadType, reqDto: CreateStoreReqDto) {
+    if (!(await this.areasService.existById(reqDto.areaId))) {
+      throw new ValidationException(ErrorCode.AR001);
+    }
+
+    // kiểm tra cửa hàng đã tồn tại hay chưa
+    if (await this.storesService.existById(payload.id)) {
+      throw new ValidationException(ErrorCode.S002);
+    }
+    // mỗi người chỉ được đăng ký 1 cửa hàng
+    if (await this.existStoreRequestByUserId(payload.id)) {
+      throw new ValidationException(ErrorCode.SR002);
+    }
+
+    return this.db.transaction(async (tx) => {
+      await tx.insert(notifications).values({
+        userId: payload.id,
+        type: NotificationTypeEnum.SYSTEM,
+        title: 'Đăng ký cửa hàng',
+        body: `Yêu cầu mở shop của bạn đang chờ xét duyệt từ admin. Nếu thời gian chờ quá lâu, vui lòng liên hệ hotline`,
+      });
+      return await tx
+        .insert(storeRequests)
+        .values({
+          ...reqDto,
+          userId: payload.id,
+        })
+        .returning()
+        .then((res) => plainToInstance(StoreRequestResDto, res[0]));
+    });
+  }
+
+  async approve(storeRequestId: number) {
+    return this.db.transaction(async (tx) => {
+      const storeRequest = await this.existStoreRequestById(storeRequestId);
+      if (!storeRequest) {
+        tx.rollback();
+        throw new ValidationException(ErrorCode.SR001);
+      }
+
+      if (storeRequest.status !== StoreRequestStatusEnum.PENDING) {
+        tx.rollback();
+        throw new ValidationException(ErrorCode.SR003);
+      }
+      await tx
+        .update(storeRequests)
+        .set({ status: StoreRequestStatusEnum.APPROVED })
+        .where(eq(storeRequests.id, storeRequestId))
+        .execute();
+
+      await tx
+        .update(users)
+        .set({ role: RoleEnum.STORE })
+        .where(eq(users.id, storeRequest.userId))
+        .execute();
+
+      await tx
+        .insert(stores)
+        .values({
+          userId: storeRequest.userId,
+          areaId: storeRequest.areaId,
+        })
+        .execute();
+
+      await tx
+        .insert(notifications)
+        .values({
+          userId: storeRequest.userId,
+          type: NotificationTypeEnum.SYSTEM,
+          title: 'Đăng ký cửa hàng',
+          body: `Yêu cầu mở shop của bạn đã được chấp nhận. Vui lòng kiểm tra lại thông tin cửa hàng`,
+        })
+        .execute();
+
+      /// socket
+
+      return plainToInstance(StoreRequestResDto, storeRequest);
+    });
+  }
+
+  async reject(storeRequestId: number) {
+    return this.db.transaction(async (tx) => {
+      const storeRequest = await this.existStoreRequestById(storeRequestId);
+      if (!storeRequest) {
+        tx.rollback();
+        throw new ValidationException(ErrorCode.SR001);
+      }
+
+      if (storeRequest.status !== StoreRequestStatusEnum.PENDING) {
+        tx.rollback();
+        throw new ValidationException(ErrorCode.SR003);
+      }
+      await tx
+        .update(storeRequests)
+        .set({ status: StoreRequestStatusEnum.REJECTED })
+        .where(eq(storeRequests.id, storeRequestId))
+        .execute();
+
+      await tx
+        .insert(notifications)
+        .values({
+          userId: storeRequest.userId,
+          type: NotificationTypeEnum.SYSTEM,
+          title: 'Đăng ký cửa hàng',
+          body: `Yêu cầu mở shop của bạn đã bị từ chối. Vui lòng liên hệ hotline`,
+        })
+        .execute();
+
+      return plainToInstance(StoreRequestResDto, storeRequest);
+    });
+  }
+}

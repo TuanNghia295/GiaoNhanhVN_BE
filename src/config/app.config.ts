@@ -3,6 +3,7 @@ import { Environment } from '@/constants/app.constant';
 import validateConfig from '@/utils/validate-config';
 import { registerAs } from '@nestjs/config';
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsOptional,
@@ -24,6 +25,10 @@ class EnvironmentVariablesValidator {
   @IsUrl({ require_tld: false })
   @IsOptional()
   APP_URL: string;
+
+  @IsBoolean()
+  @IsOptional()
+  APP_DEBUG: boolean;
 
   @IsInt()
   @Min(0)
@@ -60,6 +65,7 @@ export default registerAs<AppConfig>('app', () => {
     nodeEnv: process.env.NODE_ENV || Environment.DEVELOPMENT,
     name: process.env.APP_NAME || 'app',
     port,
+    debug: process.env.APP_DEBUG === 'true',
     url: process.env.APP_URL || `http://localhost:${port}`,
     apiPrefix: process.env.API_PREFIX || 'api',
     corsOrigin: getCorsOrigin(),

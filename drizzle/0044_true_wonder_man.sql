@@ -1,0 +1,1 @@
+ALTER TABLE "extras_to_order_details" ADD COLUMN "quantity" integer NOT NULL;

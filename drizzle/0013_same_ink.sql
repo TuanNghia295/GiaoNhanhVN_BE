@@ -1,0 +1,1 @@
+ALTER TABLE "store_requests" ALTER COLUMN "user_id" DROP NOT NULL;

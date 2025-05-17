@@ -1,0 +1,307 @@
+import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
+import { CreateVoucherReqDto } from '@/api/vouchers/dto/create-voucher.req.dto';
+import { PageVouchersReqDto } from '@/api/vouchers/dto/page-vouchers-req.dto';
+import { UpdateVoucherReqDto } from '@/api/vouchers/dto/update-voucher.req.dto';
+import { VoucherResDto } from '@/api/vouchers/dto/voucher.res.dto';
+import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
+import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
+import { Order } from '@/constants/app.constant';
+import { ErrorCode } from '@/constants/error-code.constant';
+import {
+  DRIZZLE,
+  queryWithCount,
+  Transaction,
+  withPagination,
+} from '@/database/global';
+import {
+  areas,
+  RoleEnum,
+  stores,
+  users,
+  vouchers,
+  VouchersStatusEnum,
+  VouchersTypeEnum,
+} from '@/database/schemas';
+import { DrizzleDB } from '@/database/types/drizzle';
+import { ValidationException } from '@/exceptions/validation.exception';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  getTableColumns,
+  ilike,
+  isNull,
+  or,
+  sql,
+} from 'drizzle-orm';
+import _ from 'lodash'; // Import Lodash
+
+@Injectable()
+export class VouchersService {
+  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
+
+  async getPageVouchers(reqDto: PageVouchersReqDto, payload: JwtPayloadType) {
+    const qb = this.db
+      .select({
+        ...getTableColumns(vouchers),
+        user: users,
+      })
+      .from(vouchers)
+      .leftJoin(users, eq(users.id, vouchers.userId))
+      .leftJoin(stores, eq(stores.userId, users.id))
+      .where(
+        and(
+          isNull(vouchers.deletedAt),
+          ...(reqDto.storeInput
+            ? [
+                or(
+                  eq(users.phone, reqDto.storeInput),
+                  eq(stores.name, reqDto.storeInput),
+                ),
+              ]
+            : []),
+          ilike(vouchers.code, `%${reqDto.q ?? ''}%`),
+          ...(reqDto.areaId ? [eq(vouchers.areaId, reqDto.areaId)] : []),
+          ...(reqDto.type ? [eq(vouchers.type, reqDto.type)] : []),
+        ),
+      )
+      .orderBy(
+        reqDto.order === Order.DESC
+          ? desc(vouchers.createdAt)
+          : asc(vouchers.createdAt),
+      )
+      .$dynamic();
+
+    await withPagination(
+      qb,
+
+      reqDto.limit,
+      reqDto.offset,
+    );
+    const [entities, totalCount] = await queryWithCount(qb);
+
+    const meta = new OffsetPaginationDto(totalCount, reqDto);
+    return new OffsetPaginatedDto(
+      entities.map((e) => plainToInstance(VoucherResDto, e)),
+      meta,
+    );
+  }
+
+  async existByCode(
+    code: string,
+    userOrManagerId: number,
+  ): Promise<{
+    voucherId: number;
+  }> {
+    return this.db
+      .select({
+        voucherId: vouchers.id,
+      })
+      .from(vouchers)
+      .where(
+        and(
+          isNull(vouchers.deletedAt),
+          eq(vouchers.code, code),
+          or(
+            eq(vouchers.userId, userOrManagerId),
+            eq(vouchers.managerId, userOrManagerId),
+          ),
+        ),
+      )
+      .limit(1)
+      .then((res) => res[0]);
+  }
+
+  async create(reqDto: CreateVoucherReqDto, payload: JwtPayloadType) {
+    if (await this.existByCode(reqDto.code, payload.id)) {
+      throw new ValidationException(ErrorCode.V002, HttpStatus.BAD_REQUEST);
+    }
+    if (reqDto.minOrderValue && reqDto.maxOrderValue) {
+      throw new ValidationException(ErrorCode.V007, HttpStatus.BAD_REQUEST);
+    }
+
+    if (reqDto.areaId) {
+      const area = await this.db
+        .select({
+          areaId: areas.id,
+          point: areas.point,
+        })
+        .from(areas)
+        .where(eq(areas.id, reqDto.areaId))
+        .then((res) => res[0]);
+      if (!area) {
+        throw new ValidationException(ErrorCode.AR001, HttpStatus.BAD_REQUEST);
+      }
+      if (area.point < reqDto.maxUses * reqDto.value) {
+        throw new ValidationException(ErrorCode.TR002, HttpStatus.BAD_REQUEST);
+      }
+
+      await this.db
+        .update(areas)
+        .set({
+          point: sql`${areas.point} -
+          ${reqDto.maxUses * reqDto.value}`,
+        })
+        .where(eq(areas.id, reqDto.areaId));
+    }
+
+    return this.db
+      .insert(vouchers)
+      .values({
+        ...reqDto,
+        ...(reqDto.isHidden ? { isHidden: true } : {}),
+        ...(payload.role === RoleEnum.ADMIN ||
+        payload.role === RoleEnum.MANAGEMENT
+          ? {
+              managerId: payload.id,
+              type: VouchersTypeEnum.ADMIN,
+              ...(payload.role === RoleEnum.MANAGEMENT
+                ? {
+                    type: VouchersTypeEnum.MANAGEMENT,
+                    areaId: payload.areaId,
+                  }
+                : {}),
+            }
+          : {
+              userId: payload.id,
+              type: VouchersTypeEnum.STORE,
+              ...(payload.role === RoleEnum.STORE
+                ? {
+                    areaId: reqDto.areaId,
+                  }
+                : {}),
+            }),
+      })
+      .returning()
+      .then((res) => {
+        return plainToInstance(VoucherResDto, res[0]);
+      });
+  }
+
+  async ensureVoucherIsActive(voucherId: number, tx: Transaction) {
+    return await tx
+      .select({
+        id: vouchers.id,
+        status: vouchers.status,
+        startDate: vouchers.startDate,
+        endDate: vouchers.endDate,
+        usedCount: vouchers.usedCount,
+        maxUses: vouchers.maxUses,
+      })
+      .from(vouchers)
+      .where(
+        and(
+          eq(vouchers.id, voucherId),
+          eq(vouchers.status, VouchersStatusEnum.ACTIVE),
+          sql`${vouchers.startDate} <=
+          ${new Date()}`,
+          sql`${vouchers.endDate} >=
+          ${new Date()}`,
+          sql`${vouchers.usedCount} <
+          ${vouchers.maxUses}`,
+        ),
+      )
+      .then((res) => res[0]);
+  }
+
+  async update(voucherId: number, reqDto: UpdateVoucherReqDto) {
+    const now = new Date();
+    const status = _.cond([
+      [
+        (d: UpdateVoucherReqDto) => d.startDate && new Date(d.startDate) > now,
+        () => VouchersStatusEnum.PENDING,
+      ],
+      [
+        (d: UpdateVoucherReqDto) => d.endDate && new Date(d.endDate) < now,
+        () => VouchersStatusEnum.EXPIRED,
+      ],
+      [_.stubTrue, () => VouchersStatusEnum.ACTIVE], // Trường hợp mặc định
+    ])(reqDto);
+
+    return this.db
+      .update(vouchers)
+      .set({
+        ...reqDto,
+        ...(reqDto.status ? { status: reqDto.status } : { status }),
+      })
+      .where(eq(vouchers.id, voucherId))
+      .returning()
+      .then((res) => {
+        if (!res[0]) {
+          throw new ValidationException(ErrorCode.V001, HttpStatus.BAD_REQUEST);
+        }
+        return plainToInstance(VoucherResDto, res[0]);
+      });
+  }
+
+  async softDelete(voucherId: number) {
+    const voucher = await this.db
+      .select()
+      .from(vouchers)
+      .where(eq(vouchers.id, voucherId))
+      .then((res) => res[0]);
+    if (!voucher) {
+      throw new ValidationException(ErrorCode.V001, HttpStatus.BAD_REQUEST);
+    }
+    return this.db
+      .update(vouchers)
+      .set({
+        deletedAt: new Date(),
+      })
+      .where(eq(vouchers.id, voucherId))
+      .returning()
+      .then((res) => {
+        return plainToInstance(VoucherResDto, res[0]);
+      });
+  }
+
+  async getDetailById(voucherId: number) {
+    const voucher = await this.db
+      .select({
+        ...getTableColumns(vouchers),
+        user: users,
+      })
+      .from(vouchers)
+      .leftJoin(users, eq(users.id, vouchers.userId))
+      .where(and(isNull(vouchers.deletedAt), eq(vouchers.id, voucherId)))
+      .then((res) => res[0]);
+    if (!voucher) {
+      throw new ValidationException(ErrorCode.V001, HttpStatus.BAD_REQUEST);
+    }
+    return plainToInstance(VoucherResDto, voucher);
+  }
+
+  async getVouchersForUser(
+    storeId: number,
+    areaId: number,
+    isHidden: boolean,
+    code: string,
+    payload: JwtPayloadType,
+  ) {
+    return this.db
+      .select({
+        ...getTableColumns(vouchers),
+        user: users,
+      })
+      .from(vouchers)
+      .leftJoin(users, eq(users.id, vouchers.userId))
+      .where(
+        and(
+          isNull(vouchers.deletedAt),
+          eq(vouchers.status, VouchersStatusEnum.ACTIVE),
+          ...(payload.role === RoleEnum.STORE
+            ? [eq(vouchers.userId, payload.id)]
+            : []),
+          ...(payload.role === RoleEnum.USER
+            ? [or(eq(vouchers.areaId, areaId), eq(vouchers.isHidden, isHidden))]
+            : []),
+          ...(storeId ? [eq(stores.id, storeId)] : []),
+          ...(code ? [ilike(vouchers.code, `%${code}%`)] : []),
+        ),
+      )
+      .orderBy(asc(vouchers.createdAt));
+  }
+}

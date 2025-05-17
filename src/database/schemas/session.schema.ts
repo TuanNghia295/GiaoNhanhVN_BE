@@ -1,13 +1,19 @@
 import { relations } from 'drizzle-orm';
-import { pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import {
+  integer,
+  pgTable,
+  serial,
+  timestamp,
+  varchar,
+} from 'drizzle-orm/pg-core';
 import { users } from './user.schema';
 
 export const sessions = pgTable('sessions', {
-  id: uuid().primaryKey().defaultRandom(),
+  id: serial().primaryKey().notNull(),
   hash: varchar({ length: 255 }).notNull(),
-  created_at: timestamp().notNull().defaultNow(),
-  author_id: uuid().notNull(),
-  updated_at: timestamp()
+  authorId: integer().notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at')
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
@@ -18,7 +24,7 @@ export const sessions = pgTable('sessions', {
  *******************************************************************/
 export const sessionsRelations = relations(sessions, ({ one }) => ({
   author: one(users, {
-    fields: [sessions.author_id],
+    fields: [sessions.authorId],
     references: [users.id],
   }),
 }));

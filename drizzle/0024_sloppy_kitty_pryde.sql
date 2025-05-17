@@ -1,0 +1,1 @@
+ALTER TABLE "ratings" ALTER COLUMN "store_id" DROP NOT NULL;

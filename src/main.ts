@@ -1,11 +1,15 @@
 import { AuthService } from '@/api/auth/auth.service';
+import { SettingsService } from '@/api/settings/settings.service';
 import { AllConfigType } from '@/config/config.type';
 import { Environment } from '@/constants/app.constant';
 import { AuthGuard } from '@/guards/auth.guard';
+import { RoleGuard } from '@/guards/role.guard';
+import { AccessControlService } from '@/shared/access-control.service';
 import setupSwagger from '@/utils/setup-swagger';
 import {
   ClassSerializerInterceptor,
   HttpStatus,
+  RequestMethod,
   UnprocessableEntityException,
   ValidationError,
   ValidationPipe,
@@ -13,6 +17,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { GlobalExceptionFilter } from './filter/global-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -21,6 +26,21 @@ async function bootstrap() {
   const isProduction =
     configService.get('app.nodeEnv', { infer: true }) ===
     Environment.PRODUCTION;
+
+  // Use global prefix if you don't have subdomain
+  app.setGlobalPrefix(
+    configService.getOrThrow('app.apiPrefix', { infer: true }),
+    {
+      exclude: [
+        {
+          path: 'health',
+          method: RequestMethod.GET,
+        },
+      ],
+    },
+  );
+
+  app.useGlobalFilters(new GlobalExceptionFilter(configService));
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -34,6 +54,13 @@ async function bootstrap() {
   );
 
   app.useGlobalGuards(new AuthGuard(reflector, app.get(AuthService)));
+  app.useGlobalGuards(
+    new RoleGuard(
+      reflector,
+      app.get(SettingsService),
+      app.get(AccessControlService),
+    ),
+  );
 
   //************************************************************
   // Transform response to class instance

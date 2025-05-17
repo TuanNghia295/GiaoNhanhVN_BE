@@ -1,0 +1,1 @@
+ALTER TABLE "comments" ADD COLUMN "commentUsedId" integer NOT NULL;
