@@ -32,6 +32,7 @@ import {
   vouchersOnOrders,
   VouchersTypeEnum,
 } from '@/database/schemas';
+import { voucherUsages } from '@/database/schemas/voucher-usage.schema';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { GoongService } from '@/shared/goong.service';
@@ -360,7 +361,21 @@ export class OrdersService {
     return parseFloat(totalFee);
   }
 
+  private async applyVoucher(
+    orderId: number,
+    voucherId: number,
+    payload: JwtPayloadType,
+    tx: Transaction,
+  ) {
+    await this.vouchersService.ensureVoucherIsActive(voucherId, payload.id, tx);
+    await Promise.all([
+      tx.insert(vouchersOnOrders).values({ orderId: orderId, voucherId }),
+      tx.insert(voucherUsages).values({ userId: payload.id, voucherId }),
+    ]);
+  }
+
   async create(payload: JwtPayloadType, reqDto: OrderCreateReqDto) {
+    console.log('reqDto', reqDto);
     if (!reqDto.province && reqDto.type !== OrderTypeEnum.FOOD) {
       throw new ValidationException(ErrorCode.AR001, HttpStatus.BAD_REQUEST);
     }
@@ -378,6 +393,10 @@ export class OrdersService {
 
     // Kiểm tra xem cửa hàng có hoạt động hay không
     // const store = await this.storesService.checkStoreActive(reqDto.storeId);
+
+    //-------------------------------------------------------------
+    // Kiểm tra voucher còn hạng sử dụng không
+    //-------------------------------------------------------------
 
     const calculateOrder = await this.cache.get<CalculateResponse>(
       reqDto.sessionId,
@@ -403,38 +422,13 @@ export class OrdersService {
         .returning();
 
       // Kiểm tra voucher admin
-      if (reqDto.voucherAdminId) {
-        // Kiểm tra xem voucher có tồn tại và còn hiệu lực hay không
-
-        if (
-          !(await this.vouchersService.ensureVoucherIsActive(
-            reqDto.voucherAdminId,
-            tx,
-          ))
-        ) {
-          throw new ValidationException(ErrorCode.V001, HttpStatus.BAD_REQUEST);
-        }
-        await tx.insert(vouchersOnOrders).values({
-          orderId: order.id,
-          voucherId: reqDto.voucherAdminId,
-        });
+      if (reqDto.voucherAdminId && reqDto.voucherAdminId > 0) {
+        await this.applyVoucher(order.id, reqDto.voucherAdminId, payload, tx);
       }
 
       // Kiểm tra voucher cửa hàng
-      if (reqDto.voucherStoreId) {
-        // Kiểm tra xem voucher có tồn tại và còn hiệu lực hay không
-        if (
-          !(await this.vouchersService.ensureVoucherIsActive(
-            reqDto.voucherStoreId,
-            tx,
-          ))
-        ) {
-          throw new ValidationException(ErrorCode.V001, HttpStatus.BAD_REQUEST);
-        }
-        await tx.insert(vouchersOnOrders).values({
-          orderId: order.id,
-          voucherId: reqDto.voucherStoreId,
-        });
+      if (reqDto.voucherStoreId && reqDto.voucherStoreId > 0) {
+        await this.applyVoucher(order.id, reqDto.voucherStoreId, payload, tx);
       }
       // Tạo chi tiết đơn hàng
       if (reqDto.items && reqDto.items.length > 0) {
@@ -487,7 +481,7 @@ export class OrdersService {
                                      FROM vouchers_on_orders ov
                                             JOIN vouchers v ON ov.voucher_id = v.id
                                      WHERE ov.order_id = ${order.id}
-                                       AND v.type = ${VouchersTypeEnum.ADMIN})
+                                       AND v.type IN (${VouchersTypeEnum.ADMIN}, ${VouchersTypeEnum.MANAGEMENT}))
         UPDATE orders
         SET total_delivery = GREATEST(${calculateOrder.totalDelivery} - COALESCE(tav.total_admin, 0), 0),
             total_voucher  = orders.total_voucher + LEAST(${calculateOrder.totalDelivery}, COALESCE(tav.total_admin, 0)),

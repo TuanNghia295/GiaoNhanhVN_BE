@@ -27,8 +27,8 @@ export class UpdateUserReqDto {
   @StringFieldOptional()
   fcmToken: string;
 
-  // @StringFieldOptional()
-  // province?: string;
+  @StringFieldOptional()
+  province?: string;
 
   @StringFieldOptional()
   parent?: string;

@@ -150,6 +150,7 @@ export class StoresService implements OnModuleInit {
           ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
         ),
       )
+      // giớ hạn 15km bán kính
       .$dynamic();
 
     if (reqDto.isBestSeller) {

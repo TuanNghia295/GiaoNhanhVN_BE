@@ -15,13 +15,16 @@ import {
 } from '@/database/global';
 import {
   areas,
+  orders,
   RoleEnum,
   stores,
   users,
   vouchers,
+  vouchersOnOrders,
   VouchersStatusEnum,
   VouchersTypeEnum,
 } from '@/database/schemas';
+import { voucherUsages } from '@/database/schemas/voucher-usage.schema'; // Import Lodash
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
@@ -29,6 +32,7 @@ import { plainToInstance } from 'class-transformer';
 import {
   and,
   asc,
+  count,
   desc,
   eq,
   getTableColumns,
@@ -37,7 +41,7 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
-import _ from 'lodash'; // Import Lodash
+import _ from 'lodash';
 
 @Injectable()
 export class VouchersService {
@@ -47,9 +51,13 @@ export class VouchersService {
     const qb = this.db
       .select({
         ...getTableColumns(vouchers),
+        // điếm số lượng voucher đã sử dụng
+        usedCount: count(vouchersOnOrders.voucherId),
         user: users,
       })
       .from(vouchers)
+      .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
+      .leftJoin(orders, eq(orders.id, vouchersOnOrders.orderId))
       .leftJoin(users, eq(users.id, vouchers.userId))
       .leftJoin(stores, eq(stores.userId, users.id))
       .where(
@@ -68,6 +76,7 @@ export class VouchersService {
           ...(reqDto.type ? [eq(vouchers.type, reqDto.type)] : []),
         ),
       )
+      .groupBy(vouchers.id, users.id)
       .orderBy(
         reqDto.order === Order.DESC
           ? desc(vouchers.createdAt)
@@ -116,6 +125,8 @@ export class VouchersService {
   }
 
   async create(reqDto: CreateVoucherReqDto, payload: JwtPayloadType) {
+    //-------------------------------------------------------
+    // Kiểm tra mã đó có đang tồn tại
     if (await this.existByCode(reqDto.code, payload.id)) {
       throw new ValidationException(ErrorCode.V002, HttpStatus.BAD_REQUEST);
     }
@@ -148,10 +159,24 @@ export class VouchersService {
         .where(eq(areas.id, reqDto.areaId));
     }
 
+    const now = new Date();
+    const status = _.cond([
+      [
+        (d: CreateVoucherReqDto) => d.startDate && new Date(d.startDate) > now,
+        () => VouchersStatusEnum.PENDING,
+      ],
+      [
+        (d: CreateVoucherReqDto) => d.endDate && new Date(d.endDate) < now,
+        () => VouchersStatusEnum.EXPIRED,
+      ],
+      [_.stubTrue, () => VouchersStatusEnum.ACTIVE], // Trường hợp mặc định
+    ])(reqDto);
+
     return this.db
       .insert(vouchers)
       .values({
         ...reqDto,
+        status, // Trạng thái voucher tự động được xác định dựa trên ngày bắt đầu và ngày kết thúc
         ...(reqDto.isHidden ? { isHidden: true } : {}),
         ...(payload.role === RoleEnum.ADMIN ||
         payload.role === RoleEnum.MANAGEMENT
@@ -181,30 +206,51 @@ export class VouchersService {
       });
   }
 
-  async ensureVoucherIsActive(voucherId: number, tx: Transaction) {
-    return await tx
+  async ensureVoucherIsActive(
+    voucherId: number,
+    userId: number,
+    tx: Transaction,
+  ) {
+    const [voucher] = await tx
       .select({
-        id: vouchers.id,
-        status: vouchers.status,
-        startDate: vouchers.startDate,
-        endDate: vouchers.endDate,
-        usedCount: vouchers.usedCount,
         maxUses: vouchers.maxUses,
+        usedCount: count(vouchersOnOrders.voucherId),
       })
       .from(vouchers)
+      .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
+      .groupBy(vouchers.id)
       .where(
         and(
           eq(vouchers.id, voucherId),
+          isNull(vouchers.deletedAt),
           eq(vouchers.status, VouchersStatusEnum.ACTIVE),
-          sql`${vouchers.startDate} <=
-          ${new Date()}`,
-          sql`${vouchers.endDate} >=
-          ${new Date()}`,
-          sql`${vouchers.usedCount} <
-          ${vouchers.maxUses}`,
         ),
-      )
-      .then((res) => res[0]);
+      );
+
+    const [{ userUsageCount }] = await tx
+      .select({
+        userUsageCount: count(),
+      })
+      .from(voucherUsages)
+      .where(
+        and(
+          eq(voucherUsages.voucherId, voucherId),
+          eq(voucherUsages.userId, userId),
+        ),
+      );
+    if (!voucher) {
+      throw new ValidationException(
+        ErrorCode.V001,
+        HttpStatus.BAD_REQUEST,
+        'Voucher not found or inactive',
+      );
+    }
+    if (
+      voucher.usedCount >= voucher.maxUses ||
+      userUsageCount >= voucher.maxUses
+    ) {
+      throw new ValidationException(ErrorCode.V006, HttpStatus.BAD_REQUEST);
+    }
   }
 
   async update(voucherId: number, reqDto: UpdateVoucherReqDto) {
@@ -284,24 +330,27 @@ export class VouchersService {
     return this.db
       .select({
         ...getTableColumns(vouchers),
+        usedCount: count(vouchersOnOrders.voucherId),
         user: users,
       })
       .from(vouchers)
       .leftJoin(users, eq(users.id, vouchers.userId))
+      .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
       .where(
         and(
           isNull(vouchers.deletedAt),
           eq(vouchers.status, VouchersStatusEnum.ACTIVE),
-          ...(payload.role === RoleEnum.STORE
-            ? [eq(vouchers.userId, payload.id)]
-            : []),
-          ...(payload.role === RoleEnum.USER
-            ? [or(eq(vouchers.areaId, areaId), eq(vouchers.isHidden, isHidden))]
-            : []),
-          ...(storeId ? [eq(stores.id, storeId)] : []),
-          ...(code ? [ilike(vouchers.code, `%${code}%`)] : []),
+          // ...(payload.role === RoleEnum.STORE
+          //   ? [eq(vouchers.userId, payload.id)]
+          //   : []),
+          // ...(payload.role === RoleEnum.USER
+          //   ? [or(eq(vouchers.areaId, areaId), eq(vouchers.isHidden, isHidden))]
+          //   : []),
+          // ...(storeId ? [eq(stores.id, storeId)] : []),
+          // ...(code ? [ilike(vouchers.code, `%${code}%`)] : []),
         ),
       )
-      .orderBy(asc(vouchers.createdAt));
+      .groupBy(vouchers.id, users.id)
+      .orderBy(desc(vouchers.createdAt));
   }
 }

@@ -533,6 +533,20 @@
       "when": 1747396127048,
       "tag": "0075_marvelous_madelyne_pryor",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1747541096108,
+      "tag": "0076_pink_exiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1747544447731,
+      "tag": "0077_swift_black_bolt",
+      "breakpoints": true
     }
   ]
 }
