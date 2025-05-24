@@ -4,6 +4,7 @@ import { DeliversService } from '@/api/delivers/delivers.service';
 import { ManagersService } from '@/api/managers/managers.service';
 import { AddPointDeliverReqDto } from '@/api/transactions/dto/add-point-deliver.req.dto';
 import { AddPointReqDto } from '@/api/transactions/dto/add-point.req.dto';
+import { CreateTransactionReqDto } from '@/api/transactions/dto/create-transaction.req.dto';
 import { PagingTransaction } from '@/api/transactions/dto/page-transaction.req.dto';
 import { TransactionResDto } from '@/api/transactions/dto/transaction.res.dto';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
@@ -11,17 +12,28 @@ import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
 import {
+  areas,
+  delivers,
   RoleEnum,
   TransactionMethodEnum,
   transactions,
   TransactionStatus,
-  TransactionType,
+  TransactionTypeEnum,
 } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { and, count, desc, eq, not, sql } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  not,
+  sql,
+} from 'drizzle-orm';
 
 @Injectable()
 export class TransactionsService {
@@ -33,11 +45,32 @@ export class TransactionsService {
   ) {}
 
   async getCount(payload: JwtPayloadType) {
-    const [{ totalCount }] = await this.db
+    const qb = this.db
       .select({ totalCount: count() })
       .from(transactions)
-      .where(and(eq(transactions.status, TransactionStatus.PENDING)))
-      .execute();
+      .$dynamic();
+
+    switch (payload.role) {
+      case RoleEnum.ADMIN:
+        qb.where(
+          and(
+            eq(transactions.method, TransactionMethodEnum.REQUEST),
+            isNotNull(transactions.managerId),
+          ),
+        );
+        break;
+      case RoleEnum.MANAGEMENT:
+        qb.where(
+          and(
+            eq(transactions.method, TransactionMethodEnum.REQUEST),
+            eq(transactions.managerId, payload.id),
+            isNotNull(transactions.deliverId),
+          ),
+        );
+        break;
+    }
+
+    const [{ totalCount }] = await qb.execute();
 
     return totalCount;
   }
@@ -62,16 +95,19 @@ export class TransactionsService {
         .values({
           amount: reqDto.point,
           type: reqDto.type,
-          status: TransactionStatus.APPROVED,
-          role: RoleEnum.DELIVER,
-          method: TransactionMethodEnum.TRANSFER,
           deliverId: reqDto.deliverId,
-          approvedBy: payload.id,
+          status: TransactionStatus.APPROVED,
+          method: TransactionMethodEnum.TRANSFER,
+          ...(payload.role === RoleEnum.MANAGEMENT && {
+            areaId: payload.areaId,
+          }),
         })
         .returning();
 
+      console.log('transaction', transaction);
+
       switch (reqDto.type) {
-        case TransactionType.DEPOSIT:
+        case TransactionTypeEnum.DEPOSIT:
           // Nếu là admin thì trừ điểm của khu vực
           if (payload.role === RoleEnum.MANAGEMENT) {
             const area = await this.areasService.existById(payload.areaId);
@@ -94,7 +130,7 @@ export class TransactionsService {
             tx,
           );
           break;
-        case TransactionType.WITHDRAW:
+        case TransactionTypeEnum.WITHDRAW:
           // Nếu là admin thì cộng điểm cho khu vực
           if (payload.role === RoleEnum.MANAGEMENT) {
             if (existDeliver.point < reqDto.point) {
@@ -116,15 +152,16 @@ export class TransactionsService {
     });
   }
 
-  async getRecordTransaction(
-    reqDto: PagingTransaction,
-    payload: JwtPayloadType,
-  ) {
+  async getRecordTransaction(reqDto: PagingTransaction) {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.transactions> = {
       where: and(
         ...(reqDto.deliverId
           ? [eq(transactions.deliverId, reqDto.deliverId)]
           : []),
+        inArray(transactions.method, [
+          TransactionMethodEnum.TRANSFER,
+          TransactionMethodEnum.REQUEST,
+        ]),
         not(eq(transactions.status, TransactionStatus.PENDING)),
       ),
     };
@@ -175,11 +212,11 @@ export class TransactionsService {
         .returning();
 
       switch (reqDto.type) {
-        case TransactionType.DEPOSIT:
+        case TransactionTypeEnum.DEPOSIT:
           console.log('manager.areaId', manager.areaId, reqDto.point);
           await this.areasService.addPoint(manager.areaId, reqDto.point, tx);
           break;
-        case TransactionType.WITHDRAW:
+        case TransactionTypeEnum.WITHDRAW:
           if (manager.point < reqDto.point) {
             throw new ValidationException(ErrorCode.TR002);
           }
@@ -201,8 +238,35 @@ export class TransactionsService {
     payload: JwtPayloadType,
   ) {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.transactions> = {
-      where: eq(transactions.method, TransactionMethodEnum.REQUEST),
+      with: {
+        manager: true,
+        deliver: true,
+      },
     };
+
+    switch (payload.role) {
+      case RoleEnum.ADMIN:
+        // lấy ra yêu cầu nạp/rút của khu vực
+        baseConfig.where = and(
+          eq(transactions.method, TransactionMethodEnum.REQUEST),
+          isNotNull(transactions.managerId),
+        );
+        break;
+      case RoleEnum.MANAGEMENT:
+        // chỉ lấy ra yêu cầu nạp/rút shipper của khu vực mình
+        baseConfig.where = and(
+          eq(transactions.method, TransactionMethodEnum.REQUEST),
+          eq(transactions.managerId, payload.id),
+          isNotNull(transactions.deliverId),
+        );
+        break;
+      case RoleEnum.DELIVER:
+        // chỉ lấy ra yêu cầu nạp/rút của mình
+        baseConfig.where = and(
+          eq(transactions.method, TransactionMethodEnum.REQUEST),
+          eq(transactions.deliverId, payload.id),
+        );
+    }
 
     const qCount = this.db.query.transactions.findMany({
       ...baseConfig,
@@ -225,4 +289,106 @@ export class TransactionsService {
       meta,
     );
   }
+
+  async create(reqDto: CreateTransactionReqDto, payload: JwtPayloadType) {
+    return await this.db.transaction(async (tx) => {
+      const [createdTransaction] = await tx
+        .insert(transactions)
+        .values({
+          ...reqDto,
+          status: TransactionStatus.PENDING,
+          role: RoleEnum.DELIVER,
+          method: TransactionMethodEnum.REQUEST,
+          ...(payload.role === RoleEnum.MANAGEMENT && {
+            areaId: payload.areaId,
+            managerId: payload.id,
+          }),
+          ...(payload.role === RoleEnum.DELIVER && {
+            deliverId: payload.id,
+            areaId: payload.areaId,
+          }),
+        })
+        .returning();
+
+      return plainToInstance(TransactionResDto, createdTransaction);
+    });
+  }
+
+  async existById(transactionId: number) {
+    return await this.db
+      .select({
+        id: transactions.id,
+        status: transactions.status,
+        areaPoint: areas.point,
+        deliverPoint: delivers.point,
+        areaId: transactions.areaId,
+      })
+      .from(transactions)
+      .leftJoin(areas, eq(transactions.areaId, areas.id))
+      .leftJoin(delivers, eq(transactions.deliverId, delivers.id))
+      .where(eq(transactions.id, transactionId))
+      .then((result) => result[0]);
+  }
+
+  async approve(transactionId: number, payload: JwtPayloadType) {
+    return await this.db.transaction(async (tx) => {
+      const transaction = await this.existById(transactionId);
+      if (!transaction) {
+        throw new ValidationException(ErrorCode.TR001);
+      }
+      if (transaction.status !== TransactionStatus.PENDING) {
+        throw new ValidationException(ErrorCode.TR003);
+      }
+      const [updatedTransaction] = await tx
+        .update(transactions)
+        .set({
+          status: TransactionStatus.APPROVED,
+          approvedBy: payload.id,
+        })
+        .where(eq(transactions.id, transactionId))
+        .returning();
+
+      switch (updatedTransaction.type) {
+        case TransactionTypeEnum.DEPOSIT:
+          break;
+        case TransactionTypeEnum.WITHDRAW:
+          break;
+      }
+      return plainToInstance(TransactionResDto, updatedTransaction);
+    });
+  }
+
+  // private async doApproveByManager(
+  //   updatedTransaction: TransactionType,
+  //   tx: Transaction,
+  // ) {
+  //   switch (type) {
+  //     case TransactionTypeEnum.DEPOSIT:
+  //       if (areaPoint < amount) {
+  //         throw new ValidationException(ErrorCode.TR002);
+  //       }
+  //       //----------------------------------------------------
+  //       // Trừ điểm khu vực
+  //       //----------------------------------------------------
+  //       await this.areasService.subtractPoint(areaId, amount, tx);
+  //       //----------------------------------------------------
+  //       // Cộng điểm cho shipper
+  //       //----------------------------------------------------
+  //       await this.deliversService.addPoint(areaId, amount, tx);
+  //       break;
+  //     case TransactionTypeEnum.WITHDRAW:
+  //       if (deliverPoint < amount) {
+  //         throw new ValidationException(ErrorCode.TR002);
+  //       }
+  //       //----------------------------------------------------
+  //       // Cộng điểm khu vực
+  //       //----------------------------------------------------
+  //       await this.areasService.addPoint(areaId, amount, tx);
+  //       //----------------------------------------------------
+  //       // Trừ điểm cho shipper
+  //       //----------------------------------------------------
+  //       await this.deliversService.subtractPoint(areaId, amount, tx);
+  //       break;
+  //   }
+  // }
 }

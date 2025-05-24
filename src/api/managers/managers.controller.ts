@@ -42,7 +42,7 @@ export class ManagersController {
   }
 
   @Roles(RoleEnum.ADMIN)
-  @ApiPublic({
+  @ApiAuth({
     summary: 'Đăng ký quản lý khu vực mới',
     type: LoginResDto,
   })

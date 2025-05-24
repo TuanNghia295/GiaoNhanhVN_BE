@@ -14,7 +14,7 @@ import {
 export const orderDetails = pgTable('order_details', {
   id: serial('id').primaryKey().notNull(),
   quantity: integer('quantity').notNull(),
-  total: decimal('total', { precision: 15, scale: 2 })
+  total: decimal('total', { precision: 15, scale: 2, mode: 'number' })
     .$type<number>()
     .notNull()
     .default(0),

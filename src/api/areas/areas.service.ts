@@ -66,9 +66,6 @@ export class AreasService {
     name: string;
     parent: string;
   }): Promise<{ id: number }> {
-    console.log(`areaId`, areaId);
-    console.log('name', name);
-    console.log('padding', parent);
     return this.db
       .select({
         id: areas.id,

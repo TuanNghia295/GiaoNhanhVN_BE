@@ -7,12 +7,7 @@ import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagi
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { Order } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
-import {
-  DRIZZLE,
-  queryWithCount,
-  Transaction,
-  withPagination,
-} from '@/database/global';
+import { DRIZZLE, Transaction, withPagination } from '@/database/global';
 import {
   areas,
   orders,
@@ -37,6 +32,7 @@ import {
   eq,
   getTableColumns,
   ilike,
+  inArray,
   isNull,
   or,
   sql,
@@ -60,22 +56,6 @@ export class VouchersService {
       .leftJoin(orders, eq(orders.id, vouchersOnOrders.orderId))
       .leftJoin(users, eq(users.id, vouchers.userId))
       .leftJoin(stores, eq(stores.userId, users.id))
-      .where(
-        and(
-          isNull(vouchers.deletedAt),
-          ...(reqDto.storeInput
-            ? [
-                or(
-                  eq(users.phone, reqDto.storeInput),
-                  eq(stores.name, reqDto.storeInput),
-                ),
-              ]
-            : []),
-          ilike(vouchers.code, `%${reqDto.q ?? ''}%`),
-          ...(reqDto.areaId ? [eq(vouchers.areaId, reqDto.areaId)] : []),
-          ...(reqDto.type ? [eq(vouchers.type, reqDto.type)] : []),
-        ),
-      )
       .groupBy(vouchers.id, users.id)
       .orderBy(
         reqDto.order === Order.DESC
@@ -84,13 +64,48 @@ export class VouchersService {
       )
       .$dynamic();
 
-    await withPagination(
-      qb,
-
-      reqDto.limit,
-      reqDto.offset,
+    const whereClause = and(
+      isNull(vouchers.deletedAt),
+      ...(reqDto.q ? [ilike(vouchers.code, `%${reqDto.q}%`)] : []),
+      ...(reqDto.storeInput
+        ? [
+            or(
+              ilike(stores.name, `%${reqDto.storeInput}%`),
+              ilike(users.phone, `%${reqDto.storeInput}%`),
+            ),
+          ]
+        : []),
+      ...(reqDto.isApp
+        ? [
+            inArray(vouchers.type, [
+              VouchersTypeEnum.ADMIN,
+              VouchersTypeEnum.ADMIN,
+            ]),
+          ]
+        : [eq(vouchers.type, VouchersTypeEnum.STORE)]),
+      ...(reqDto.areaId ? [eq(vouchers.areaId, reqDto.areaId)] : []),
+      isNull(vouchers.deletedAt),
     );
-    const [entities, totalCount] = await queryWithCount(qb);
+
+    await withPagination(qb, reqDto.limit, reqDto.offset);
+    const [entities, { totalCount }] = await Promise.all([
+      qb
+        .where(whereClause)
+        .orderBy(
+          sql.raw("CASE WHEN vouchers.status = 'ACTIVE' THEN 0 ELSE 1 END"),
+          desc(vouchers.createdAt),
+        ),
+      this.db
+        .select({
+          totalCount: count(),
+        })
+        .from(vouchers)
+        .leftJoin(users, eq(users.id, vouchers.userId))
+        .leftJoin(stores, eq(stores.userId, users.id))
+        .where(whereClause)
+        .execute()
+        .then((res) => res[0]),
+    ]);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
     return new OffsetPaginatedDto(
@@ -214,6 +229,7 @@ export class VouchersService {
     const [voucher] = await tx
       .select({
         maxUses: vouchers.maxUses,
+        usePerUser: vouchers.usePerUser,
         usedCount: count(vouchersOnOrders.voucherId),
       })
       .from(vouchers)
@@ -240,14 +256,19 @@ export class VouchersService {
       );
     if (!voucher) {
       throw new ValidationException(
-        ErrorCode.V001,
+        ErrorCode.V003,
         HttpStatus.BAD_REQUEST,
         'Voucher not found or inactive',
       );
     }
+
+    console.log('voucher', voucher);
+    console.log('userUsageCount', userUsageCount);
+    console.log('voucher.maxUses', voucher.maxUses);
+    console.log('voucher.usePerUser', voucher.usePerUser);
     if (
       voucher.usedCount >= voucher.maxUses ||
-      userUsageCount >= voucher.maxUses
+      userUsageCount >= voucher.usePerUser
     ) {
       throw new ValidationException(ErrorCode.V006, HttpStatus.BAD_REQUEST);
     }

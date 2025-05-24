@@ -28,6 +28,7 @@ import { CategoryItemsModule } from './api/category-items/category-items.module'
 import { CommentInRatingsModule } from './api/comment-in-ratings/comment-in-ratings.module';
 import { DeliversModule } from './api/delivers/delivers.module';
 import { EventsModule } from './api/events/events.module';
+import { ExcelsModule } from './api/excels/excels.module';
 import { ExtrasModule } from './api/extras/extras.module';
 import { GatewaysModule } from './api/gateways/gateways.module';
 import { LocationsModule } from './api/locations/locations.module';
@@ -118,6 +119,7 @@ import { FirebaseModule } from './firebase/firebase.module';
     FirebaseModule,
     EventsModule,
     CommentInRatingsModule,
+    ExcelsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

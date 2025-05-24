@@ -96,7 +96,6 @@ export class StoreMenusService {
   ): Promise<{
     storeMenuId: number;
   }> {
-    console.log('storeId', storeId);
     return await this.db
       .select({
         storeMenuId: storeMenus.id,

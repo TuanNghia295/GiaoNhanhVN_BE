@@ -4,6 +4,7 @@ import { DeliversService } from '@/api/delivers/delivers.service';
 import { CreateOrderDetailReqDto } from '@/api/order-details/dto/create-order-detail.req.dto';
 import { CalculateOrderReqDto } from '@/api/orders/dto/calculate-order.req.dto';
 import { OrderCreateReqDto } from '@/api/orders/dto/order-create.req.dto';
+import { OrderResDto } from '@/api/orders/dto/order.res.dto';
 import { PageMyOrderReqDto } from '@/api/orders/dto/page-my-order.req.dto';
 import { PageOrderReqDto } from '@/api/orders/dto/query-order.req.dto';
 import { UpdateStatusOrderReqDto } from '@/api/orders/dto/update-status-order.req.dto';
@@ -14,7 +15,10 @@ import { OrdersOffsetPaginatedResDto } from '@/common/dto/offset-pagination/orde
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE, Transaction } from '@/database/global';
 import {
+  Area,
+  areas,
   Deliver,
+  delivers,
   Distance,
   distances,
   extrasToOrderDetails,
@@ -23,6 +27,7 @@ import {
   orders,
   OrderStatusEnum,
   OrderTypeEnum,
+  reasonDeliverCancelOrders,
   RoleEnum,
   serviceFees,
   Setting,
@@ -41,6 +46,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { forwardRef, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Cache } from 'cache-manager';
+import { plainToInstance } from 'class-transformer';
 import { endOfDay, getHours, startOfDay } from 'date-fns';
 import {
   and,
@@ -52,6 +58,7 @@ import {
   getTableColumns,
   ilike,
   inArray,
+  isNotNull,
   SQL,
   sql,
 } from 'drizzle-orm';
@@ -88,6 +95,7 @@ export class OrdersService {
       with: {
         store: true,
         reasonDeliverCancelOrder: true,
+        deliver: true,
         orderDetails: {
           with: {
             product: true,
@@ -142,6 +150,7 @@ export class OrdersService {
       }),
       this.db.select({ totalCount: count() }).from(sql`${qCount}`),
     ]);
+    console.log('entities', entities);
 
     const totalsOrders = Object.fromEntries(
       (
@@ -175,7 +184,7 @@ export class OrdersService {
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
     return new OrdersOffsetPaginatedResDto(
-      entities,
+      entities.map((e) => plainToInstance(OrderResDto, e)),
       meta,
       totalOrdersForPaginated,
     );
@@ -219,13 +228,57 @@ export class OrdersService {
   }
 
   async calculate(reqDto: CalculateOrderReqDto) {
-    const sanitizedProvince = reqDto.province?.replace(/'/g, '');
-    const sanitizedParent = reqDto.parent?.replace(/'/g, '');
-    const area = await this.areasService.existByIdOrNameParent({
-      areaId: reqDto.areaId,
-      name: sanitizedProvince,
-      parent: sanitizedParent,
-    });
+    const [latitude, longitude] = reqDto.origins.split(',').map(Number);
+    let area: Area & {
+      distance?: number;
+    } = null;
+
+    //------------------------------------------------------------
+    // B1 : Nếu tồn tại areaId thì lấy thông tin khu vực đó
+    //------------------------------------------------------------
+    if (reqDto.areaId) {
+      area = await this.db.query.areas.findFirst({
+        where: eq(areas.id, reqDto.areaId),
+      });
+    }
+
+    //------------------------------------------------------------
+    // B2 : Nếu không có areaId thì tìm khu vực gần nhất
+    //------------------------------------------------------------
+    if (!area) {
+      area = await this.db
+        .select({
+          ...getTableColumns(areas),
+          distance: sql
+            .raw(
+              `
+        6371 * acos(
+          cos(radians(${latitude})) *
+          cos(radians(CAST(split_part(areas.location, ',', 1) AS double precision))) *
+          cos(radians(CAST(split_part(areas.location, ',', 2) AS double precision)) - radians(${longitude})) +
+          sin(radians(${latitude})) *
+          sin(radians(CAST(split_part(areas.location, ',', 1) AS double precision)))
+        )
+      `,
+            )
+            .mapWith(Number)
+            .as('distance'),
+        })
+        .from(areas)
+        .leftJoin(settings, eq(areas.id, settings.areaId))
+        .where(
+          and(
+            eq(settings.openFullTime, true),
+            isNotNull(areas.location),
+            // eq(areas.status, AreaStatusEnum.ACTIVE),
+          ),
+        )
+        .orderBy(sql`${sql.raw('distance ASC')}`)
+        .limit(1)
+        .then((res) => res[0]);
+    }
+
+    console.log('area', area);
 
     if (!area) {
       throw new ValidationException(ErrorCode.AR001, HttpStatus.NOT_FOUND);
@@ -239,7 +292,6 @@ export class OrdersService {
     const setting = await this.db.query.settings.findFirst({
       where: eq(settings.areaId, area.id),
     });
-    console.log('setting', setting, area.id);
     if (!setting) {
       throw new ValidationException(ErrorCode.ST001, HttpStatus.NOT_FOUND);
     }
@@ -249,10 +301,14 @@ export class OrdersService {
     // and set the order type to FOOD
     //-----------------------------------------------------
 
+    const orderType =
+      reqDto.orderType === OrderTypeEnum.ANOTHER_SHOP
+        ? OrderTypeEnum.FOOD
+        : reqDto.orderType;
     const serviceFeeWithType = await this.db.query.serviceFees.findFirst({
       where: and(
         eq(serviceFees.settingId, setting.id),
-        eq(serviceFees.type, reqDto.orderType), // bất kỳ loại nào
+        eq(serviceFees.type, orderType), // bất kỳ loại nào
       ),
       with: {
         distance: {
@@ -263,7 +319,6 @@ export class OrdersService {
     if (!serviceFeeWithType) {
       throw new ValidationException(ErrorCode.SF001, HttpStatus.NOT_FOUND);
     }
-    console.log(serviceFeeWithType);
 
     const distanceFee = await this.calculateDistanceFee(
       distance,
@@ -272,19 +327,17 @@ export class OrdersService {
     );
 
     // phí dịch vụ môi trường
-    const envFeePct = await this.calculateEnvironmentFeePct(setting);
-    console.log('distanceFee', distanceFee);
+    // const envFeePct = await this.calculateEnvironmentFeePct(setting);
 
-    const totalDelivery = distanceFee + distanceFee * envFeePct;
+    // const totalDelivery = distanceFee + distanceFee * envFeePct;
     // phí dịch vụ
     const incomeDeliver =
-      (totalDelivery * (1 - (serviceFeeWithType?.deliverFeePct ?? 0))) / 100;
+      distanceFee * (1 - (serviceFeeWithType?.deliverFeePct ?? 0) / 100);
 
     // phí dịch vụ người dùng
     const userServiceFee =
       serviceFeeWithType.userServiceFee *
       (1 + (serviceFeeWithType.userServiceFeePct ?? 0) / 100);
-    console.log('userServiceFee', userServiceFee);
 
     const sessionId = uuidv4();
 
@@ -293,14 +346,14 @@ export class OrdersService {
       distance: distance,
       incomeDeliver: incomeDeliver,
       userServiceFee: userServiceFee,
-      totalDelivery: totalDelivery,
+      totalDelivery: distanceFee,
       distanceFee: distanceFee,
       isHoliday: setting.isHoliday,
       isRain: setting.isRain,
       areaId: area.id,
     };
     // 24h
-    await this.cache.set(sessionId, payload, 24 * 60 * 60 * 1000);
+    await this.cache.set(sessionId, payload, 24 * 60 * 60 * 1000); // v
     return payload;
   }
 
@@ -317,7 +370,6 @@ export class OrdersService {
       // Nếu vượt quá khoảng cách tối đa
       if (totalDistance > lastDistance?.maxDistance) {
         const rate = lastDistance?.rate ?? 0;
-        console.log(`rate: ${rate}`);
         const multiplier = 1 + distancePct / 100;
 
         // Tính phí và giảm khoảng cách
@@ -375,29 +427,6 @@ export class OrdersService {
   }
 
   async create(payload: JwtPayloadType, reqDto: OrderCreateReqDto) {
-    console.log('reqDto', reqDto);
-    if (!reqDto.province && reqDto.type !== OrderTypeEnum.FOOD) {
-      throw new ValidationException(ErrorCode.AR001, HttpStatus.BAD_REQUEST);
-    }
-    const sanitizedProvince = reqDto.province?.replace(/'/g, '');
-    const sanitizedParent = reqDto.parent?.replace(/'/g, '');
-
-    const area = await this.areasService.existByIdOrNameParent({
-      areaId: reqDto.areaId,
-      name: sanitizedProvince,
-      parent: sanitizedParent,
-    });
-    if (!area) {
-      throw new ValidationException(ErrorCode.AR001, HttpStatus.BAD_REQUEST);
-    }
-
-    // Kiểm tra xem cửa hàng có hoạt động hay không
-    // const store = await this.storesService.checkStoreActive(reqDto.storeId);
-
-    //-------------------------------------------------------------
-    // Kiểm tra voucher còn hạng sử dụng không
-    //-------------------------------------------------------------
-
     const calculateOrder = await this.cache.get<CalculateResponse>(
       reqDto.sessionId,
     );
@@ -410,12 +439,18 @@ export class OrdersService {
     }
 
     return await this.db.transaction(async (tx) => {
+      //---------------------------------------------------------------
+      // Kiểm tra xem cửa hàng có hoạt động hay không
+      //---------------------------------------------------------------
+      if (reqDto.storeId) {
+        await this.storesService.checkStoreActive(reqDto.storeId, tx);
+      }
       const [order] = await tx
         .insert(orders)
         .values({
           ...reqDto,
           code: `DH${Date.now()}`,
-          areaId: area.id,
+          areaId: calculateOrder.areaId,
           storeId: reqDto.storeId,
           userId: payload.id,
         })
@@ -462,6 +497,10 @@ export class OrdersService {
         UPDATE orders o
         SET total_product = GREATEST(odt.total_order_details - COALESCE(tsv.total_store, 0), 0),
             total_voucher = LEAST(odt.total_order_details, COALESCE(tsv.total_store, 0)),
+            store_service_fee = GREATEST(
+              odt.total_order_details
+                * (1 - ${serviceFeeWithTypeFood.pricePct}::numeric / 100) -
+              COALESCE(${serviceFeeWithTypeFood.price}:: numeric, 0) - COALESCE(tsv.total_store, 0),0),
             payfor_shop   = GREATEST(
               odt.total_order_details
                 * (1 - ${serviceFeeWithTypeFood.pricePct}::numeric / 100) -
@@ -494,10 +533,11 @@ export class OrdersService {
 
       await tx.execute(sql`
         UPDATE orders
-        SET user_service_fee = ${calculateOrder.userServiceFee},
-            distance         = ${calculateOrder.distance},
-            is_holiday       = ${calculateOrder.isHoliday},
-            is_rain          = ${calculateOrder.isRain}
+        SET user_service_fee  = ${calculateOrder.userServiceFee},
+            store_service_fee = orders.total_product - orders.payfor_shop,
+            distance          = ${calculateOrder.distance},
+            is_holiday        = ${calculateOrder.isHoliday},
+            is_rain           = ${calculateOrder.isRain}
         WHERE id = ${order.id};
       `);
       await tx.execute(sql`
@@ -541,10 +581,8 @@ export class OrdersService {
         })
         .returning();
 
-      console.log('orderDetail', orderDetail);
       if (item.extras.length > 0) {
         // Tạo chi tiết đơn hàng cho các extras
-        console.log('item.extras', item.extras);
         await tx
           .insert(extrasToOrderDetails)
           .values(
@@ -556,7 +594,6 @@ export class OrdersService {
           )
           .returning();
       }
-      console.log('qua đây nè');
 
       // tính tổng chi tiết đơn hàng rồi update vào field total
 
@@ -575,8 +612,6 @@ export class OrdersService {
         FROM products p
         WHERE od.product_id = p.id
       `);
-
-      console.log('qua đây nè 2');
     }
   }
 
@@ -622,7 +657,6 @@ export class OrdersService {
         },
       },
     };
-    console.log('sssssssssssssssssssssss', reqDto);
 
     baseConfig.where = and(
       eq(orders.userId, userId),
@@ -668,96 +702,127 @@ export class OrdersService {
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
     return new OrdersOffsetPaginatedResDto(
-      entities,
+      entities.map((e) => plainToInstance(OrderResDto, e)),
       meta,
       totalOrdersForPaginated,
     );
   }
 
-  async update(orderId: number, reqDto: UpdateStatusOrderReqDto) {
-    const existOrder = await this.existById(orderId);
-    if (!existOrder) {
-      throw new ValidationException(ErrorCode.O001, HttpStatus.NOT_FOUND);
-    }
-
-    const currentStatus = existOrder.status;
-    const nextStatus = reqDto.status;
-
-    if (!allowedTransitions[currentStatus].includes(nextStatus)) {
-      throw new ValidationException(
-        ErrorCode.O002,
-        HttpStatus.BAD_REQUEST,
-        `Invalid status transition from ${currentStatus} to ${nextStatus}`,
-      );
-    }
-
+  async updateOrderStatus(orderId: number, reqDto: UpdateStatusOrderReqDto) {
     //-----------------------------------------------------
     // Nếu đơn hàng đã bị hủy thì hoàn tiền voucher cho shipper
     //----------------------------------------------------------
     return await this.db.transaction(async (tx) => {
-      if (existOrder.deliverId) {
-        const deliver = await this.deliversService.findById(
-          existOrder.deliverId,
-        );
-        if (!deliver) {
-          throw new ValidationException(ErrorCode.D001, HttpStatus.NOT_FOUND);
-        }
+      const result = await tx.execute(
+        sql`
+          SELECT id,
+                 status,
+                 deliver_id                          AS "deliverId",
+                 total_delivery::DOUBLE PRECISION    AS "totalDelivery",
+                 income_deliver::DOUBLE PRECISION    AS "incomeDeliver",
+                 user_service_fee::DOUBLE PRECISION  AS "userServiceFee",
+                 store_service_fee::DOUBLE PRECISION AS "storeServiceFee"
+          FROM orders
+          WHERE id = ${orderId}
+            FOR UPDATE
+        `,
+      );
+      const existOrder = result.rows[0] as Order;
+
+      if (!existOrder) {
+        throw new ValidationException(ErrorCode.O001, HttpStatus.NOT_FOUND);
       }
-      await this.db
+
+      const currentStatus = existOrder.status;
+      const nextStatus = reqDto.status;
+
+      if (!allowedTransitions[currentStatus].includes(nextStatus)) {
+        throw new ValidationException(
+          ErrorCode.O002,
+          HttpStatus.BAD_REQUEST,
+          `Invalid status transition from ${currentStatus} to ${nextStatus}`,
+        );
+      }
+
+      const [updatedOrder] = await tx
         .update(orders)
         .set({
           status: reqDto.status,
         })
         .where(eq(orders.id, orderId))
         .returning();
+
+      switch (reqDto.status) {
+        case OrderStatusEnum.CANCELED: {
+          await this.managerDoCancelOrder(updatedOrder, tx);
+          await this.emitter.emitAsync('order.canceled', updatedOrder);
+          break;
+        }
+        default:
+          await this.emitter.emitAsync('order.updated_status', updatedOrder);
+      }
     });
   }
 
-  async assign(orderId: number, payload: JwtPayloadType) {
-    //--------------------------------------------
-    // Kiểm tra xem đơn hàng có tồn tại không
-    //--------------------------------------------
-    const existOrder = await this.findById(orderId);
-    if (!existOrder) {
-      throw new ValidationException(ErrorCode.OD001);
-    }
-    //--------------------------------------------
-    // Kiểm tra xem đơn hàng đã được giao chưa
-    //--------------------------------------------
-    if (existOrder.status !== OrderStatusEnum.PENDING) {
-      throw new ValidationException(ErrorCode.OD005);
-    }
-    //--------------------------------------------
-    // Kiểm tra xem người giao hàng có tồn tại không
-    //--------------------------------------------
-    const existDeliver = await this.deliversService.existById(payload.id);
-    if (!existDeliver) {
-      throw new ValidationException(ErrorCode.D001);
-    }
-    //--------------------------------------------
-    // Tổng point mà người giao hàng sẽ bị trừ khi nhận đơn
-    //--------------------------------------------
-    const subtractPoint =
-      existOrder.totalDelivery -
-      existOrder.incomeDeliver +
-      existOrder.userServiceFee +
-      existOrder.storeServiceFee;
-
-    console.log('subtractPoint', subtractPoint);
-    console.log('existDeliver.point', existDeliver.point);
-    console.log('existOrder.totalDelivery', existOrder.totalDelivery);
-    console.log('existOrẻ', existOrder);
-
-    //--------------------------------------------
-    // Kiểm tra xem người giao hàng có đủ điểm để nhận đơn không
-    //--------------------------------------------
-    if (existDeliver.point < subtractPoint) {
-      throw new ValidationException(ErrorCode.D006);
-    }
-
+  async assignOrderToShipper(orderId: number, payload: JwtPayloadType) {
     return this.db.transaction(async (tx) => {
+      //--------------------------------------------
+      // Kiểm tra xem đơn hàng có tồn tại không
+      //--------------------------------------------
+      // Khóa đơn hàng bằng SELECT FOR UPDATE
+      const result = await tx.execute(
+        sql`
+          SELECT id,
+                 status,
+                 deliver_id                          AS "deliverId",
+                 total_delivery::DOUBLE PRECISION    AS "totalDelivery",
+                 income_deliver::DOUBLE PRECISION    AS "incomeDeliver",
+                 user_service_fee::DOUBLE PRECISION  AS "userServiceFee",
+                 store_service_fee::DOUBLE PRECISION AS "storeServiceFee"
+          FROM orders
+          WHERE id = ${orderId}
+            FOR UPDATE
+        `,
+      );
+      const existOrder = result.rows[0] as Order;
+      if (!existOrder) {
+        throw new ValidationException(ErrorCode.OD001);
+      }
+      //--------------------------------------------
+      // Kiểm tra xem đơn hàng đã được giao chưa
+      //--------------------------------------------
+      if (existOrder.status !== OrderStatusEnum.PENDING) {
+        throw new ValidationException(ErrorCode.OD005);
+      }
+      //--------------------------------------------
+      // Kiểm tra xem người giao hàng có tồn tại không
+      //--------------------------------------------
+      const existDeliver = await this.deliversService.existById(payload.id);
+      if (!existDeliver) {
+        throw new ValidationException(ErrorCode.D001);
+      }
+      //--------------------------------------------
+      // Tổng point mà người giao hàng sẽ bị trừ khi nhận đơn
+      //--------------------------------------------
+      const subtractPoint =
+        existOrder.totalDelivery -
+        existOrder.incomeDeliver +
+        existOrder.userServiceFee +
+        existOrder.storeServiceFee;
+
+      console.log('subtractPoint', subtractPoint);
+      console.log('existDeliver.point', existDeliver.point);
+      console.log('existOrder.totalDelivery', existOrder.totalDelivery);
+
+      //--------------------------------------------
+      // Kiểm tra xem người giao hàng có đủ điểm để nhận đơn không
+      //--------------------------------------------
+      if (existDeliver.point < subtractPoint) {
+        throw new ValidationException(ErrorCode.D006);
+      }
+
       await this.deliversService.subtractPoint(payload.id, subtractPoint, tx);
-      const [result] = await tx
+      const [updateOrder] = await tx
         .update(orders)
         .set({
           status: OrderStatusEnum.ACCEPTED,
@@ -767,7 +832,7 @@ export class OrdersService {
         .returning();
 
       this.emitter.emit('order.accepted', orderId);
-      return result;
+      return updateOrder;
     });
   }
 
@@ -790,6 +855,15 @@ export class OrdersService {
     ) {
       throw new ValidationException(ErrorCode.OD002);
     }
+    const currentStatus = existOrder.status;
+    const nextStatus = status;
+    if (!allowedTransitions[currentStatus].includes(nextStatus)) {
+      throw new ValidationException(
+        ErrorCode.O002,
+        HttpStatus.BAD_REQUEST,
+        `Invalid status transition from ${currentStatus} to ${nextStatus}`,
+      );
+    }
 
     //--------------------------------------------
     // Kiểm tra xem người giao hàng có tồn tại không
@@ -802,30 +876,50 @@ export class OrdersService {
     }
 
     return this.db.transaction(async (tx) => {
+      const [updatedOrder] = await tx
+        .update(orders)
+        .set({
+          status: status,
+        })
+        .where(eq(orders.id, orderId))
+        .returning();
       switch (status) {
         case OrderStatusEnum.CANCELED: {
           //--------------------------------------------
           // Kiểm tra xem lý do hủy đơn hàng có tồn tại không
           //--------------------------------------------
-          await this.doCancelOrder(existOrder, existDeliver, reason, tx);
+          await this.doCancelOrder(updatedOrder, existDeliver, reason, tx);
+          await this.emitter.emitAsync('order.canceled', updatedOrder);
           break;
         }
         case OrderStatusEnum.DELIVERED:
-          await this.doCompleteOrder(existOrder, existDeliver, tx);
+          await this.doCompleteOrder(updatedOrder, existDeliver, tx);
+          await this.emitter.emitAsync('order.updated_status', updatedOrder);
           break;
         default:
+          await this.emitter.emitAsync('order.updated_status', updatedOrder);
           break;
       }
 
-      await tx
-        .update(orders)
-        .set({
-          status: status,
-        })
-        .where(eq(orders.id, orderId));
-
-      return existOrder;
+      return updatedOrder;
     });
+  }
+
+  private async managerDoCancelOrder(existOrder: Order, tx: Transaction) {
+    if (existOrder.deliverId) {
+      const existDeliver = await this.deliversService.findById(
+        existOrder.deliverId,
+      );
+      if (!existDeliver) {
+        throw new ValidationException(ErrorCode.D001);
+      }
+      await this.doCancelOrder(
+        existOrder,
+        existDeliver,
+        'Người quản lý hủy đơn hàng',
+        tx,
+      );
+    }
   }
 
   //Thực hiện hủy đơn hàng
@@ -838,6 +932,32 @@ export class OrdersService {
     if (!reason) {
       throw new ValidationException(ErrorCode.OD003);
     }
+    // Hủy quá 3 đơn trong ngày thì không cho hủy
+    const countOrder = await tx
+      .select({
+        count: count(reasonDeliverCancelOrders.id),
+      })
+      .from(reasonDeliverCancelOrders)
+      .where(
+        and(
+          eq(reasonDeliverCancelOrders.deliverId, existOrder.deliverId),
+          between(
+            reasonDeliverCancelOrders.createdAt,
+            startOfDay(new Date()),
+            endOfDay(new Date()),
+          ),
+        ),
+      )
+      .then((res) => res[0]);
+
+    console.log('countOrder', countOrder);
+
+    if (countOrder.count > 3) {
+      await this.lockDeliver(existOrder.deliverId);
+      // bắn event out đăng nhập shipper
+      this.emitter.emit('deliver.out', existOrder.deliverId);
+      throw new ValidationException(ErrorCode.OD003);
+    }
 
     // Số điểm sẽ được cộng lại cho người giao hàng
     const subtractPoint =
@@ -845,11 +965,19 @@ export class OrdersService {
       existOrder.incomeDeliver +
       existOrder.userServiceFee +
       existOrder.storeServiceFee;
+
+    // Cộng lại điểm cho người giao hàng
     await this.deliversService.addPoint(
       existOrder.deliverId,
       subtractPoint,
       tx,
     );
+
+    await tx.insert(reasonDeliverCancelOrders).values({
+      orderId: existOrder.id,
+      reason: reason,
+      deliverId: existDeliver.id,
+    });
 
     await tx
       .update(orders)
@@ -858,6 +986,16 @@ export class OrdersService {
       })
       .where(eq(orders.id, existOrder.id))
       .returning();
+  }
+
+  private async lockDeliver(deliverId: number) {
+    await this.db
+      .update(delivers)
+      .set({
+        status: false,
+        activated: false,
+      })
+      .where(eq(delivers.id, deliverId));
   }
 
   // Thực hiện khi hoàn thành đơn hàng

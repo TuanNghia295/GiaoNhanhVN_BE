@@ -12,7 +12,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 
-export enum TransactionType {
+export enum TransactionTypeEnum {
   DEPOSIT = 'DEPOSIT',
   WITHDRAW = 'WITHDRAW',
 }
@@ -70,3 +70,5 @@ export const transactionsRelations = relations(transactions, ({ one }) => ({
     references: [delivers.id],
   }),
 }));
+
+export type TransactionType = typeof transactions.$inferSelect;

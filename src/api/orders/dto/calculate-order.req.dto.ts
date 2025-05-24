@@ -3,13 +3,12 @@ import {
   EnumField,
   NumberFieldOptional,
   StringField,
-  StringFieldOptional,
 } from '@/decorators/field.decorators';
 import { VehicleType } from '@/shared/goong.service';
 
 export class CalculateOrderReqDto {
   @NumberFieldOptional()
-  areaId: number;
+  areaId?: number;
 
   @EnumField(() => VehicleType)
   vehicle: VehicleType;
@@ -26,10 +25,4 @@ export class CalculateOrderReqDto {
     example: '10.782418, 106.695635',
   })
   destinations: string;
-
-  @StringFieldOptional()
-  province?: string;
-
-  @StringFieldOptional()
-  parent?: string;
 }

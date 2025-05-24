@@ -48,9 +48,7 @@ export class DeliversController {
   })
   @Post('login')
   async loginDeliver(@Body() reqDto: LoginReqDto): Promise<LoginResDto> {
-    const data = await this.authService.loginDeliver(reqDto);
-    console.log('data', data);
-    return data;
+    return await this.authService.loginDeliver(reqDto);
   }
 
   @Roles(RoleEnum.ADMIN, RoleEnum.MANAGEMENT)
@@ -134,7 +132,7 @@ export class DeliversController {
     @CurrentUser() payload: JwtPayloadType,
     @Param('orderId') orderId: number,
   ) {
-    return await this.ordersService.assign(orderId, payload);
+    return await this.ordersService.assignOrderToShipper(orderId, payload);
   }
 
   @Roles(RoleEnum.MANAGEMENT)

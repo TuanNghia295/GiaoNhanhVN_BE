@@ -16,7 +16,6 @@ import { OrdersService } from './orders.service';
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
-  // @Roles(RoleEnum.USER)
   @Post('calculate')
   @ApiPublic({
     summary: 'Tính toán giá đơn hàng',
@@ -84,6 +83,6 @@ export class OrdersController {
     @Query('orderId') orderId: number,
     @Body() reqDto: UpdateStatusOrderReqDto,
   ) {
-    return await this.ordersService.update(orderId, reqDto);
+    return await this.ordersService.updateOrderStatus(orderId, reqDto);
   }
 }

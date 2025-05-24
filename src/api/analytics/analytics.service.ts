@@ -248,11 +248,9 @@ export class AnalyticsService {
             ),
           );
 
-        console.log('result', result);
         return result[0]; // because Drizzle returns array of rows
       }),
     );
-    console.log('results', results);
 
     const total_all_order = results.reduce(
       (acc, cur) => acc + Number(cur.total_order),
@@ -315,7 +313,6 @@ export class AnalyticsService {
       total_all_voucher_value,
       total_all_store_revenue,
     });
-    console.log('data', data);
     return data;
   }
 }

@@ -1,4 +1,7 @@
+import { DeliverResDto } from '@/api/delivers/dto/deliver.res.dto';
 import { OrderDetailResDto } from '@/api/order-details/dto/order-detail.res.dto';
+import { StoreResDto } from '@/api/stores/dto/store.res.dto';
+import { VoucherResDto } from '@/api/vouchers/dto/voucher.res.dto';
 import { WrapperType } from '@/common/types/types';
 import { AbstractResDto } from '@/database/dto/abstract.res.dto';
 import {
@@ -16,6 +19,13 @@ import {
 } from '@/decorators/field.decorators';
 import { Exclude, Expose } from 'class-transformer';
 import { UserResDto } from '../../users/dto/user.res.dto';
+
+@Exclude()
+class ReasonDeliverCancelOrder {
+  @StringField()
+  @Expose()
+  reason: string;
+}
 
 @Exclude()
 export class OrderResDto extends AbstractResDto {
@@ -87,21 +97,25 @@ export class OrderResDto extends AbstractResDto {
   @Expose()
   user: UserResDto;
 
-  // @ClassFieldOptional(() => StoreResDto)
-  // @Expose()
-  // store: StoreResDto;
+  @ClassFieldOptional(() => StoreResDto)
+  @Expose()
+  store: StoreResDto;
 
-  @ClassFieldOptional(() => OrderDetailResDto, { isArray: true })
+  @ClassFieldOptional(() => OrderDetailResDto)
   @Expose()
   orderDetails: WrapperType<OrderDetailResDto>[];
 
-  // @ClassFieldOptional(() => DeliverResDto)
-  // @Expose()
-  // deliver: DeliverResDto;
+  @ClassFieldOptional(() => DeliverResDto)
+  @Expose()
+  deliver: DeliverResDto;
 
-  // @ClassFieldOptional(() => VoucherResDto, { isArray: true })
-  // @Expose()
-  // vouchers: WrapperType<VoucherResDto>[];
+  @ClassFieldOptional(() => ReasonDeliverCancelOrder)
+  @Expose()
+  reasonDeliverCancelOrder: WrapperType<ReasonDeliverCancelOrder>[];
+
+  @ClassFieldOptional(() => VoucherResDto)
+  @Expose()
+  vouchers: WrapperType<VoucherResDto>[];
 
   @NumberField()
   @Expose()

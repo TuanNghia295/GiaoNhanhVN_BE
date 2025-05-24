@@ -8,7 +8,7 @@ import { StoresService } from '@/api/stores/stores.service';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { DRIZZLE, queryWithCount, withPagination } from '@/database/global';
+import { DRIZZLE, withPagination } from '@/database/global';
 import {
   RoleEnum,
   storeRequests,
@@ -24,7 +24,16 @@ import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { and, asc, count, desc, eq, getTableColumns, ilike } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  ilike,
+  or,
+  sql,
+} from 'drizzle-orm';
 
 @Injectable()
 export class StoreRequestsService {
@@ -39,6 +48,21 @@ export class StoreRequestsService {
     reqDto: PageStoreRequestReqDto,
     payload: JwtPayloadType,
   ) {
+    const whereClause = and(
+      ...(reqDto.q
+        ? [
+            or(
+              ilike(users.fullName, `%${reqDto.q}%`),
+              ilike(users.phone, `%${reqDto.q}%`),
+            ),
+          ]
+        : []),
+      // ilike(users.phone, `%${reqDto.q ?? ''}%`),
+      ...(reqDto.areaId ? [eq(storeRequests.areaId, reqDto.areaId)] : []),
+      ...(payload.role === RoleEnum.MANAGEMENT && payload.areaId
+        ? [eq(storeRequests.areaId, payload.areaId)]
+        : []),
+    );
     const qb = this.db
       .select({
         ...getTableColumns(storeRequests),
@@ -46,35 +70,30 @@ export class StoreRequestsService {
       })
       .from(storeRequests)
       .leftJoin(users, eq(users.id, storeRequests.userId))
-      .where(
-        and(
-          ilike(users.phone, `%${reqDto.q ?? ''}%`),
-          ...(reqDto.areaId ? [eq(storeRequests.areaId, reqDto.areaId)] : []),
-          ...(payload.role === RoleEnum.MANAGEMENT && payload.areaId
-            ? [eq(storeRequests.areaId, payload.areaId)]
-            : []),
-        ),
-      )
-      .orderBy(
-        reqDto.order === 'desc'
-          ? desc(storeRequests.createdAt)
-          : asc(storeRequests.createdAt),
-      )
       .$dynamic();
 
-    await withPagination(
-      qb,
+    await withPagination(qb, reqDto.limit, reqDto.offset);
 
-      reqDto.limit,
-      reqDto.offset,
-    );
-    const [entities, totalCount] = await queryWithCount(qb);
+    const [entities, { totalCount }] = await Promise.all([
+      qb
+        .where(whereClause)
+        .orderBy(
+          sql.raw("CASE WHEN status = 'PENDING' THEN 0 ELSE 1 END"),
+          desc(storeRequests.createdAt),
+        ),
+      this.db
+        .select({
+          totalCount: count(),
+        })
+        .from(storeRequests)
+        .leftJoin(users, eq(users.id, storeRequests.userId))
+        .where(whereClause)
+        .execute()
+        .then((res) => res[0]),
+    ]);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
-    return new OffsetPaginatedDto(
-      entities.map((e) => plainToInstance(StoreRequestResDto, e)),
-      meta,
-    );
+    return new OffsetPaginatedDto(entities, meta);
   }
 
   async getCount(payload: JwtPayloadType) {
@@ -91,7 +110,6 @@ export class StoreRequestsService {
       );
 
     const [{ totalCount }] = await qb.execute();
-    console.log('totalCount', totalCount);
     return totalCount;
   }
 

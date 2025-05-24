@@ -25,17 +25,13 @@ export async function queryWithCount<T extends PgSelect>(
   qb: T,
 ): Promise<[Awaited<T>, number]> {
   const result = await qb;
-  // @ts-expect-error Bypass protected access level
-  qb.config = {
-    // @ts-expect-error Bypass protected access level
-    ...qb.config,
-    fields: { total: count() },
-    orderBy: [],
-    limit: undefined,
-    offset: undefined,
-  };
-  const total = result?.[0]?.total ?? 0;
-  return [result, total];
+  // @ts-expect-error hack to override internals (not the ideal way)
+  qb.config.fields = { count: count() };
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-expect-error
+  qb.config.orderBy = [];
+  const [total] = await qb;
+  return [result, total.count];
 }
 
 export type Transaction = Parameters<

@@ -98,7 +98,6 @@ export class ProductsController {
     @Body() _reqDto: UploadImageReqDto,
     @UploadedFile() image: Express.Multer.File,
   ) {
-    console.log('image', image);
     return await this.productsService.updateImageById(productId, image);
   }
 

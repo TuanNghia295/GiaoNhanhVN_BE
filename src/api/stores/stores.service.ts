@@ -9,7 +9,12 @@ import { UpdateStoreReqDto } from '@/api/stores/dto/update-store.req.dto';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { DRIZZLE, queryWithCount, withPagination } from '@/database/global';
+import {
+  DRIZZLE,
+  queryWithCount,
+  Transaction,
+  withPagination,
+} from '@/database/global';
 import {
   orders,
   OrderStatusEnum,
@@ -23,7 +28,6 @@ import { ValidationException } from '@/exceptions/validation.exception';
 import { formatDistance, normalizeImagePath } from '@/utils/util';
 import { HttpStatus, Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { format } from 'date-fns';
 import {
   and,
   desc,
@@ -38,6 +42,7 @@ import {
   sql,
 } from 'drizzle-orm';
 import { existsSync, mkdirSync } from 'fs';
+import { DateTime } from 'luxon';
 import { join } from 'path';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
@@ -78,6 +83,17 @@ export class StoresService implements OnModuleInit {
       })
       .from(stores)
       .where(eq(stores.id, storeId))
+      .then((res) => res[0] ?? null);
+  }
+
+  async existByUserPhone(phone: string) {
+    return await this.db
+      .select({
+        storeId: stores.id,
+      })
+      .from(stores)
+      .leftJoin(users, eq(users.id, stores.userId))
+      .where(eq(users.phone, phone))
       .then((res) => res[0] ?? null);
   }
 
@@ -150,7 +166,17 @@ export class StoresService implements OnModuleInit {
           ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
         ),
       )
-      // giớ hạn 15km bán kính
+      .having(
+        sql.raw(`
+          6371 * acos(
+            cos(radians(${latitude})) *
+            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+            sin(radians(${latitude})) *
+            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
+          ) < 15000
+        `), // 15km radius
+      )
       .$dynamic();
 
     if (reqDto.isBestSeller) {
@@ -357,11 +383,8 @@ export class StoresService implements OnModuleInit {
       );
   }
 
-  async checkStoreActive(storeId: number) {
-    const now = new Date();
-    const nowTime = format(now, 'HH:mm:ss');
-    console.log('nowTime', nowTime);
-    const [store] = await this.db
+  async checkStoreActive(storeId: number, tx: Transaction) {
+    const [store] = await tx
       .select({
         id: stores.id,
         openTime: stores.openTime,
@@ -370,26 +393,109 @@ export class StoresService implements OnModuleInit {
         closeSecondTime: stores.closeSecondTime,
       })
       .from(stores)
-      .where(
-        and(
-          eq(stores.id, storeId),
-          or(
-            sql`${stores.openTime}::time <=
-            ${nowTime}
-            ::
-            time`,
-            sql`${stores.closeTime}::time >=
-            ${nowTime}
-            ::
-            time`,
-          ),
-        ),
-      );
+      .where(and(eq(stores.id, storeId), eq(stores.status, true)));
 
     if (!store) {
-      throw new ValidationException(ErrorCode.S003, HttpStatus.BAD_REQUEST);
+      throw new ValidationException(ErrorCode.S001);
     }
-    return store;
+
+    const now = DateTime.now().setZone('Asia/Ho_Chi_Minh');
+
+    const { openTime, closeTime, openSecondTime, closeSecondTime } =
+      this.getStoreTimeRanges(store, now);
+
+    const isOpen = this.checkIsStoreOpen(
+      now,
+      openTime,
+      closeTime,
+      openSecondTime,
+      closeSecondTime,
+    );
+
+    if (!isOpen) {
+      this.logTimeDebug(
+        now,
+        openTime,
+        closeTime,
+        openSecondTime,
+        closeSecondTime,
+      );
+      throw new ValidationException(ErrorCode.S003);
+    }
+  }
+
+  /**
+   * Gộp giờ/phút/giây từ `time` vào ngày `base` (giữ nguyên ngày/tháng/năm của `base`)
+   */
+  private buildTime(base: DateTime, time: Date): DateTime {
+    const timeOnly = DateTime.fromJSDate(time, { zone: 'Asia/Ho_Chi_Minh' });
+
+    return base.set({
+      hour: timeOnly.hour,
+      minute: timeOnly.minute,
+      second: timeOnly.second,
+    });
+  }
+
+  private logTimeDebug(
+    now: DateTime,
+    openTime: DateTime,
+    closeTime: DateTime,
+    openSecondTime: DateTime | null,
+    closeSecondTime: DateTime | null,
+  ) {
+    console.debug('📅 Store is currently closed at:', now.toFormat('HH:mm'));
+    console.debug(
+      '⏰ Shift 1:',
+      openTime.toFormat('HH:mm'),
+      '-',
+      closeTime.toFormat('HH:mm'),
+    );
+    if (openSecondTime && closeSecondTime) {
+      console.debug(
+        '⏰ Shift 2:',
+        openSecondTime.toFormat('HH:mm'),
+        '-',
+        closeSecondTime.toFormat('HH:mm'),
+      );
+    }
+  }
+
+  private checkIsStoreOpen(
+    now: DateTime,
+    openTime: DateTime,
+    closeTime: DateTime,
+    openSecondTime: DateTime | null,
+    closeSecondTime: DateTime | null,
+  ): boolean {
+    const isBetween = (now: DateTime, start: DateTime, end: DateTime) =>
+      start < end ? now >= start && now <= end : now >= start || now <= end;
+
+    return (
+      isBetween(now, openTime, closeTime) ||
+      (openSecondTime &&
+        closeSecondTime &&
+        isBetween(now, openSecondTime, closeSecondTime))
+    );
+  }
+
+  private getStoreTimeRanges(
+    store: {
+      openTime: Date;
+      closeTime: Date;
+      openSecondTime: Date | null;
+      closeSecondTime: Date | null;
+    },
+    now: DateTime,
+  ) {
+    const build = (t?: Date) => (t ? this.buildTime(now, t) : null);
+
+    return {
+      openTime: build(store.openTime),
+      closeTime: build(store.closeTime),
+      openSecondTime: build(store.openSecondTime),
+      closeSecondTime: build(store.closeSecondTime),
+    };
   }
 
   async updateByUserId(userId: number, reqDto: UpdateStoreReqDto) {

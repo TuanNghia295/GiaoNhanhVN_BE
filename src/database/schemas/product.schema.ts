@@ -15,6 +15,7 @@ import {
   timestamp,
   varchar,
 } from 'drizzle-orm/pg-core';
+import { createInsertSchema } from 'drizzle-zod';
 
 export const products = pgTable('products', {
   id: serial().primaryKey().notNull(),
@@ -38,6 +39,8 @@ export const products = pgTable('products', {
   storeId: integer('store_id'),
   storeMenuId: integer('store_menu_id'),
 });
+
+export const productInsertSchema = createInsertSchema(products);
 
 export const productsRelations = relations(products, ({ one, many }) => ({
   store: one(stores, {
@@ -64,3 +67,5 @@ export const category_item_on_products = pgTable(
   },
   (t) => [primaryKey({ columns: [t.productId, t.categoryItemId] })],
 );
+
+export type Product = typeof products.$inferSelect;

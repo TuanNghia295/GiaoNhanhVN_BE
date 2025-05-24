@@ -547,6 +547,27 @@
       "when": 1747544447731,
       "tag": "0077_swift_black_bolt",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1747627923650,
+      "tag": "0078_amazing_nomad",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1747718674958,
+      "tag": "0079_daffy_morlocks",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1748012356317,
+      "tag": "0080_slow_hobgoblin",
+      "breakpoints": true
     }
   ]
 }

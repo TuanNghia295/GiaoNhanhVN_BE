@@ -1,5 +1,5 @@
 import { AbstractResDto } from '@/database/dto/abstract.res.dto';
-import { TransactionStatus, TransactionType } from '@/database/schemas';
+import { TransactionStatus, TransactionTypeEnum } from '@/database/schemas';
 import {
   ClassField,
   EnumField,
@@ -12,9 +12,9 @@ import { ManagerResDto } from '../../managers/dto/manager.res.dto';
 
 @Exclude()
 export class TransactionResDto extends AbstractResDto {
-  @EnumField(() => TransactionType)
+  @EnumField(() => TransactionTypeEnum)
   @Expose()
-  type: TransactionType;
+  type: TransactionTypeEnum;
 
   @NumberField()
   @Expose()

@@ -40,9 +40,7 @@ export class LocationsController {
   })
   @Get()
   async getLocations(@CurrentUser() payload: JwtPayloadType) {
-    const data = await this.locationsService.getLocationsByUserId(payload.id);
-    console.log('data', data);
-    return data;
+    return await this.locationsService.getLocationsByUserId(payload.id);
   }
 
   @Roles(RoleEnum.USER)

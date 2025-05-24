@@ -135,7 +135,6 @@ export class ProductsService implements OnModuleInit {
       // Check if the options exist
       //---------------------------------------------------
       if (reqDto.options) {
-        console.log('reqDto.options', reqDto.options);
         await this.optionsService.createForProduct(
           product[0].id,
           reqDto.options,

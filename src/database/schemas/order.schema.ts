@@ -1,4 +1,5 @@
 import { areas } from '@/database/schemas/area.schema';
+import { delivers } from '@/database/schemas/deliver.schema';
 import { orderDetails } from '@/database/schemas/order-detail.schema';
 import { reasonDeliverCancelOrders } from '@/database/schemas/reason-deliver-cancel-order.schema';
 import { stores } from '@/database/schemas/store.schema';
@@ -120,6 +121,10 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   area: one(areas, {
     fields: [orders.areaId],
     references: [areas.id],
+  }),
+  deliver: one(delivers, {
+    fields: [orders.deliverId],
+    references: [delivers.id],
   }),
   orderDetails: many(orderDetails),
   store: one(stores, {

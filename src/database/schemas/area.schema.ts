@@ -20,6 +20,7 @@ export const areas = pgTable('areas', {
   point: decimal('point', { precision: 15, scale: 2, mode: 'number' })
     .notNull()
     .default(0),
+  location: varchar('location', { length: 255 }),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at')
     .notNull()

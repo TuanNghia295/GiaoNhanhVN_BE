@@ -82,3 +82,5 @@ export const storesToCategoryItemsRelations = relations(
     }),
   }),
 );
+
+export type Store = typeof stores.$inferSelect;

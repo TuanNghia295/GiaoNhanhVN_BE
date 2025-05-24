@@ -1,9 +1,11 @@
 import { DeliversService } from '@/api/delivers/delivers.service';
 import { DeliverGateway } from '@/api/gateways/deliver.gateway';
+import { UserGateway } from '@/api/gateways/user.gateway';
 import { Order } from '@/database/schemas';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import * as admin from 'firebase-admin';
+import pRetry from 'p-retry';
 import { FIREBASE_ADMIN } from '../../firebase/firebase.module';
 
 @Injectable()
@@ -12,9 +14,36 @@ export class OrdersEvent {
     private readonly deliversService: DeliversService,
     @Inject(FIREBASE_ADMIN) private readonly firebase: admin.app.App,
     private readonly deliverGateway: DeliverGateway,
+    private readonly userGateway: UserGateway,
   ) {}
 
   private readonly logger = new Logger(OrdersEvent.name);
+
+  private async notifyDriversByFCM(tokens: string[]) {
+    const validTokens = tokens.filter((t) => !!t);
+    if (!validTokens.length) return;
+    try {
+      await this.firebase.messaging().sendEachForMulticast({
+        tokens: validTokens,
+        notification: {
+          title: 'Bạn có một đơn hàng mới',
+          body: 'Có một đơn hàng mới cần giao, hãy kiểm tra ngay',
+        },
+        data: {
+          title: 'Bạn có một đơn hàng mới',
+          body: 'Có một đơn hàng mới cần giao, hãy kiểm tra ngay',
+          sound: 'alert.caf',
+        },
+      });
+    } catch (error) {
+      this.logger.error('Error sending FCM notification', error);
+      throw new Error('Failed to send FCM notification');
+    }
+  }
+
+  private async emitSocketToDrivers(ids: string[], order: Order) {
+    this.deliverGateway.server.to(ids).emit('refresh-order', order);
+  }
 
   @OnEvent('order.created')
   async onOrderCreated(order: Order) {
@@ -22,7 +51,7 @@ export class OrdersEvent {
     //----------------------------------------------
     // Lấy tất cả các deliver actived = true và ở trong khu vực
     //-----------------------------------------------
-    const drivers = await this.deliversService.getAllDeliveriesInArea(
+    const drivers = await this.deliversService.selectFcmTokenByAreaId(
       order.areaId,
     );
 
@@ -30,37 +59,36 @@ export class OrdersEvent {
       this.logger.log(
         `Found ${drivers.length} drivers in area ${order.areaId}`,
       );
-      const ids = drivers.map((driver) => String(driver.id));
+      const driverIds = drivers.map((driver) => String(driver.id));
       const fcmTokens = drivers.map((driver) => driver.fcmToken);
 
-      try {
-        await this.firebase.messaging().sendEachForMulticast({
-          tokens: fcmTokens,
-          notification: {
-            title: 'Bạn có một đơn hàng mới',
-            body: 'Có một đơn hàng mới cần giao, hãy kiểm tra ngay',
-          },
-          data: {
-            title: 'Bạn có một đơn hàng mới',
-            body: 'Có một đơn hàng mới cần giao, hãy kiểm tra ngay',
-            sound: 'alert.caf',
-          },
-        });
-      } catch (error) {
-        this.logger.error('Error sending notification', error);
-      }
-      this.deliverGateway.server.to(ids).emit('refresh-order', order);
+      await pRetry(() => this.notifyDriversByFCM(fcmTokens), {
+        retries: 3,
+        onFailedAttempt: (error) => {
+          this.logger.warn(`FCM attempt failed. ${error.attemptNumber}`);
+        },
+      });
+      this.logger.log(`FCM sent to ${fcmTokens.length} drivers`);
+      await this.emitSocketToDrivers(driverIds, order);
     }
   }
 
-  @OnEvent('order.updated')
-  async onOrderUpdated(orderId: number) {
-    console.log(`Order updated with ID: ${orderId}`);
+  @OnEvent('order.updated_status')
+  async onOrderUpdatedStatus(order: Order) {
+    console.log(`Order updated status with ID: ${order.id}`);
     // Add your logic here
+    this.deliverGateway.server
+      .to(String(order.deliverId))
+      .emit('order-updated-status', order);
   }
 
-  public async onOrderDeleted(orderId: number) {
-    console.log(`Order deleted with ID: ${orderId}`);
+  @OnEvent('order.canceled')
+  public async onOrderCanceled(order: Order) {
+    this.logger.log(`Order canceled with ID: ${order.id}`);
+    this.userGateway.server
+      .to(String(order.id))
+      .emit('order-cancel-by-deliver');
     // Add your logic here
+    // this.userGateway.server.to(String(orderId)).emit('order-canceled', orderId);
   }
 }

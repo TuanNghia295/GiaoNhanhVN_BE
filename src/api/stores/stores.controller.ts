@@ -36,6 +36,17 @@ import { StoresService } from './stores.service';
 export class StoresController {
   constructor(private readonly storesService: StoresService) {}
 
+  @ApiPublic()
+  @ApiAuth({
+    summary: 'Lấy danh sách cửa hàng [PUBLIC]',
+    isPaginated: true,
+    type: StoreResDto,
+  })
+  @Get('test')
+  async getAllStores() {
+    // return await this.storesService.checkStoreActive(14);
+  }
+
   @AuthOptional()
   @ApiAuth({
     summary: 'Lấy danh sách cửa hàng (public)',

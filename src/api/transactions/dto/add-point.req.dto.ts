@@ -1,4 +1,4 @@
-import { TransactionType } from '@/database/schemas';
+import { TransactionTypeEnum } from '@/database/schemas';
 import { EnumField, NumberField } from '@/decorators/field.decorators';
 
 export class AddPointReqDto {
@@ -8,6 +8,6 @@ export class AddPointReqDto {
   @NumberField()
   managerId: number;
 
-  @EnumField(() => TransactionType)
-  type: TransactionType;
+  @EnumField(() => TransactionTypeEnum)
+  type: TransactionTypeEnum;
 }

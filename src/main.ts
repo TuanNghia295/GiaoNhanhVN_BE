@@ -40,6 +40,8 @@ async function bootstrap() {
     },
   );
 
+  app.enableCors();
+
   app.useGlobalFilters(new GlobalExceptionFilter(configService));
 
   app.useGlobalPipes(

@@ -207,7 +207,6 @@ export class DeliversService implements OnModuleInit {
         delete reqDto.point;
       }
 
-      console.log('deliversreqDto', reqDto);
       const [result] = await tx
         .update(delivers)
         .set({
@@ -306,7 +305,6 @@ export class DeliversService implements OnModuleInit {
         location: true,
       },
     });
-    console.log('result', result);
 
     const startDay = startOfDay(new Date());
     const endDay = endOfDay(new Date());
@@ -400,13 +398,17 @@ export class DeliversService implements OnModuleInit {
       .then((res) => res[0]);
   }
 
-  async getAllDeliveriesInArea(areaId: number) {
+  async selectFcmTokenByAreaId(areaId: number) {
     return this.db.query.delivers.findMany({
       where: and(
         eq(delivers.areaId, areaId),
         eq(delivers.activated, true),
         isNull(delivers.deletedAt),
       ),
+      columns: {
+        id: true,
+        fcmToken: true,
+      },
       orderBy: desc(delivers.createdAt),
     });
   }

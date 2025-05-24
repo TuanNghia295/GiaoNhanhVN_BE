@@ -4,6 +4,7 @@ import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { LoginManagerReqDto } from '@/api/managers/dto/login-manager.req.dto';
 import { Branded } from '@/common/types/types';
 import { AllConfigType } from '@/config/config.type';
+import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
 import {
   delivers,
@@ -13,7 +14,14 @@ import {
   users,
 } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
-import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ValidationException } from '@/exceptions/validation.exception';
+import { hashData } from '@/utils/password.util';
+import {
+  HttpStatus,
+  Inject,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { plainToInstance } from 'class-transformer';
@@ -139,6 +147,42 @@ export class AuthService {
       throw new UnauthorizedException();
     }
 
+    switch (payload.role) {
+      case RoleEnum.USER: {
+        const myUser = await this.db.query.users.findFirst({
+          where: eq(users.id, payload.id),
+          columns: {
+            id: true,
+            isLocked: true,
+          },
+        });
+        if (!myUser) {
+          throw new UnauthorizedException();
+        }
+        if (myUser.isLocked) {
+          throw new UnauthorizedException('Account has been locked');
+        }
+        break;
+      }
+      case RoleEnum.DELIVER: {
+        const myDeliver = await this.db.query.delivers.findFirst({
+          where: eq(delivers.id, payload.id),
+          columns: {
+            id: true,
+            status: true,
+          },
+        });
+        if (!myDeliver) {
+          throw new UnauthorizedException();
+        }
+        console.log('myDeliver', myDeliver);
+        if (!myDeliver.status) {
+          throw new UnauthorizedException('Account has been locked');
+        }
+        break;
+      }
+    }
+
     // Force logout if the session is in the blacklist
     // const isSessionBlacklisted = await this.cacheService.get<boolean>(
     //   createCacheKey(CacheKey.SESSION_BLACKLIST, payload.sessionId),
@@ -159,6 +203,7 @@ export class AuthService {
         phone: true,
         role: true,
         areaId: true,
+        isLocked: true,
         password: true,
         id: true,
       },
@@ -167,7 +212,10 @@ export class AuthService {
     const isPasswordValid = user && user.password === password;
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException();
+      throw new ValidationException(ErrorCode.U001, HttpStatus.UNAUTHORIZED);
+    }
+    if (user.isLocked) {
+      throw new ValidationException(ErrorCode.U003, HttpStatus.UNAUTHORIZED);
     }
 
     // const hash = crypto
@@ -190,14 +238,25 @@ export class AuthService {
     const baseRole = (await this.existStoreByUserId(user.id))
       ? RoleEnum.STORE
       : user.role;
-    const token = await this.createToken({
+    const tokens = await this.createToken({
       id: user.id,
       // sessionId: session[0].id,
       role: baseRole,
     });
 
+    //---------------------------------------------------
+    // Cập nhật fcm token cho user
+    //---------------------------------------------------
+    await this.db
+      .update(users)
+      .set({
+        refreshToken: await hashData(tokens.refreshToken),
+        ...(reqDto.fcmToken && { fcmToken: reqDto.fcmToken }),
+      })
+      .where(eq(users.id, user.id));
+
     return plainToInstance(LoginResDto, {
-      ...token,
+      ...tokens,
       role: baseRole,
       userId: user.id,
     });
@@ -256,26 +315,37 @@ export class AuthService {
         role: true,
         areaId: true,
         password: true,
+        status: true,
         id: true,
       },
     });
 
-    console.log('deliver', deliver);
     const isPasswordValid = deliver && deliver.password === password;
-    console.log('isPasswordValid', isPasswordValid);
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException();
+      throw new ValidationException(ErrorCode.D002, HttpStatus.UNAUTHORIZED);
     }
 
+    if (!deliver.status) {
+      throw new ValidationException(ErrorCode.D003, HttpStatus.UNAUTHORIZED);
+    }
     const token = await this.createToken({
       id: deliver.id,
       // sessionId: session[0].id,
       areaId: deliver.areaId,
       role: RoleEnum.DELIVER,
     });
-    console.log('token', token);
 
+    //---------------------------------------------------
+    // Cập nhật fcm token cho deliver
+    //---------------------------------------------------
+    await this.db
+      .update(delivers)
+      .set({
+        refreshToken: await hashData(token.refreshToken),
+        ...(reqDto.fcmToken && { fcmToken: reqDto.fcmToken }),
+      })
+      .where(eq(delivers.id, deliver.id));
     return plainToInstance(LoginResDto, {
       ...token,
       role: RoleEnum.DELIVER,

@@ -23,7 +23,7 @@ export class OrdersOffsetPaginatedResDto extends OffsetPaginatedDto<OrderResDto>
   totalOrdersCancelled: number;
 
   constructor(
-    data: any[],
+    data: OrderResDto[],
     meta: OffsetPaginationDto,
     totalOrders?: TOTAL_ORDERS_FOR_PAGINATED,
   ) {

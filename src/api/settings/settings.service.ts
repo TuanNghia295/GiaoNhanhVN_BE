@@ -29,7 +29,6 @@ export class SettingsService {
   }
 
   async getServiceFees(settingId: number) {
-    console.log('settingId', settingId);
     const results = await this.db.query.serviceFees.findMany({
       where: eq(serviceFees.settingId, settingId),
       with: {
@@ -96,5 +95,9 @@ export class SettingsService {
         .returning();
       return plainToInstance(ServiceFeeResDto, serviceFee);
     });
+  }
+
+  async isSystemEnabled() {
+    const [setting] = await this.db.select().from(settings).limit(1).execute();
   }
 }

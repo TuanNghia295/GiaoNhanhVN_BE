@@ -1,5 +1,6 @@
 import { config } from 'dotenv';
 import 'dotenv/config';
+import { desc, sql } from 'drizzle-orm';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schema from './schemas';
@@ -159,6 +160,42 @@ async function main() {
   //     `ALTER SEQUENCE ratings_id_seq RESTART WITH ${Math.max(...ratingList.map((a) => a.id)) + 1}`,
   //   ),
   // );
+  // const resionCancelList = await db
+  //   .select()
+  //   .from(schema.reasonDeliverCancelOrders)
+  //   .orderBy(desc(schema.reasonDeliverCancelOrders.id));
+  // await db.execute(
+  //   sql.raw(
+  //     `ALTER SEQUENCE reason_deliver_cancel_orders_id_seq RESTART WITH ${Math.max(...resionCancelList.map((a) => a.id)) + 1}`,
+  //   ),
+  // );
+  // const listSettings = await db
+  //   .select()
+  //   .from(schema.settings)
+  //   .orderBy(desc(schema.settings.id));
+  // await db.execute(
+  //   sql.raw(
+  //     `ALTER SEQUENCE settings_id_seq RESTART WITH ${Math.max(...listSettings.map((a) => a.id)) + 1}`,
+  //   ),
+  // );
+  // const serviceFeeList = await db
+  //   .select()
+  //   .from(schema.serviceFees)
+  //   .orderBy(desc(schema.serviceFees.id));
+  // await db.execute(
+  //   sql.raw(
+  //     `ALTER SEQUENCE service_fees_id_seq RESTART WITH ${Math.max(...serviceFeeList.map((a) => a.id)) + 1}`,
+  //   ),
+  // );
+  const distanceList = await db
+    .select()
+    .from(schema.distances)
+    .orderBy(desc(schema.distances.id));
+  await db.execute(
+    sql.raw(
+      `ALTER SEQUENCE distances_id_seq RESTART WITH ${Math.max(...distanceList.map((a) => a.id)) + 1}`,
+    ),
+  );
 }
 
 main()

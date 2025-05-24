@@ -6,12 +6,21 @@ import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagi
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
-import { areas, managers, RoleEnum } from '@/database/schemas';
+import {
+  areas,
+  distances,
+  managers,
+  OrderTypeEnum,
+  RoleEnum,
+  serviceFees,
+  settings,
+} from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { and, count, desc, eq, ilike, sql } from 'drizzle-orm';
+import { startOfDay } from 'date-fns';
+import { and, count, desc, eq, ilike, or, sql } from 'drizzle-orm';
 
 @Injectable()
 export class ManagersService {
@@ -32,15 +41,81 @@ export class ManagersService {
     return plainToInstance(ManagerResDto, manager);
   }
 
-  async create(dto: CreateManagerReqDto) {
-    const [manager] = await this.db
-      .insert(managers)
-      .values({
-        ...dto,
-        role: RoleEnum.MANAGEMENT,
+  async existByUsernameOrAreaId(username: string, areaId: number) {
+    return this.db
+      .select({
+        id: managers.id,
+        areaId: managers.areaId,
       })
-      .returning();
-    return plainToInstance(LoginResDto, manager);
+      .from(managers)
+      .where(or(eq(managers.username, username), eq(managers.areaId, areaId)))
+      .then((res) => res[0]);
+  }
+
+  async create(reqDto: CreateManagerReqDto) {
+    const existManager = await this.existByUsernameOrAreaId(
+      reqDto.username,
+      reqDto.areaId,
+    );
+    if (existManager) {
+      throw new ValidationException(ErrorCode.M002);
+    }
+
+    return this.db.transaction(async (tx) => {
+      const [createdManager] = await tx
+        .insert(managers)
+        .values({
+          ...reqDto,
+          role: RoleEnum.MANAGEMENT,
+        })
+        .returning();
+
+      // Tạo setting cho khu vực đó
+      const [createdSetting] = await tx
+        .insert(settings)
+        .values({
+          areaId: reqDto.areaId,
+          openTime: startOfDay(new Date()),
+          closeTime: startOfDay(new Date()),
+        })
+        .returning({
+          id: settings.id,
+        });
+      const orderType = Object.values(OrderTypeEnum);
+      for (const type of orderType) {
+        const [createdServiceFee] = await tx
+          .insert(serviceFees)
+          .values({
+            settingId: createdSetting.id,
+            type,
+          })
+          .returning({
+            id: serviceFees.id,
+          });
+
+        const DEFAULT_DISTANCE = [
+          { minDistance: 0, maxDistance: 1, rate: 8000 },
+          { minDistance: 1, maxDistance: 2, rate: 0 },
+          { minDistance: 2, maxDistance: 3, rate: 3000 },
+          { minDistance: 3, maxDistance: 4, rate: 3000 },
+          { minDistance: 4, maxDistance: 5, rate: 3000 },
+          { minDistance: 5, maxDistance: 6, rate: 5000 },
+          { minDistance: 6, maxDistance: 7, rate: 5000 },
+          { minDistance: 7, maxDistance: 8, rate: 5000 },
+          { minDistance: 8, maxDistance: 9, rate: 5000 },
+          { minDistance: 9, maxDistance: 10, rate: 5000 },
+        ];
+        await tx.insert(distances).values(
+          DEFAULT_DISTANCE.map((d) => ({
+            serviceFeeId: createdServiceFee.id,
+            minDistance: d.minDistance,
+            maxDistance: d.maxDistance,
+            rate: d.rate,
+          })),
+        );
+      }
+      return plainToInstance(LoginResDto, createdManager);
+    });
   }
 
   async getPageManagers(

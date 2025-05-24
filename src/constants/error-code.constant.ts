@@ -87,12 +87,12 @@ export enum ErrorCode {
   OD001 = 'order.error.not_found',
   OD002 = 'order.error.wrong_line_status',
   OD003 = 'order.error.not_cancel_order',
-  OD004 = 'order.error.not_',
   // không phải là status pending
   OD005 = 'order.error.not_status_pending',
 
   // Manager
   M001 = 'manager.error.not_found',
+  M002 = 'manager.error.already_exists',
   //Option
   O001 = 'option.error.not_found',
   O002 = 'option.error.not_belong_to_product',
@@ -140,4 +140,7 @@ export enum ErrorCode {
   SF001 = 'service_fee.error.not_found',
   // Notification
   N001 = 'notification.error.not_found',
+
+  //Excel
+  EX001 = 'excel.error',
 }
