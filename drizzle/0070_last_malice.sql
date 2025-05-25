@@ -1,1 +1,0 @@
-ALTER TABLE "vouchers" ALTER COLUMN "status" SET DEFAULT 'ACTIVE';

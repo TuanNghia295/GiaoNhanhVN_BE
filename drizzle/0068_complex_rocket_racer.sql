@@ -1,1 +1,0 @@
-ALTER TABLE "orders" ALTER COLUMN "payfor_shop" SET DEFAULT 0;

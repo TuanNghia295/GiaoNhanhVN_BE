@@ -131,12 +131,11 @@ export class TransactionsService {
           );
           break;
         case TransactionTypeEnum.WITHDRAW:
+          if (existDeliver.point < reqDto.point) {
+            throw new ValidationException(ErrorCode.TR002);
+          }
           // Nếu là admin thì cộng điểm cho khu vực
           if (payload.role === RoleEnum.MANAGEMENT) {
-            if (existDeliver.point < reqDto.point) {
-              throw new ValidationException(ErrorCode.TR002);
-            }
-
             await this.areasService.addPoint(payload.areaId, reqDto.point, tx);
           }
           await this.deliversService.subtractPoint(

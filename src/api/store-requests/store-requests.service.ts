@@ -10,6 +10,7 @@ import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE, withPagination } from '@/database/global';
 import {
+  notificationsToUsers,
   RoleEnum,
   storeRequests,
   StoreRequestStatusEnum,
@@ -23,6 +24,7 @@ import {
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { plainToInstance } from 'class-transformer';
 import {
   and,
@@ -40,6 +42,7 @@ export class StoreRequestsService {
   constructor(
     private readonly areasService: AreasService,
     private readonly storesService: StoresService,
+    private readonly emitter: EventEmitter2,
     private readonly notificationsService: NotificationsService,
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
   ) {}
@@ -141,7 +144,12 @@ export class StoreRequestsService {
         status: storeRequests.status,
       })
       .from(storeRequests)
-      .where(and(eq(storeRequests.userId, userId)))
+      .where(
+        and(
+          eq(storeRequests.status, StoreRequestStatusEnum.PENDING),
+          eq(storeRequests.userId, userId),
+        ),
+      )
       .execute()
       .then((res) => res[0] ?? null);
   }
@@ -161,20 +169,43 @@ export class StoreRequestsService {
     }
 
     return this.db.transaction(async (tx) => {
-      await tx.insert(notifications).values({
-        userId: payload.id,
-        type: NotificationTypeEnum.SYSTEM,
-        title: 'Đăng ký cửa hàng',
-        body: `Yêu cầu mở shop của bạn đang chờ xét duyệt từ admin. Nếu thời gian chờ quá lâu, vui lòng liên hệ hotline`,
-      });
-      return await tx
+      // await tx.insert(notifications).values({
+      //   userId: payload.id,
+      //   type: NotificationTypeEnum.SYSTEM,
+      //   title: 'Đăng ký cửa hàng',
+      //   body: `Yêu cầu mở shop của bạn đang chờ xét duyệt từ admin. Nếu thời gian chờ quá lâu, vui lòng liên hệ hotline`,
+      // });
+      const [createdStoreRequest] = await tx
         .insert(storeRequests)
         .values({
           ...reqDto,
           userId: payload.id,
         })
-        .returning()
-        .then((res) => plainToInstance(StoreRequestResDto, res[0]));
+        .returning();
+      const [createdNotification] = await tx
+        .insert(notifications)
+        .values({
+          type: NotificationTypeEnum.SYSTEM,
+          title: 'Đăng ký cửa hàng',
+          body: `Yêu cầu mở shop của bạn đã được gửi đi. Vui lòng chờ admin xét duyệt`,
+        })
+        .returning({
+          id: notifications.id,
+        });
+
+      await this.db
+        .insert(notificationsToUsers)
+        .values({
+          userId: payload.id,
+          notificationId: createdNotification.id,
+        })
+        .execute();
+
+      await this.emitter.emitAsync('store-requests.created', {
+        userId: payload.id,
+        areaId: reqDto.areaId,
+      });
+      return plainToInstance(StoreRequestResDto, createdStoreRequest);
     });
   }
 
@@ -221,6 +252,10 @@ export class StoreRequestsService {
         .execute();
 
       /// socket
+      await this.emitter.emitAsync('store-requests.approved', {
+        userId: storeRequest.userId,
+        areaId: storeRequest.areaId,
+      });
 
       return plainToInstance(StoreRequestResDto, storeRequest);
     });

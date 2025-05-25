@@ -5,7 +5,15 @@ import { UpdatePointAreaReqDto } from '@/api/areas/dto/update-point-area.req.dto
 import { RoleEnum } from '@/database/schemas';
 import { ApiAuth, ApiPublic } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
-import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+} from '@nestjs/common';
 import { AreasService } from './areas.service';
 
 @Controller('areas')
@@ -49,5 +57,15 @@ export class AreasController {
   })
   async getAreaById(@Param('id') id: number) {
     return this.areasService.getById(id);
+  }
+
+  @Delete(':id')
+  @Roles(RoleEnum.ADMIN)
+  @ApiAuth({
+    summary: 'Xóa khu vực(admin)',
+    type: AreaResDto,
+  })
+  async remove(@Param('id') areaId: number) {
+    return await this.areasService.remove(areaId);
   }
 }

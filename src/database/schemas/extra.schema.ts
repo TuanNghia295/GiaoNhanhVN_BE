@@ -38,12 +38,12 @@ export const extrasToOrderDetails = pgTable(
   'extras_to_order_details',
   {
     quantity: integer('quantity').notNull(),
-    extraId: serial('extra_id')
+    extraId: integer('extra_id')
       .notNull()
       .references(() => extras.id),
-    orderDetailId: serial('order_detail_id')
+    orderDetailId: integer('order_detail_id')
       .notNull()
-      .references(() => products.id),
+      .references(() => orderDetails.id),
   },
   (t) => [primaryKey({ columns: [t.extraId, t.orderDetailId] })],
 );

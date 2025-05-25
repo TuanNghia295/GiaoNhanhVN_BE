@@ -38,6 +38,7 @@ export const notificationsRelations = relations(
       fields: [notifications.areaId],
       references: [areas.id],
     }),
+    notificationsToUsers: many(notificationsToUsers),
     users: many(notificationsToUsers),
   }),
 );

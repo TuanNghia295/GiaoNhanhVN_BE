@@ -1,1 +1,0 @@
-ALTER TABLE "delivers" ALTER COLUMN "email" DROP NOT NULL;

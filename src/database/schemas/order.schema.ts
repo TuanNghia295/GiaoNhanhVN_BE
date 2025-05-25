@@ -4,6 +4,7 @@ import { orderDetails } from '@/database/schemas/order-detail.schema';
 import { reasonDeliverCancelOrders } from '@/database/schemas/reason-deliver-cancel-order.schema';
 import { stores } from '@/database/schemas/store.schema';
 import { users } from '@/database/schemas/user.schema';
+import { vouchersOnOrders } from '@/database/schemas/voucher.schema';
 import { relations } from 'drizzle-orm';
 import {
   boolean,
@@ -131,6 +132,7 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
     fields: [orders.storeId],
     references: [stores.id],
   }),
+  vouchers: many(vouchersOnOrders),
   user: one(users, {
     fields: [orders.userId],
     references: [users.id],

@@ -1,1 +1,0 @@
-ALTER TABLE "store_requests" ALTER COLUMN "area_id" DROP NOT NULL;

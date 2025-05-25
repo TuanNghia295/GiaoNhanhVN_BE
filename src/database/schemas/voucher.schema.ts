@@ -51,12 +51,12 @@ export const vouchers = pgTable('vouchers', {
     precision: 10,
     scale: 2,
     mode: 'number',
-  }),
+  }).default(0),
   maxOrderValue: decimal('max_order_value', {
     precision: 10,
     scale: 2,
     mode: 'number',
-  }),
+  }).default(0),
   areaId: integer('area_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at')

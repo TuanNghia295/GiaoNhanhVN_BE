@@ -1,1 +1,0 @@
-ALTER TABLE "orders" RENAME COLUMN "incomeDeliver" TO "income_deliver";

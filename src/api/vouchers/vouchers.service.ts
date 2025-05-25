@@ -140,6 +140,7 @@ export class VouchersService {
   }
 
   async create(reqDto: CreateVoucherReqDto, payload: JwtPayloadType) {
+    console.log('reqDto', reqDto);
     //-------------------------------------------------------
     // Kiểm tra mã đó có đang tồn tại
     if (await this.existByCode(reqDto.code, payload.id)) {
@@ -149,7 +150,8 @@ export class VouchersService {
       throw new ValidationException(ErrorCode.V007, HttpStatus.BAD_REQUEST);
     }
 
-    if (reqDto.areaId) {
+    // Chỉ có role MANAGEMENT với có điểm
+    if ([RoleEnum.MANAGEMENT].includes(payload.role)) {
       const area = await this.db
         .select({
           areaId: areas.id,

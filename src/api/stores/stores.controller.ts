@@ -49,7 +49,7 @@ export class StoresController {
 
   @AuthOptional()
   @ApiAuth({
-    summary: 'Lấy danh sách cửa hàng (public)',
+    summary: 'Lấy danh sách cửa hàng (optional auth)',
   })
   @Get()
   async getPageStores(

@@ -1,1 +1,0 @@
-ALTER TABLE "locations" ADD COLUMN "deliver_id" integer;

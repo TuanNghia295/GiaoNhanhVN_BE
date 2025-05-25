@@ -1,1 +1,0 @@
-ALTER TABLE "comments_to_ratings" ADD COLUMN "id" integer;

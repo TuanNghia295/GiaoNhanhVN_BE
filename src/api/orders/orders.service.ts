@@ -94,6 +94,7 @@ export class OrdersService {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.orders> = {
       with: {
         store: true,
+        vouchers: true,
         reasonDeliverCancelOrder: true,
         deliver: true,
         orderDetails: {
@@ -495,19 +496,19 @@ export class OrdersService {
                                      WHERE ov.order_id = ${order.id}
                                        AND v.type = ${VouchersTypeEnum.STORE})
         UPDATE orders o
-        SET total_product = GREATEST(odt.total_order_details - COALESCE(tsv.total_store, 0), 0),
-            total_voucher = LEAST(odt.total_order_details, COALESCE(tsv.total_store, 0)),
+        SET total_product     = GREATEST(odt.total_order_details, 0),
+            total_voucher     = LEAST(odt.total_order_details, COALESCE(tsv.total_store, 0)),
             store_service_fee = GREATEST(
               odt.total_order_details
                 * (1 - ${serviceFeeWithTypeFood.pricePct}::numeric / 100) -
-              COALESCE(${serviceFeeWithTypeFood.price}:: numeric, 0) - COALESCE(tsv.total_store, 0),0),
-            payfor_shop   = GREATEST(
+              COALESCE(${serviceFeeWithTypeFood.price}:: numeric, 0) - COALESCE(tsv.total_store, 0), 0),
+            payfor_shop       = GREATEST(
               odt.total_order_details
                 * (1 - ${serviceFeeWithTypeFood.pricePct}::numeric / 100) -
               COALESCE(${serviceFeeWithTypeFood.price}:: numeric, 0)
                 - COALESCE(tsv.total_store, 0),
               0
-                            )
+                                )
         FROM order_details_total odt,
              total_store_voucher tsv
         WHERE o.id = ${order.id}
@@ -541,16 +542,32 @@ export class OrdersService {
         WHERE id = ${order.id};
       `);
       await tx.execute(sql`
+        WITH total_store_voucher AS (SELECT SUM(v.value) AS total_store
+                                     FROM vouchers_on_orders ov
+                                            JOIN vouchers v ON ov.voucher_id = v.id
+                                     WHERE ov.order_id = ${order.id}
+                                       AND v.type = ${VouchersTypeEnum.STORE})
         UPDATE orders
-        SET total = COALESCE(total_product + total_delivery + user_service_fee, 0)
+        SET total = GREATEST(
+                      COALESCE(total_product, 0)
+                        - COALESCE((SELECT total_store FROM total_store_voucher), 0),
+                      0
+                    )
+          + COALESCE(total_delivery, 0)
+          + COALESCE(user_service_fee, 0)
         WHERE id = ${order.id};
       `);
 
       await this.emitter.emitAsync('order.created', order);
-      return tx.query.orders.findFirst({
+      const orderDetail = await tx.query.orders.findFirst({
         where: eq(orders.id, order.id),
         with: {
           store: true,
+          vouchers: {
+            with: {
+              voucher: true,
+            },
+          },
           orderDetails: {
             with: {
               product: true,
@@ -564,6 +581,14 @@ export class OrdersService {
           },
         },
       });
+      // flatten vouchers array
+      const mappedOrderDetail = {
+        ...orderDetail,
+        vouchers: Array.isArray(orderDetail.vouchers)
+          ? orderDetail.vouchers.map((v) => v.voucher)
+          : [],
+      };
+      return plainToInstance(OrderResDto, mappedOrderDetail);
     });
   }
 
@@ -600,17 +625,19 @@ export class OrdersService {
       // lef join table options extras để lấy price
 
       await tx.execute(sql`
-        UPDATE order_details od
+        UPDATE order_details
         SET total = (
-          COALESCE(od.quantity * p.price, 0) +
-          COALESCE((SELECT o.price FROM options o WHERE o.id = od.option_id), 0) +
-          COALESCE((SELECT SUM(ex.price)
-                    FROM extras_to_order_details etod
-                           JOIN extras ex ON ex.id = etod.extra_id
-                    WHERE etod.order_detail_id = od.id), 0)
+          COALESCE(order_details.quantity * p.price, 0) +
+          COALESCE((SELECT o.price FROM options o WHERE o.id = order_details.option_id), 0) +
+          COALESCE((
+                     SELECT SUM(ex.price * etod.quantity)
+                     FROM extras_to_order_details etod
+                            JOIN extras ex ON ex.id = etod.extra_id
+                     WHERE etod.order_detail_id = order_details.id
+                   ), 0)
           )
         FROM products p
-        WHERE od.product_id = p.id
+        WHERE order_details.product_id = p.id
       `);
     }
   }
@@ -620,6 +647,7 @@ export class OrdersService {
       where: eq(orders.id, orderId),
       with: {
         store: true,
+        vouchers: true,
         orderDetails: {
           with: {
             product: true,
@@ -633,6 +661,7 @@ export class OrdersService {
         },
       },
     });
+
     if (!order) {
       throw new ValidationException(ErrorCode.OD001, HttpStatus.NOT_FOUND);
     }
@@ -640,9 +669,15 @@ export class OrdersService {
   }
 
   async getPageByUserId(userId: number, reqDto: PageMyOrderReqDto) {
+    console.log('reqDto', reqDto);
     const baseConfig: FindManyQueryConfig<typeof this.db.query.orders> = {
       with: {
         store: true,
+        vouchers: {
+          with: {
+            voucher: true,
+          },
+        },
         reasonDeliverCancelOrder: true,
         orderDetails: {
           with: {
@@ -678,6 +713,15 @@ export class OrdersService {
       }),
       this.db.select({ totalCount: count() }).from(sql`${qCount}`),
     ]);
+    // map lại vouchers là mảng voucher
+    // 👉 Clean mapping: flatten vouchers array
+    const mappedEntities = entities.map((entity) => ({
+      ...entity,
+      vouchers: Array.isArray(entity.vouchers)
+        ? entity.vouchers.map((v) => v.voucher)
+        : [],
+    }));
+    console.log('entities', mappedEntities[0].vouchers);
 
     const totalsOrders = Object.fromEntries(
       (
@@ -702,7 +746,7 @@ export class OrdersService {
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
     return new OrdersOffsetPaginatedResDto(
-      entities.map((e) => plainToInstance(OrderResDto, e)),
+      mappedEntities.map((e) => plainToInstance(OrderResDto, e)),
       meta,
       totalOrdersForPaginated,
     );

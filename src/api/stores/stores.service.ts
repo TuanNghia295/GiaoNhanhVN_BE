@@ -30,6 +30,7 @@ import { HttpStatus, Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import {
   and,
+  count,
   desc,
   eq,
   exists,
@@ -161,6 +162,7 @@ export class StoresService implements OnModuleInit {
                 ),
               ]
             : []),
+          eq(stores.status, true),
           eq(stores.isLocked, false),
           isNotNull(stores.location),
           ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
@@ -205,7 +207,38 @@ export class StoresService implements OnModuleInit {
     withPagination(baseQb, reqDto.limit, reqDto.offset);
 
     // Execute queries in parallel
-    const [entities, totalCount] = await queryWithCount(baseQb);
+    const [entities, { totalCount }] = await Promise.all([
+      await baseQb,
+      await this.db
+        .select({ totalCount: count() })
+        .from(stores)
+        .leftJoin(users, eq(users.id, stores.userId))
+        .where(
+          and(
+            ...(reqDto.categoryItemId
+              ? [
+                  exists(
+                    this.db
+                      .select()
+                      .from(products)
+                      .where(
+                        and(
+                          eq(products.storeId, stores.id),
+                          eq(products.categoryItemId, reqDto.categoryItemId),
+                          isNull(products.deletedAt),
+                          eq(products.isLocked, false),
+                        ),
+                      ),
+                  ),
+                ]
+              : []),
+            eq(stores.isLocked, false),
+            isNotNull(stores.location),
+            ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
+          ),
+        )
+        .then((res) => res[0]),
+    ]);
     const entitiesWithDistance = entities.map((e) => ({
       ...e,
       distance: formatDistance(e.distance),

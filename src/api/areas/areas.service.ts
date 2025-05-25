@@ -6,7 +6,7 @@ import { areas } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { and, eq, or, sql } from 'drizzle-orm';
+import { and, eq, isNull, or, sql } from 'drizzle-orm';
 
 @Injectable()
 export class AreasService {
@@ -30,6 +30,7 @@ export class AreasService {
       .from(areas)
       .where(
         and(
+          isNull(areas.deletedAt),
           eq(areas.parent, parent),
           or(eq(areas.name, name), eq(areas.code, code)),
         ),
@@ -57,24 +58,6 @@ export class AreasService {
       .then((result) => result[0]);
   }
 
-  async existByIdOrNameParent({
-    areaId,
-    name,
-    parent,
-  }: {
-    areaId: number;
-    name: string;
-    parent: string;
-  }): Promise<{ id: number }> {
-    return this.db
-      .select({
-        id: areas.id,
-      })
-      .from(areas)
-      .where(and(or(eq(areas.id, areaId), eq(areas.name, name))))
-      .then((result) => result[0] ?? null);
-  }
-
   async existById(areaId: number) {
     return this.db
       .select({
@@ -82,7 +65,12 @@ export class AreasService {
         point: areas.point,
       })
       .from(areas)
-      .where(eq(areas.id, areaId))
+      .where(
+        and(
+          eq(areas.id, areaId),
+          isNull(areas.deletedAt), // Ensure the area is not deleted
+        ),
+      )
       .then((result) => result[0] ?? null);
   }
 
@@ -124,7 +112,12 @@ export class AreasService {
     const [result] = await this.db
       .select()
       .from(areas)
-      .where(eq(areas.id, areaId))
+      .where(
+        and(
+          eq(areas.id, areaId),
+          isNull(areas.deletedAt), // Ensure the area is not deleted
+        ),
+      )
       .limit(1);
     if (!result) {
       throw new ValidationException(ErrorCode.AR001, HttpStatus.NOT_FOUND);
@@ -141,5 +134,30 @@ export class AreasService {
       .where(eq(areas.id, areaId))
       .returning();
     return result[0];
+  }
+
+  async remove(areaId: number) {
+    if (!(await this.existById(areaId))) {
+      throw new ValidationException(ErrorCode.AR001, HttpStatus.NOT_FOUND);
+    }
+
+    return this.db.transaction(async (tx) => {
+      // trức khi xóa khu vực thì sẽ xóa các ảnh của shipper thuộc khu vực đó
+      // const images = await this.db
+      //   .select({
+      //     avatar: delivers.avatar,
+      //   })
+      //   .from(delivers)
+      //   .where(and(eq(delivers.areaId, areaId)))
+      //   .then((result) => result.map((item) => item.avatar));
+      // if (images.length > 0) {
+      //   for (const image of images) {
+      //     if (fs.existsSync(image)) {
+      //       fs.unlinkSync(image);
+      //     }
+      //   }
+      // }
+      await tx.delete(areas).where(eq(areas.id, areaId));
+    });
   }
 }

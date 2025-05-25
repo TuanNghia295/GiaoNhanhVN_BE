@@ -1,1 +1,0 @@
-ALTER TABLE "vouchers" DROP COLUMN "used_count";

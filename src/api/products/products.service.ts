@@ -126,15 +126,15 @@ export class ProductsService implements OnModuleInit {
         .insert(products)
         .values({
           ...reqDto,
-          ...existStoreMenu,
-          ...existStore,
+          storeMenuId: reqDto.storeMenuId,
+          storeId: reqDto.storeId,
         })
         .returning();
 
       //---------------------------------------------------
       // Check if the options exist
       //---------------------------------------------------
-      if (reqDto.options) {
+      if (reqDto.options.length > 0) {
         await this.optionsService.createForProduct(
           product[0].id,
           reqDto.options,
@@ -144,7 +144,7 @@ export class ProductsService implements OnModuleInit {
       //---------------------------------------------------
       // Check if the extras exist
       //---------------------------------------------------
-      if (reqDto.extras) {
+      if (reqDto.extras.length > 0) {
         await this.extrasService.createForProduct(
           product[0].id,
           reqDto.extras,
@@ -181,13 +181,31 @@ export class ProductsService implements OnModuleInit {
       );
       if (!existCategoryItem) throw new ValidationException(ErrorCode.CI001);
 
-      const product = await tx
+      const [updateProduct] = await tx
         .update(products)
         .set({ ...reqDto })
         .where(eq(products.id, productId))
         .returning();
 
-      return plainToInstance(ProductResDto, product[0]);
+      //---------------------------------------------------
+      // Update options if provided
+      //---------------------------------------------------
+      if (reqDto.options && reqDto.options.length > 0) {
+        await this.optionsService.updateForProduct(
+          productId,
+          reqDto.options,
+          tx,
+        );
+      }
+
+      //---------------------------------------------------
+      // Update extras if provided
+      //---------------------------------------------------
+      if (reqDto.extras && reqDto.extras.length > 0) {
+        await this.extrasService.updateForProduct(productId, reqDto.extras, tx);
+      }
+
+      return plainToInstance(ProductResDto, updateProduct);
     });
   }
 

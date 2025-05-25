@@ -1,1 +1,0 @@
-ALTER TABLE "orders" RENAME COLUMN "pay_for_shop" TO "payfor_shop";

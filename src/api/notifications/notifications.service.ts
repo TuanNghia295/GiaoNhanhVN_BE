@@ -14,12 +14,20 @@ import {
   RoleEnum,
   users,
 } from '@/database/schemas';
-import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
+import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { normalizeImagePath } from '@/utils/util';
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { and, count, desc, eq, exists, isNull, sql } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  isNull,
+  SQL,
+} from 'drizzle-orm';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import sharp from 'sharp';
@@ -95,58 +103,71 @@ export class NotificationsService implements OnModuleInit {
     reqDto: PageNotificationsReqDto,
     payload: JwtPayloadType,
   ) {
-    const baseConfig: FindManyQueryConfig<typeof this.db.query.notifications> =
-      {
-        where: and(
-          ...(payload.role === RoleEnum.MANAGEMENT && payload.areaId
-            ? [
-                eq(notifications.type, NotificationTypeEnum.ADMIN),
-                eq(notifications.areaId, payload.areaId),
-              ]
-            : []),
-          ...(payload.role === RoleEnum.ADMIN && reqDto.areaId
-            ? [
-                eq(notifications.type, NotificationTypeEnum.ADMIN),
-                eq(notifications.areaId, reqDto.areaId),
-              ]
-            : []),
-          ...(payload.role === RoleEnum.USER || payload.role === RoleEnum.STORE
-            ? [
-                exists(
-                  this.db
-                    .select()
-                    .from(notificationsToUsers)
-                    .where(
-                      and(
-                        eq(
-                          notificationsToUsers.notificationId,
-                          notifications.id,
-                        ),
-                        eq(notificationsToUsers.userId, payload.id),
-                      ),
-                    ),
-                ),
-              ]
-            : []),
-        ),
-      };
+    const qb = this.db
+      .select({
+        ...getTableColumns(notifications),
+        userId: notificationsToUsers.userId, // cần để xác định user nhận thông báo
+        isRead: notificationsToUsers.isRead,
+      })
+      .from(notifications)
+      .innerJoin(
+        notificationsToUsers,
+        eq(notificationsToUsers.notificationId, notifications.id),
+      )
+      .$dynamic();
 
-    const qCount = this.db.query.notifications.findMany({
-      ...baseConfig,
-      columns: { id: true },
-    });
+    let whereClause: SQL;
+
+    switch (payload.role) {
+      case RoleEnum.USER:
+      case RoleEnum.STORE:
+        whereClause = eq(notificationsToUsers.userId, Number(payload.id));
+        break;
+
+      case RoleEnum.MANAGEMENT:
+        whereClause = and(
+          eq(notifications.type, NotificationTypeEnum.ADMIN),
+          eq(notifications.areaId, payload.areaId),
+        );
+        break;
+
+      case RoleEnum.ADMIN:
+        whereClause = and(
+          eq(notifications.type, NotificationTypeEnum.ADMIN),
+          ...(reqDto.areaId ? [eq(notifications.areaId, reqDto.areaId)] : []),
+        );
+        break;
+
+      default:
+    }
+
+    // Count query - tránh đếm toàn bộ bảng
+    const countQb = this.db
+      .select({ totalCount: count() })
+      .from(
+        this.db
+          .select({ id: notifications.id })
+          .from(notifications)
+          .innerJoin(
+            notificationsToUsers,
+            eq(notificationsToUsers.notificationId, notifications.id),
+          )
+          .where(whereClause)
+          .as('base_count'),
+      );
 
     const [entities, [{ totalCount }]] = await Promise.all([
-      this.db.query.notifications.findMany({
-        ...baseConfig,
-        orderBy: desc(notifications.createdAt),
-        limit: reqDto.limit,
-        offset: reqDto.offset,
-      }),
-      this.db.select({ totalCount: count() }).from(sql`${qCount}`),
+      qb
+        .where(whereClause)
+        .orderBy(desc(notifications.createdAt))
+        .limit(reqDto.limit)
+        .offset(reqDto.offset)
+        .execute(),
+      countQb.execute(),
     ]);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
+
     return new OffsetPaginatedDto(
       entities.map((e) => plainToInstance(NotificationResDto, e)),
       meta,
@@ -216,6 +237,11 @@ export class NotificationsService implements OnModuleInit {
     switch (payload.role) {
       case RoleEnum.USER:
       case RoleEnum.STORE:
+        console.log(
+          'remove notification for user or store',
+          notificationId,
+          payload.id,
+        );
         return this.db
           .delete(notificationsToUsers)
           .where(
@@ -229,8 +255,7 @@ export class NotificationsService implements OnModuleInit {
       case RoleEnum.ADMIN:
         return this.db.transaction(async (tx) => {
           await tx
-            .select()
-            .from(notificationsToUsers)
+            .delete(notificationsToUsers)
             .where(eq(notificationsToUsers.notificationId, notificationId));
 
           return tx

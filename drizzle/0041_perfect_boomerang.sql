@@ -1,1 +1,0 @@
-ALTER TABLE "order_details" ALTER COLUMN "product_id" DROP NOT NULL;

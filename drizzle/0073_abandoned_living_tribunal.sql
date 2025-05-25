@@ -1,1 +1,0 @@
-ALTER TABLE "locations" ADD CONSTRAINT "locations_deliver_id_unique" UNIQUE("deliver_id");

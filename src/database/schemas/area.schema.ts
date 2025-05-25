@@ -22,6 +22,7 @@ export const areas = pgTable('areas', {
     .default(0),
   location: varchar('location', { length: 255 }),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at'),
   updatedAt: timestamp('updated_at')
     .notNull()
     .defaultNow()

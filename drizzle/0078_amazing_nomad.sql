@@ -1,1 +1,0 @@
-ALTER TABLE "reason_deliver_cancel_orders" ALTER COLUMN "type" SET DEFAULT 'CANCELED';
