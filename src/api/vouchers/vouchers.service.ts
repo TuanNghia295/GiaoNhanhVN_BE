@@ -22,7 +22,12 @@ import {
 import { voucherUsages } from '@/database/schemas/voucher-usage.schema'; // Import Lodash
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
-import { HttpStatus, Inject, Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  HttpStatus,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import {
   and,
@@ -35,6 +40,7 @@ import {
   inArray,
   isNull,
   or,
+  SQL,
   sql,
 } from 'drizzle-orm';
 import _ from 'lodash';
@@ -50,13 +56,15 @@ export class VouchersService {
         // điếm số lượng voucher đã sử dụng
         usedCount: count(vouchersOnOrders.voucherId),
         user: users,
+        area: areas,
       })
       .from(vouchers)
       .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
+      .leftJoin(areas, eq(areas.id, vouchers.areaId))
       .leftJoin(orders, eq(orders.id, vouchersOnOrders.orderId))
       .leftJoin(users, eq(users.id, vouchers.userId))
       .leftJoin(stores, eq(stores.userId, users.id))
-      .groupBy(vouchers.id, users.id)
+      .groupBy(vouchers.id, users.id, areas.id)
       .orderBy(
         reqDto.order === Order.DESC
           ? desc(vouchers.createdAt)
@@ -64,28 +72,67 @@ export class VouchersService {
       )
       .$dynamic();
 
-    const whereClause = and(
-      isNull(vouchers.deletedAt),
-      ...(reqDto.q ? [ilike(vouchers.code, `%${reqDto.q}%`)] : []),
-      ...(reqDto.storeInput
-        ? [
-            or(
-              ilike(stores.name, `%${reqDto.storeInput}%`),
-              ilike(users.phone, `%${reqDto.storeInput}%`),
-            ),
-          ]
-        : []),
-      ...(reqDto.isApp
-        ? [
-            inArray(vouchers.type, [
-              VouchersTypeEnum.ADMIN,
-              VouchersTypeEnum.ADMIN,
-            ]),
-          ]
-        : [eq(vouchers.type, VouchersTypeEnum.STORE)]),
-      ...(reqDto.areaId ? [eq(vouchers.areaId, reqDto.areaId)] : []),
-      isNull(vouchers.deletedAt),
-    );
+    let whereClause: SQL;
+
+    switch (payload.role) {
+      case RoleEnum.ADMIN:
+        whereClause = and(
+          isNull(vouchers.deletedAt),
+          ...(reqDto.q ? [ilike(vouchers.code, `%${reqDto.q}%`)] : []),
+          ...(reqDto.storeInput
+            ? [
+                or(
+                  ilike(stores.name, `%${reqDto.storeInput}%`),
+                  ilike(users.phone, `%${reqDto.storeInput}%`),
+                ),
+              ]
+            : []),
+          ...(reqDto.isApp
+            ? [
+                inArray(vouchers.type, [
+                  VouchersTypeEnum.ADMIN,
+                  VouchersTypeEnum.MANAGEMENT,
+                ]),
+              ]
+            : [eq(vouchers.type, VouchersTypeEnum.STORE)]),
+          ...(reqDto.areaId ? [eq(vouchers.areaId, reqDto.areaId)] : []),
+        );
+        break;
+      case RoleEnum.MANAGEMENT:
+        whereClause = and(
+          isNull(vouchers.deletedAt),
+          ...(reqDto.q ? [ilike(vouchers.code, `%${reqDto.q}%`)] : []),
+          ...(reqDto.storeInput
+            ? [
+                or(
+                  ilike(stores.name, `%${reqDto.storeInput}%`),
+                  ilike(users.phone, `%${reqDto.storeInput}%`),
+                ),
+              ]
+            : []),
+          ...(reqDto.isApp
+            ? [
+                inArray(vouchers.type, [
+                  VouchersTypeEnum.ADMIN,
+                  VouchersTypeEnum.ADMIN,
+                ]),
+              ]
+            : [eq(vouchers.type, VouchersTypeEnum.STORE)]),
+          eq(vouchers.areaId, payload.areaId),
+        );
+        break;
+      case RoleEnum.STORE:
+        whereClause = and(
+          isNull(vouchers.deletedAt),
+          eq(vouchers.userId, payload.id),
+          ...(reqDto.q ? [ilike(vouchers.code, `%${reqDto.q}%`)] : []),
+        );
+        break;
+      default:
+        throw new ForbiddenException(
+          'You do not have permission to access this resource.',
+        );
+    }
 
     await withPagination(qb, reqDto.limit, reqDto.offset);
     const [entities, { totalCount }] = await Promise.all([
@@ -108,10 +155,7 @@ export class VouchersService {
     ]);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
-    return new OffsetPaginatedDto(
-      entities.map((e) => plainToInstance(VoucherResDto, e)),
-      meta,
-    );
+    return new OffsetPaginatedDto(entities, meta);
   }
 
   async existByCode(
@@ -189,38 +233,62 @@ export class VouchersService {
       [_.stubTrue, () => VouchersStatusEnum.ACTIVE], // Trường hợp mặc định
     ])(reqDto);
 
-    return this.db
-      .insert(vouchers)
-      .values({
-        ...reqDto,
-        status, // Trạng thái voucher tự động được xác định dựa trên ngày bắt đầu và ngày kết thúc
-        ...(reqDto.isHidden ? { isHidden: true } : {}),
-        ...(payload.role === RoleEnum.ADMIN ||
-        payload.role === RoleEnum.MANAGEMENT
-          ? {
-              managerId: payload.id,
-              type: VouchersTypeEnum.ADMIN,
-              ...(payload.role === RoleEnum.MANAGEMENT
-                ? {
-                    type: VouchersTypeEnum.MANAGEMENT,
-                    areaId: payload.areaId,
-                  }
-                : {}),
-            }
-          : {
-              userId: payload.id,
-              type: VouchersTypeEnum.STORE,
-              ...(payload.role === RoleEnum.STORE
-                ? {
-                    areaId: reqDto.areaId,
-                  }
-                : {}),
-            }),
-      })
-      .returning()
-      .then((res) => {
-        return plainToInstance(VoucherResDto, res[0]);
-      });
+    switch (payload.role) {
+      case RoleEnum.ADMIN:
+        return this.db
+          .insert(vouchers)
+          .values({
+            ...reqDto,
+            status, // Trạng thái voucher tự động được xác định dựa trên ngày bắt đầu và ngày kết thúc
+            ...(reqDto.isHidden ? { isHidden: true } : {}),
+            managerId: payload.id,
+            type: VouchersTypeEnum.ADMIN,
+            areaId: reqDto.areaId,
+          })
+          .returning()
+          .then((res) => {
+            return plainToInstance(VoucherResDto, res[0]);
+          });
+      case RoleEnum.MANAGEMENT:
+        return this.db
+          .insert(vouchers)
+          .values({
+            ...reqDto,
+            status, // Trạng thái voucher tự động được xác định dựa trên ngày bắt đầu và ngày kết thúc
+            ...(reqDto.isHidden ? { isHidden: true } : {}),
+            managerId: payload.id,
+            type: VouchersTypeEnum.MANAGEMENT,
+            areaId: payload.areaId,
+          })
+          .returning()
+          .then((res) => {
+            return plainToInstance(VoucherResDto, res[0]);
+          });
+      case RoleEnum.STORE:
+        if (!reqDto.areaId) {
+          throw new ValidationException(
+            ErrorCode.V004,
+            HttpStatus.BAD_REQUEST,
+            'Area ID is required for store vouchers',
+          );
+        }
+        return this.db
+          .insert(vouchers)
+          .values({
+            ...reqDto,
+            status, // Trạng thái voucher tự động được xác định dựa trên ngày bắt đầu và ngày kết thúc
+            ...(reqDto.isHidden ? { isHidden: true } : {}),
+            userId: payload.id,
+            type: VouchersTypeEnum.STORE,
+            areaId: reqDto.areaId,
+          })
+          .returning()
+          .then((res) => {
+            return plainToInstance(VoucherResDto, res[0]);
+          });
+      default:
+        throw new ForbiddenException();
+    }
   }
 
   async ensureVoucherIsActive(

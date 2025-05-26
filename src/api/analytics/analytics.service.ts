@@ -3,6 +3,7 @@ import {
   AdminRevenueResDto,
   OrderStatusRevenueResDto,
 } from '@/api/analytics/dto/admin-revenue.res.dto';
+import { StoreRevenueReqDto } from '@/api/analytics/dto/store-revenue.req.dto';
 import {
   OrderStatusStoreRevenueResDto,
   StoreRevenueResDto,
@@ -206,15 +207,15 @@ export class AnalyticsService {
               .as('total_store_service_fee'),
             total_voucher_value: sum(
               sql`CASE WHEN
-                ${vouchers.userId}
-                IS
-                NOT
-                NULL
-                THEN
-                ${vouchers.value}
-                ELSE
-                0
-                END`,
+              ${vouchers.userId}
+              IS
+              NOT
+              NULL
+              THEN
+              ${vouchers.value}
+              ELSE
+              0
+              END`,
             )
               .mapWith(Number)
               .as('total_voucher_value'),
@@ -222,15 +223,15 @@ export class AnalyticsService {
               sql`${orders.payforShop} - 
               CASE 
                 WHEN
-                ${vouchers.userId}
-                IS
-                NOT
-                NULL
-                THEN
-                ${vouchers.value}
-                ELSE
-                0
-                END`,
+              ${vouchers.userId}
+              IS
+              NOT
+              NULL
+              THEN
+              ${vouchers.value}
+              ELSE
+              0
+              END`,
             )
               .mapWith(Number)
               .as('total_store_revenue'),
@@ -314,5 +315,138 @@ export class AnalyticsService {
       total_all_store_revenue,
     });
     return data;
+  }
+
+  async getStoreRevenue(reqDto: StoreRevenueReqDto, payload: JwtPayloadType) {
+    if (!reqDto.from || !reqDto.to) {
+      reqDto.from = new Date();
+      reqDto.to = new Date();
+    }
+
+    const store = await this.storeService.existStoreByUserId(payload.id);
+    if (!store) {
+      throw new ValidationException(ErrorCode.S001, HttpStatus.NOT_FOUND);
+    }
+
+    const statuses: OrderStatusEnum[] = Object.values(OrderStatusEnum);
+
+    const orderFilter = await this.db
+      .select({
+        status: orders.status,
+        total_order: count(orders.id).mapWith(Number).as('total_order'),
+        total_product_price: sum(orders.totalProduct)
+          .mapWith(Number)
+          .as('total_product_price'),
+        total_store_service_fee: sum(
+          sql`${orders.totalProduct} -
+          ${orders.payforShop}`,
+        )
+          .mapWith(Number)
+          .as('total_store_service_fee'),
+        total_voucher_value: sql
+          .raw(
+            `
+          SUM(
+            CASE 
+              WHEN vouchers.user_id IS NOT NULL 
+              AND vouchers_on_orders.order_id IS NOT NULL 
+              THEN LEAST(vouchers.value, orders.total_product)
+              ELSE 0 
+            END
+          )
+        `,
+          )
+          .mapWith(Number)
+          .as('total_voucher_value'),
+        total_store_revenue: sum(orders.payforShop)
+          .mapWith(Number)
+          .as('total_store_revenue'),
+      })
+      .from(orders)
+      .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
+      .leftJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
+      .leftJoin(stores, eq(orders.storeId, stores.id))
+      .where(
+        and(
+          eq(stores.id, store.storeId),
+          between(
+            orders.createdAt,
+            startOfDay(reqDto.from),
+            endOfDay(reqDto.to),
+          ),
+        ),
+      )
+      .groupBy(orders.status);
+
+    const orderFilterMap = new Map(
+      orderFilter.map((item) => [item.status, item]),
+    );
+
+    const result = statuses.map((status) => {
+      const filterData = orderFilterMap.get(status) || {
+        total_order: 0,
+        total_product_price: 0,
+        total_store_service_fee: 0,
+        total_voucher_value: 0,
+        total_store_revenue: 0,
+      };
+
+      return {
+        status,
+        total_order: filterData.total_order,
+        total_product_price: filterData.total_product_price,
+        total_store_service_fee: filterData.total_store_service_fee,
+        total_voucher_value: filterData.total_voucher_value,
+        total_store_revenue: filterData.total_store_revenue,
+      };
+    });
+
+    // Sắp xếp theo thứ tự trạng thái
+    const statusOrder = [
+      OrderStatusEnum.DELIVERED,
+      OrderStatusEnum.CANCELED,
+      OrderStatusEnum.PENDING,
+      OrderStatusEnum.ACCEPTED,
+      OrderStatusEnum.DELIVERING,
+    ];
+
+    result.sort(
+      (a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status),
+    );
+
+    console.log('result', result);
+
+    // ✅ Tính tổng trừ các đơn hàng đã hủy
+    const DATA_FILTERED = result.filter(
+      (item) => item.status !== OrderStatusEnum.CANCELED,
+    );
+
+    const total_all_order = DATA_FILTERED?.reduce(
+      (acc, cur) => acc + Number(cur.total_order),
+      0,
+    );
+    const total_all_product_price =
+      DATA_FILTERED?.reduce((acc, cur) => acc + cur.total_product_price, 0) ??
+      0;
+    const total_all_store_service_fee =
+      DATA_FILTERED?.reduce(
+        (acc, cur) => acc + cur.total_store_service_fee,
+        0,
+      ) ?? 0;
+    const total_all_voucher_value =
+      DATA_FILTERED?.reduce((acc, cur) => acc + cur.total_voucher_value, 0) ??
+      0;
+    const total_all_store_revenue =
+      DATA_FILTERED?.reduce((acc, cur) => acc + cur.total_store_revenue, 0) ??
+      0;
+
+    return {
+      all: result,
+      total_all_order,
+      total_all_product_price,
+      total_all_store_service_fee,
+      total_all_voucher_value,
+      total_all_store_revenue,
+    };
   }
 }

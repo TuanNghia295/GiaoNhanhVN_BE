@@ -1,12 +1,13 @@
 import { AdminRevenueReqDto } from '@/api/analytics/dto/admin-revenue.req.dto';
 import { AdminRevenueResDto } from '@/api/analytics/dto/admin-revenue.res.dto';
+import { StoreRevenueReqDto } from '@/api/analytics/dto/store-revenue.req.dto';
 import { StoreRevenueResDto } from '@/api/analytics/dto/store-revenue.res.dto';
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { RoleEnum } from '@/database/schemas';
 import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Query } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 
 @Controller('analytics')
@@ -30,9 +31,16 @@ export class AnalyticsController {
   })
   @Get('store/my')
   async getMyStoreRevenue(
-    @Query() reqDto: AdminRevenueReqDto,
+    @Query() reqDto: StoreRevenueReqDto,
     @CurrentUser() payload: JwtPayloadType,
   ) {
-    return this.analyticsService.getMyStoreRevenue(reqDto, payload);
+    switch (payload.role) {
+      case RoleEnum.STORE:
+        return this.analyticsService.getStoreRevenue(reqDto, payload);
+      default:
+        throw new ForbiddenException(
+          'You do not have permission to access this resource.',
+        );
+    }
   }
 }

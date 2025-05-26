@@ -45,6 +45,7 @@ import { allowedTransitions } from '@/utils/util';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { forwardRef, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Big } from 'big.js';
 import { Cache } from 'cache-manager';
 import { plainToInstance } from 'class-transformer';
 import { endOfDay, getHours, startOfDay } from 'date-fns';
@@ -364,32 +365,30 @@ export class OrdersService {
     distances: Distance[] = [],
     distancePct: number = 0,
   ) {
-    let baseRate = 0;
-    while (totalDistance > 0) {
-      // Lấy thông tin khoảng cách cuối cùng
-      const lastDistance = distances[distances.length - 1];
-      // Nếu vượt quá khoảng cách tối đa
-      if (totalDistance > lastDistance?.maxDistance) {
-        const rate = lastDistance?.rate ?? 0;
-        const multiplier = 1 + distancePct / 100;
+    let baseRate = new Big(0);
+    const multiplier = new Big(1).plus(new Big(distancePct).div(100));
 
-        // Tính phí và giảm khoảng cách
-        baseRate += rate * multiplier;
+    while (totalDistance > 0) {
+      const lastDistance = distances[distances.length - 1];
+
+      if (totalDistance > lastDistance?.maxDistance) {
+        const rate = new Big(lastDistance?.rate ?? 0);
+        baseRate = baseRate.plus(rate.times(multiplier));
         totalDistance -= 1;
       } else {
-        // Nếu không vượt quá khoảng cách tối đa
-        const rate = distances.find(
+        const matchedDistance = distances.find(
           (distance) =>
             totalDistance >= distance.minDistance &&
             totalDistance <= distance.maxDistance,
-        ).rate;
-        const multiplier = 1 + distancePct / 100;
-        baseRate += rate * multiplier;
+        );
+
+        const rate = new Big(matchedDistance?.rate ?? 0);
+        baseRate = baseRate.plus(rate.times(multiplier));
         totalDistance -= 1;
       }
     }
-    // Trả về phí giao hàng
-    return baseRate;
+
+    return baseRate.toNumber();
   }
 
   //hàm tính phí dịch vụ môi tường
@@ -629,12 +628,10 @@ export class OrdersService {
         SET total = (
           COALESCE(order_details.quantity * p.price, 0) +
           COALESCE((SELECT o.price FROM options o WHERE o.id = order_details.option_id), 0) +
-          COALESCE((
-                     SELECT SUM(ex.price * etod.quantity)
-                     FROM extras_to_order_details etod
-                            JOIN extras ex ON ex.id = etod.extra_id
-                     WHERE etod.order_detail_id = order_details.id
-                   ), 0)
+          COALESCE((SELECT SUM(ex.price * etod.quantity)
+                    FROM extras_to_order_details etod
+                           JOIN extras ex ON ex.id = etod.extra_id
+                    WHERE etod.order_detail_id = order_details.id), 0)
           )
         FROM products p
         WHERE order_details.product_id = p.id
