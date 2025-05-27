@@ -2,6 +2,7 @@ import { DeliversService } from '@/api/delivers/delivers.service';
 import { DeliverGateway } from '@/api/gateways/deliver.gateway';
 import { UserGateway } from '@/api/gateways/user.gateway';
 import { Order } from '@/database/schemas';
+import { buildMulticastMessage } from '@/utils/firebase.util';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import * as admin from 'firebase-admin';
@@ -22,24 +23,18 @@ export class OrdersEvent {
     const validTokens = tokens.filter((t) => !!t);
     if (!validTokens.length) return;
     try {
-      await this.firebase.messaging().sendEachForMulticast({
-        tokens: validTokens,
-        notification: {
-          title: 'Bạn có một đơn hàng mới',
-          body: 'Có một đơn hàng mới cần giao, hãy kiểm tra ngay',
-        },
-        data: {
-          title: 'Bạn có một đơn hàng mới',
-          body: 'Có một đơn hàng mới cần giao, hãy kiểm tra ngay',
-          sound: 'alert.caf',
-        },
-      });
+      await this.firebase
+        .messaging()
+        .sendEachForMulticast(buildMulticastMessage(validTokens, 'NEW_ORDER'));
     } catch (error) {
       this.logger.error('Error sending FCM notification', error);
     }
   }
 
   private async emitSocketToDrivers(ids: string[], order: Order) {
+    //--------------------------------------------------------
+    // Chỉ gửi socket chi shipper trong khu vực đó
+    //--------------------------------------------------------
     this.deliverGateway.server.to(ids).emit('refresh-order', order);
   }
 
