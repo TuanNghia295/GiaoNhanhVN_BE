@@ -17,16 +17,17 @@ export const formatVietnamPhoneNumber = (phoneNumber: string) => {
   return `+84${phone}`;
 };
 
-export const formatDistance = (distanceInMeters: number) =>
-  distanceInMeters >= 1000
-    ? {
-        text: `${Math.round(distanceInMeters / 1000)} km`,
-        value: Math.round(distanceInMeters / 1000),
-      }
-    : {
-        text: `${Math.round(distanceInMeters)} m`,
-        value: Math.round(distanceInMeters),
-      };
+export const formatDistance = (distanceInKilometers: number) => {
+  const isKm = distanceInKilometers >= 1;
+  const value = isKm
+    ? parseFloat(distanceInKilometers.toFixed(1))
+    : Math.round(distanceInKilometers * 1000);
+
+  return {
+    text: isKm ? `${value} km` : `${value} m`,
+    value,
+  };
+};
 
 export const allowedTransitions: Record<OrderStatusEnum, OrderStatusEnum[]> = {
   [OrderStatusEnum.PENDING]: [
