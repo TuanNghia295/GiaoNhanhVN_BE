@@ -5,7 +5,6 @@ import { Order } from '@/database/schemas';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import * as admin from 'firebase-admin';
-import pRetry from 'p-retry';
 import { FIREBASE_ADMIN } from '../../firebase/firebase.module';
 
 @Injectable()
@@ -37,7 +36,6 @@ export class OrdersEvent {
       });
     } catch (error) {
       this.logger.error('Error sending FCM notification', error);
-      throw new Error('Failed to send FCM notification');
     }
   }
 
@@ -62,12 +60,7 @@ export class OrdersEvent {
       const driverIds = drivers.map((driver) => String(driver.id));
       const fcmTokens = drivers.map((driver) => driver.fcmToken);
 
-      await pRetry(() => this.notifyDriversByFCM(fcmTokens), {
-        retries: 3,
-        onFailedAttempt: (error) => {
-          this.logger.warn(`FCM attempt failed. ${error.attemptNumber}`);
-        },
-      });
+      await this.notifyDriversByFCM(fcmTokens);
       this.logger.log(`FCM sent to ${fcmTokens.length} drivers`);
       await this.emitSocketToDrivers(driverIds, order);
     }
