@@ -1,6 +1,7 @@
 import { CreateDeliverReqDto } from '@/api/delivers/dto/create-deliver.req.dto';
 import { DeliverResDto } from '@/api/delivers/dto/deliver.res.dto';
 import { PageDeliverReqDto } from '@/api/delivers/dto/page-deliver.req.dto';
+import { RevenueReqDto } from '@/api/delivers/dto/revenue.req.dto';
 import { UpdateDeliverReqDto } from '@/api/delivers/dto/update-deliver.req.dto';
 import { OrdersService } from '@/api/orders/orders.service';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
@@ -20,18 +21,21 @@ import { normalizeImagePath } from '@/utils/util';
 import { forwardRef, Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { plainToInstance } from 'class-transformer';
-import { endOfDay, startOfDay } from 'date-fns';
 import {
   and,
   asc,
+  between,
   count,
   desc,
   eq,
+  inArray,
   isNull,
   notInArray,
   sql,
+  sum,
 } from 'drizzle-orm';
 import { existsSync, mkdirSync, unlinkSync } from 'fs';
+import { DateTime } from 'luxon';
 import { join } from 'path';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
@@ -306,47 +310,38 @@ export class DeliversService implements OnModuleInit {
       },
     });
 
-    const startDay = startOfDay(new Date());
-    const endDay = endOfDay(new Date());
+    const startDay: Date = DateTime.now().startOf('day').toJSDate();
+    const endDay: Date = DateTime.now().endOf('day').toJSDate();
 
-    const [{ totalCount }] = await this.db
-      .select({ totalCount: count() })
-      .from(orders)
-      .where(
-        and(
-          eq(orders.deliverId, id),
-          eq(orders.status, OrderStatusEnum.DELIVERED),
-          sql`${orders.createdAt} >=
-          ${startDay}`,
-          sql`${orders.createdAt} <=
-          ${endDay}`,
-        ),
-      )
-      .execute();
-
-    // Thu nhập trong ngày
-    const [{ totalIncome }] = await this.db
+    const [stats] = await this.db
       .select({
-        totalIncome: sql`sum
-          (${orders.incomeDeliver})`,
+        totalCount: count(),
+        totalIncome: sql
+          .raw(
+            `
+          SUM(
+          CASE
+              WHEN orders.status = 'DELIVERED'
+              THEN orders.income_deliver
+              ELSE 0
+            END
+          )
+        `,
+          )
+          .mapWith(Number),
       })
       .from(orders)
       .where(
         and(
           eq(orders.deliverId, id),
-          eq(orders.status, OrderStatusEnum.DELIVERED),
-          sql`${orders.createdAt} >=
-          ${startDay}`,
-          sql`${orders.createdAt} <=
-          ${endDay}`,
+          between(orders.createdAt, startDay, endDay),
         ),
-      )
-      .execute();
+      );
 
     return plainToInstance(DeliverResDto, {
       ...result,
-      orderCountInDay: totalCount,
-      incomeInDay: totalIncome,
+      orderCountInDay: stats.totalCount || 0,
+      incomeInDay: stats.totalIncome || 0,
     });
   }
 
@@ -411,5 +406,48 @@ export class DeliversService implements OnModuleInit {
       },
       orderBy: desc(delivers.createdAt),
     });
+  }
+
+  async getRevenue(deliverId: number, reqDto: RevenueReqDto) {
+    if (reqDto.to && reqDto.from) {
+      reqDto.to = DateTime.fromJSDate(reqDto.to).startOf('day').toJSDate();
+      reqDto.from = DateTime.fromJSDate(reqDto.from).endOf('day').toJSDate();
+    }
+
+    const [results, incomeResult] = await Promise.all([
+      this.db
+        .select()
+        .from(orders)
+        .where(
+          and(
+            eq(orders.deliverId, deliverId),
+            inArray(orders.status, [
+              OrderStatusEnum.DELIVERED,
+              OrderStatusEnum.CANCELED,
+            ]),
+            ...(reqDto.from && reqDto.to
+              ? [between(orders.createdAt, reqDto.from, reqDto.to)]
+              : []),
+          ),
+        ),
+      this.db
+        .select({ totalIncome: sum(orders.incomeDeliver).mapWith(Number) })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.deliverId, deliverId),
+            eq(orders.status, OrderStatusEnum.DELIVERED),
+            ...(reqDto.from && reqDto.to
+              ? [between(orders.createdAt, reqDto.from, reqDto.to)]
+              : []),
+          ),
+        ),
+    ]);
+
+    return {
+      orderCount: results.length,
+      totalIncome: incomeResult[0]?.totalIncome || 0,
+      orders: results,
+    };
   }
 }

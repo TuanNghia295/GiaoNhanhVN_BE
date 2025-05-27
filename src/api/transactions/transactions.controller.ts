@@ -54,10 +54,10 @@ export class TransactionsController {
   })
   @Get('record')
   async getRecordTransaction(
-    // @CurrentUser() payload: JwtPayloadType,
+    @CurrentUser() payload: JwtPayloadType,
     @Query() reqDto: PagingTransaction,
   ) {
-    return this.transactionsService.getRecordTransaction(reqDto);
+    return this.transactionsService.getRecordTransaction(reqDto, payload);
   }
 
   @Roles(RoleEnum.DELIVER)

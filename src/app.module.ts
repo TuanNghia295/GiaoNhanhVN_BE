@@ -22,6 +22,7 @@ import { Keyv } from 'keyv';
 import { join } from 'path';
 import { AnalyticsModule } from './api/analytics/analytics.module';
 import { AreasModule } from './api/areas/areas.module';
+import { BankingAccountModule } from './api/banking-account/banking-account.module';
 import { BannersModule } from './api/banners/banners.module';
 import { CategoriesModule } from './api/categories/categories.module';
 import { CategoryItemsModule } from './api/category-items/category-items.module';
@@ -120,6 +121,7 @@ import { FirebaseModule } from './firebase/firebase.module';
     EventsModule,
     CommentInRatingsModule,
     ExcelsModule,
+    BankingAccountModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -4,6 +4,7 @@ import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { CreateDeliverReqDto } from '@/api/delivers/dto/create-deliver.req.dto';
 import { DeliverResDto } from '@/api/delivers/dto/deliver.res.dto';
 import { PageDeliverReqDto } from '@/api/delivers/dto/page-deliver.req.dto';
+import { RevenueReqDto } from '@/api/delivers/dto/revenue.req.dto';
 import { UpdateDeliverReqDto } from '@/api/delivers/dto/update-deliver.req.dto';
 import { UpdateImageReqDto } from '@/api/delivers/dto/update-image.req.dto';
 import { OrderResDto } from '@/api/orders/dto/order.res.dto';
@@ -196,6 +197,19 @@ export class DeliversController {
       status,
       reason,
     );
+  }
+
+  @Roles(RoleEnum.DELIVER)
+  @ApiAuth({
+    summary: 'Thống kê doanh thu của deliver hiện tại (deliver)',
+    type: OrderResDto,
+  })
+  @Get('revenue')
+  async getRevenue(
+    @CurrentUser() payload: JwtPayloadType,
+    @Query() reqDto: RevenueReqDto,
+  ) {
+    return await this.deliversService.getRevenue(payload.id, reqDto);
   }
 
   @Roles(RoleEnum.DELIVER)

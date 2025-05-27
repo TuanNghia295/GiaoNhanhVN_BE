@@ -1,4 +1,5 @@
 export * from './area.schema';
+export * from './bank.schema';
 export * from './banner.schema';
 export * from './category-item.schema';
 export * from './category.schema';

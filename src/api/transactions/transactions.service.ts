@@ -24,16 +24,7 @@ import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import {
-  and,
-  count,
-  desc,
-  eq,
-  inArray,
-  isNotNull,
-  not,
-  sql,
-} from 'drizzle-orm';
+import { and, count, desc, eq, isNotNull, not, sql } from 'drizzle-orm';
 
 @Injectable()
 export class TransactionsService {
@@ -151,19 +142,45 @@ export class TransactionsService {
     });
   }
 
-  async getRecordTransaction(reqDto: PagingTransaction) {
-    const baseConfig: FindManyQueryConfig<typeof this.db.query.transactions> = {
-      where: and(
-        ...(reqDto.deliverId
-          ? [eq(transactions.deliverId, reqDto.deliverId)]
-          : []),
-        inArray(transactions.method, [
-          TransactionMethodEnum.TRANSFER,
-          TransactionMethodEnum.REQUEST,
-        ]),
-        not(eq(transactions.status, TransactionStatus.PENDING)),
-      ),
-    };
+  async getRecordTransaction(
+    reqDto: PagingTransaction,
+    payload: JwtPayloadType,
+  ) {
+    const baseConfig: FindManyQueryConfig<typeof this.db.query.transactions> =
+      {};
+
+    switch (payload.role) {
+      case RoleEnum.ADMIN:
+        baseConfig.where = and(
+          not(eq(transactions.status, TransactionStatus.PENDING)),
+          isNotNull(transactions.managerId),
+          // Lọc ra các giao dịch của shipper đó
+          ...(reqDto.deliverId
+            ? [eq(transactions.deliverId, reqDto.deliverId)]
+            : []),
+          // Lọc ra các giao dịch của khu vực đó
+          ...(reqDto.managerId
+            ? [eq(transactions.managerId, reqDto.managerId)]
+            : []),
+        );
+        break;
+      case RoleEnum.MANAGEMENT:
+        baseConfig.where = and(
+          not(eq(transactions.status, TransactionStatus.PENDING)),
+          // Lọc ra các giao dịch shipper của khu vực mình
+          ...(reqDto.deliverId
+            ? [eq(transactions.deliverId, reqDto.deliverId)]
+            : []),
+        );
+        break;
+      case RoleEnum.DELIVER:
+        // chỉ lấy ra giao dịch của mình
+        baseConfig.where = and(
+          not(eq(transactions.status, TransactionStatus.PENDING)),
+          eq(transactions.deliverId, payload.id),
+        );
+        break;
+    }
 
     const qCount = this.db.query.transactions.findMany({
       ...baseConfig,
@@ -181,10 +198,7 @@ export class TransactionsService {
     ]);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
-    return new OffsetPaginatedDto(
-      entities.map((e) => plainToInstance(TransactionResDto, e)),
-      meta,
-    );
+    return new OffsetPaginatedDto(entities, meta);
   }
 
   async addPointsForArea(reqDto: AddPointReqDto, payload: JwtPayloadType) {

@@ -43,6 +43,13 @@
       "when": 1748180219962,
       "tag": "0005_fearless_texas_twister",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1748351855876,
+      "tag": "0006_stormy_lizard",
+      "breakpoints": true
     }
   ]
 }
