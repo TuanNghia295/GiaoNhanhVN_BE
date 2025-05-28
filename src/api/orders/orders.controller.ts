@@ -80,9 +80,10 @@ export class OrdersController {
   })
   @Patch('status')
   async updateOrderStatus(
+    @CurrentUser() payload: JwtPayloadType,
     @Query('orderId') orderId: number,
     @Body() reqDto: UpdateStatusOrderReqDto,
   ) {
-    return await this.ordersService.updateOrderStatus(orderId, reqDto);
+    return await this.ordersService.updateOrderStatus(orderId, reqDto, payload);
   }
 }

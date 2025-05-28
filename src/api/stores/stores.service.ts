@@ -616,4 +616,15 @@ export class StoresService implements OnModuleInit {
     }
     return plainToInstance(StoreResDto, store);
   }
+
+  async selectFcmTokenById(storeId: number) {
+    return await this.db
+      .select({
+        fcmToken: users.fcmToken,
+      })
+      .from(users)
+      .leftJoin(stores, eq(stores.userId, users.id))
+      .where(eq(stores.id, storeId))
+      .then((res) => res[0] ?? null);
+  }
 }

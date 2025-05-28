@@ -9,6 +9,7 @@ import { PageMyOrderReqDto } from '@/api/orders/dto/page-my-order.req.dto';
 import { PageOrderReqDto } from '@/api/orders/dto/query-order.req.dto';
 import { UpdateStatusOrderReqDto } from '@/api/orders/dto/update-status-order.req.dto';
 import { StoresService } from '@/api/stores/stores.service';
+import { UsersService } from '@/api/users/users.service';
 import { VouchersService } from '@/api/vouchers/vouchers.service';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
 import { OrdersOffsetPaginatedResDto } from '@/common/dto/offset-pagination/orders-offset-paginated.res.dto';
@@ -42,6 +43,7 @@ import { voucherUsages } from '@/database/schemas/voucher-usage.schema';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { GoongService } from '@/shared/goong.service';
+import { buildMulticastMessage } from '@/utils/firebase.util';
 import { allowedTransitions } from '@/utils/util';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
@@ -70,7 +72,9 @@ import {
   SQL,
   sql,
 } from 'drizzle-orm';
+import admin from 'firebase-admin';
 import { v4 as uuidv4 } from 'uuid';
+import { FIREBASE_ADMIN } from '../../firebase/firebase.module';
 
 export interface CalculateResponse {
   sessionId: string;
@@ -88,6 +92,7 @@ export interface CalculateResponse {
 export class OrdersService {
   constructor(
     private readonly areasService: AreasService,
+    private readonly usersService: UsersService,
     private readonly storesService: StoresService,
     private readonly emitter: EventEmitter2,
     private readonly vouchersService: VouchersService,
@@ -95,6 +100,7 @@ export class OrdersService {
     @Inject(forwardRef(() => DeliversService))
     private readonly deliversService: DeliversService,
     @Inject(CACHE_MANAGER) private cache: Cache,
+    @Inject(FIREBASE_ADMIN) private readonly admin: admin.app.App,
     @Inject(DRIZZLE) private readonly db: DrizzleDB, // Replace with actual type
   ) {}
 
@@ -754,7 +760,11 @@ export class OrdersService {
     );
   }
 
-  async updateOrderStatus(orderId: number, reqDto: UpdateStatusOrderReqDto) {
+  async updateOrderStatus(
+    orderId: number,
+    reqDto: UpdateStatusOrderReqDto,
+    payload: JwtPayloadType,
+  ) {
     //-----------------------------------------------------
     // Nếu đơn hàng đã bị hủy thì hoàn tiền voucher cho shipper
     //----------------------------------------------------------
@@ -779,6 +789,15 @@ export class OrdersService {
         throw new ValidationException(ErrorCode.O001, HttpStatus.NOT_FOUND);
       }
 
+      //-----------------------------------------------------
+      // Không cho phép người dùng hủy đơn hàng đã được xác nhận
+      //----------------------------------------------------------
+      if (
+        [RoleEnum.USER, RoleEnum.STORE].includes(payload.role) &&
+        existOrder.status !== OrderStatusEnum.PENDING
+      ) {
+        throw new ValidationException(ErrorCode.OD003);
+      }
       const currentStatus = existOrder.status;
       const nextStatus = reqDto.status;
 
@@ -801,12 +820,16 @@ export class OrdersService {
       switch (reqDto.status) {
         case OrderStatusEnum.CANCELED: {
           await this.managerDoCancelOrder(updatedOrder, tx);
-          await this.emitter.emitAsync('order.canceled', updatedOrder);
+          await this.emitter.emitAsync('order.canceled', {
+            updatedOrder: updatedOrder,
+            role: payload.role,
+          });
           break;
         }
         default:
           await this.emitter.emitAsync('order.updated_status', updatedOrder);
       }
+      return updatedOrder;
     });
   }
 
@@ -850,12 +873,11 @@ export class OrdersService {
       //--------------------------------------------
       // Tổng point mà người giao hàng sẽ bị trừ khi nhận đơn
       //--------------------------------------------
-      const subtractPoint =
-        existOrder.totalDelivery -
-        existOrder.incomeDeliver +
-        existOrder.userServiceFee +
-        existOrder.storeServiceFee;
-
+      const subtractPoint = Big(existOrder.totalDelivery || 0)
+        .minus(existOrder.incomeDeliver || 0)
+        .plus(existOrder.userServiceFee || 0)
+        .plus(existOrder.storeServiceFee || 0)
+        .toNumber(); // nếu bạn cần giá trị kiểu number
       console.log('subtractPoint', subtractPoint);
       console.log('existDeliver.point', existDeliver.point);
       console.log('existOrder.totalDelivery', existOrder.totalDelivery);
@@ -934,7 +956,10 @@ export class OrdersService {
           // Kiểm tra xem lý do hủy đơn hàng có tồn tại không
           //--------------------------------------------
           await this.doCancelOrder(updatedOrder, existDeliver, reason, tx);
-          await this.emitter.emitAsync('order.canceled', updatedOrder);
+          await this.emitter.emitAsync('order.canceled', {
+            updatedOrder: updatedOrder,
+            role: RoleEnum.DELIVER,
+          });
           break;
         }
         case OrderStatusEnum.DELIVERED:
@@ -958,25 +983,39 @@ export class OrdersService {
       if (!existDeliver) {
         throw new ValidationException(ErrorCode.D001);
       }
-      await this.doCancelOrder(
-        existOrder,
-        existDeliver,
-        'Người quản lý hủy đơn hàng',
-        tx,
-      );
-      // Số điểm sẽ được cộng lại cho người giao hàng
-      const subtractPoint =
-        existOrder.totalDelivery -
-        existOrder.incomeDeliver +
-        existOrder.userServiceFee +
-        existOrder.storeServiceFee;
-
+      //-------------------------------------------------
       // Cộng lại điểm cho người giao hàng
+      //-------------------------------------------------
+      const subtractPoint = Big(existOrder.totalDelivery || 0)
+        .minus(existOrder.incomeDeliver || 0)
+        .plus(existOrder.userServiceFee || 0)
+        .plus(existOrder.storeServiceFee || 0)
+        .toNumber(); // nếu bạn cần giá trị kiểu number
+
       await this.deliversService.addPoint(
         existOrder.deliverId,
         subtractPoint,
         tx,
       );
+      //-------------------------------------------------
+      // Gửi thông báo FCM  cho người dùng về việc hủy đơn hàng
+      //-------------------------------------------------
+      const validUserFcmToken =
+        await this.usersService.getValidUserFcmTokenById(existOrder.userId);
+      if (validUserFcmToken.fcmToken) {
+        try {
+          await this.admin
+            .messaging()
+            .sendEachForMulticast(
+              buildMulticastMessage(
+                [validUserFcmToken.fcmToken],
+                'CANCEL_ORDER',
+              ),
+            );
+        } catch (error) {
+          this.logger.error('Error sending FCM notification', error);
+        }
+      }
     }
   }
 
@@ -1037,13 +1076,24 @@ export class OrdersService {
       type: CanceledReasonEnum.NOTTAKEN,
       deliverId: existDeliver.id,
     });
-    await tx
-      .update(orders)
-      .set({
-        status: OrderStatusEnum.CANCELED,
-      })
-      .where(eq(orders.id, existOrder.id))
-      .returning();
+
+    //-------------------------------------------------
+    // Gửi thông báo FCM  cho người dùng về việc hủy đơn hàng
+    //-------------------------------------------------
+    const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(
+      existOrder.userId,
+    );
+    if (validUserFcmToken.fcmToken) {
+      try {
+        await this.admin
+          .messaging()
+          .sendEachForMulticast(
+            buildMulticastMessage([validUserFcmToken.fcmToken], 'CANCEL_ORDER'),
+          );
+      } catch (error) {
+        this.logger.error('Error sending FCM notification', error);
+      }
+    }
   }
 
   private async lockDeliver(deliverId: number) {

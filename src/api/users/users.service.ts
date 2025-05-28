@@ -215,4 +215,17 @@ export class UsersService implements OnModuleInit {
 
     return plainToInstance(UserResDto, updated[0]);
   }
+
+  async getValidUserFcmTokenById(userId: number) {
+    return this.db.query.users.findFirst({
+      where: and(
+        eq(users.id, userId),
+        isNull(users.deletedAt),
+        eq(users.isLocked, false),
+      ),
+      columns: {
+        fcmToken: true,
+      },
+    });
+  }
 }

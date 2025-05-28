@@ -95,4 +95,16 @@ export class TransactionsController {
   ) {
     return this.transactionsService.approve(transactionId, payload);
   }
+
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'Admin từ chối yêu cầu nạp/rút điểm',
+  })
+  @Post('reject')
+  async rejectTransaction(
+    @CurrentUser() payload: JwtPayloadType,
+    @Query('transactionId') transactionId: number,
+  ) {
+    return this.transactionsService.rejectTransaction(transactionId, payload);
+  }
 }

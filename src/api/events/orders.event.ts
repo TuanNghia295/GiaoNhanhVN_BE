@@ -1,7 +1,8 @@
 import { DeliversService } from '@/api/delivers/delivers.service';
 import { DeliverGateway } from '@/api/gateways/deliver.gateway';
 import { UserGateway } from '@/api/gateways/user.gateway';
-import { Order } from '@/database/schemas';
+import { StoresService } from '@/api/stores/stores.service';
+import { Order, RoleEnum } from '@/database/schemas';
 import { buildMulticastMessage } from '@/utils/firebase.util';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
@@ -14,12 +15,13 @@ export class OrdersEvent {
     private readonly deliversService: DeliversService,
     @Inject(FIREBASE_ADMIN) private readonly firebase: admin.app.App,
     private readonly deliverGateway: DeliverGateway,
+    private readonly storesService: StoresService,
     private readonly userGateway: UserGateway,
   ) {}
 
   private readonly logger = new Logger(OrdersEvent.name);
 
-  private async notifyDriversByFCM(tokens: string[]) {
+  private async notifyNewOrderByFCM(tokens: string[]) {
     const validTokens = tokens.filter((t) => !!t);
     if (!validTokens.length) return;
     try {
@@ -44,19 +46,24 @@ export class OrdersEvent {
     //----------------------------------------------
     // Lấy tất cả các deliver actived = true và ở trong khu vực
     //-----------------------------------------------
-    const drivers = await this.deliversService.selectFcmTokenByAreaId(
+    const activeDrivers = await this.deliversService.selectFcmTokenByAreaId(
       order.areaId,
     );
+    const store = await this.storesService.selectFcmTokenById(order.storeId);
 
-    if (drivers.length > 0) {
+    if (activeDrivers.length > 0) {
       this.logger.log(
-        `Found ${drivers.length} drivers in area ${order.areaId}`,
+        `Found ${activeDrivers.length} drivers in area ${order.areaId}`,
       );
-      const driverIds = drivers.map((driver) => String(driver.id));
-      const fcmTokens = drivers.map((driver) => driver.fcmToken);
 
-      await this.notifyDriversByFCM(fcmTokens);
+      const fcmTokens = [
+        ...activeDrivers.map((driver) => driver.fcmToken),
+        ...(store?.fcmToken ? [store.fcmToken] : []), // Thêm fcmToken của cửa hàng nếu có
+      ];
+      await this.notifyNewOrderByFCM(fcmTokens);
       this.logger.log(`FCM sent to ${fcmTokens.length} drivers`);
+      // Emit socket to all drivers in the area
+      const driverIds = activeDrivers.map((driver) => String(driver.id));
       await this.emitSocketToDrivers(driverIds, order);
     }
   }
@@ -65,18 +72,34 @@ export class OrdersEvent {
   async onOrderUpdatedStatus(order: Order) {
     console.log(`Order updated status with ID: ${order.id}`);
     // Add your logic here
-    this.deliverGateway.server
-      .to(String(order.deliverId))
-      .emit('order-updated-status', order);
+    this.userGateway.server
+      .to(String(order.id))
+      .emit('change-order-status', order);
   }
 
   @OnEvent('order.canceled')
-  public async onOrderCanceled(order: Order) {
-    this.logger.log(`Order canceled with ID: ${order.id}`);
-    this.userGateway.server
-      .to(String(order.id))
-      .emit('order-cancel-by-deliver');
-    // Add your logic here
-    // this.userGateway.server.to(String(orderId)).emit('order-canceled', orderId);
+  public async onOrderCanceled({
+    updatedOrder,
+    role,
+  }: {
+    updatedOrder: Order;
+    role: RoleEnum;
+  }) {
+    this.logger.log(
+      `Order canceled with ID: ${updatedOrder.id} by role: ${role}`,
+    );
+    switch (role) {
+      case RoleEnum.ADMIN:
+      case RoleEnum.MANAGEMENT:
+        this.deliverGateway.server
+          .to(String(updatedOrder.deliverId))
+          .emit('order-canceled-by-admin', updatedOrder);
+        break;
+      case RoleEnum.USER:
+        this.userGateway.server
+          .to(String(updatedOrder.userId))
+          .emit('order-cancel-by-user', updatedOrder);
+        break;
+    }
   }
 }

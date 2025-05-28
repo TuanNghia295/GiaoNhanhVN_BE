@@ -9,7 +9,10 @@ export type NotificationTemplate = {
   sound: PlatformSound;
 };
 
-export type NotificationTemplateKey = 'NEW_ORDER' | 'OTHER_TEMPLATE'; // thêm key khác nếu cần
+export type NotificationTemplateKey =
+  | 'NEW_ORDER'
+  | 'OTHER_TEMPLATE'
+  | 'CANCEL_ORDER'; // thêm key khác nếu cần
 
 export const NOTIFICATION_TEMPLATES: Record<
   NotificationTemplateKey,
@@ -18,6 +21,14 @@ export const NOTIFICATION_TEMPLATES: Record<
   NEW_ORDER: {
     title: 'Bạn có một đơn hàng mới',
     body: 'Có một đơn hàng mới cần giao, hãy kiểm tra ngay',
+    sound: {
+      android: 'alert.mp3',
+      ios: 'alert.caf',
+    },
+  },
+  CANCEL_ORDER: {
+    title: 'Đơn hàng đã bị hủy',
+    body: 'Đơn hàng của bạn đã bị hủy, vui lòng kiểm tra lại',
     sound: {
       android: 'alert.mp3',
       ios: 'alert.caf',

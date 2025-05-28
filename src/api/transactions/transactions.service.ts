@@ -10,7 +10,7 @@ import { TransactionResDto } from '@/api/transactions/dto/transaction.res.dto';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { DRIZZLE } from '@/database/global';
+import { DRIZZLE, Transaction } from '@/database/global';
 import {
   areas,
   delivers,
@@ -18,11 +18,12 @@ import {
   TransactionMethodEnum,
   transactions,
   TransactionStatus,
+  TransactionType,
   TransactionTypeEnum,
 } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { and, count, desc, eq, isNotNull, not, sql } from 'drizzle-orm';
 
@@ -46,6 +47,7 @@ export class TransactionsService {
         qb.where(
           and(
             eq(transactions.method, TransactionMethodEnum.REQUEST),
+            eq(transactions.status, TransactionStatus.PENDING),
             isNotNull(transactions.managerId),
           ),
         );
@@ -54,7 +56,8 @@ export class TransactionsService {
         qb.where(
           and(
             eq(transactions.method, TransactionMethodEnum.REQUEST),
-            eq(transactions.managerId, payload.id),
+            eq(transactions.status, TransactionStatus.PENDING),
+            eq(transactions.areaId, payload.areaId),
             isNotNull(transactions.deliverId),
           ),
         );
@@ -269,7 +272,7 @@ export class TransactionsService {
         // chỉ lấy ra yêu cầu nạp/rút shipper của khu vực mình
         baseConfig.where = and(
           eq(transactions.method, TransactionMethodEnum.REQUEST),
-          eq(transactions.managerId, payload.id),
+          eq(transactions.areaId, payload.areaId),
           isNotNull(transactions.deliverId),
         );
         break;
@@ -361,47 +364,137 @@ export class TransactionsService {
         .where(eq(transactions.id, transactionId))
         .returning();
 
-      switch (updatedTransaction.type) {
-        case TransactionTypeEnum.DEPOSIT:
+      switch (payload.role) {
+        case RoleEnum.ADMIN:
+          await this.doApproveTransactionByAdmin(updatedTransaction, tx);
           break;
-        case TransactionTypeEnum.WITHDRAW:
+        case RoleEnum.MANAGEMENT:
+          await this.doApproveTransactionByManager(updatedTransaction, tx);
           break;
+        default:
+          throw new UnauthorizedException('Invalid role');
       }
       return plainToInstance(TransactionResDto, updatedTransaction);
     });
   }
 
-  // private async doApproveByManager(
-  //   updatedTransaction: TransactionType,
-  //   tx: Transaction,
-  // ) {
-  //   switch (type) {
-  //     case TransactionTypeEnum.DEPOSIT:
-  //       if (areaPoint < amount) {
-  //         throw new ValidationException(ErrorCode.TR002);
-  //       }
-  //       //----------------------------------------------------
-  //       // Trừ điểm khu vực
-  //       //----------------------------------------------------
-  //       await this.areasService.subtractPoint(areaId, amount, tx);
-  //       //----------------------------------------------------
-  //       // Cộng điểm cho shipper
-  //       //----------------------------------------------------
-  //       await this.deliversService.addPoint(areaId, amount, tx);
-  //       break;
-  //     case TransactionTypeEnum.WITHDRAW:
-  //       if (deliverPoint < amount) {
-  //         throw new ValidationException(ErrorCode.TR002);
-  //       }
-  //       //----------------------------------------------------
-  //       // Cộng điểm khu vực
-  //       //----------------------------------------------------
-  //       await this.areasService.addPoint(areaId, amount, tx);
-  //       //----------------------------------------------------
-  //       // Trừ điểm cho shipper
-  //       //----------------------------------------------------
-  //       await this.deliversService.subtractPoint(areaId, amount, tx);
-  //       break;
-  //   }
-  // }
+  /*
+    Xử lý approve giao dịch của admin
+    - Nếu là khu vực nạp tiền thì cộng điểm cho khu vực
+    - Nếu là khu vực rút tiền thì trừ điểm khu vực
+   */
+  private async doApproveTransactionByAdmin(
+    updatedTransaction: TransactionType,
+    tx: Transaction,
+  ) {
+    const area = await this.areasService.existById(updatedTransaction.areaId);
+    if (!area) {
+      throw new ValidationException(ErrorCode.A001);
+    }
+    switch (updatedTransaction.type) {
+      case TransactionTypeEnum.DEPOSIT:
+        await this.areasService.addPoint(
+          area.id,
+          updatedTransaction.amount,
+          tx,
+        );
+        break;
+      case TransactionTypeEnum.WITHDRAW:
+        //----------------------------------------------------
+        // Nếu điểm khu vực nhỏ hơn số tiền rút thì báo lỗi
+        //----------------------------------------------------
+        if (area.point < updatedTransaction.amount) {
+          throw new ValidationException(ErrorCode.TR002);
+        }
+        await this.areasService.subtractPoint(
+          area.id,
+          updatedTransaction.amount,
+          tx,
+        );
+        break;
+    }
+  }
+
+  private async doApproveTransactionByManager(
+    updatedTransaction: TransactionType,
+    tx: Transaction,
+  ) {
+    const deliver = await this.deliversService.existById(
+      updatedTransaction.deliverId,
+    );
+    if (!deliver) {
+      throw new ValidationException(ErrorCode.D001);
+    }
+    const area = await this.areasService.existById(updatedTransaction.areaId);
+    if (!area) {
+      throw new ValidationException(ErrorCode.A001);
+    }
+    switch (updatedTransaction.type) {
+      case TransactionTypeEnum.DEPOSIT: {
+        if (area.point < updatedTransaction.amount) {
+          throw new ValidationException(ErrorCode.TR002);
+        }
+        //----------------------------------------------------
+        // Trừ điểm khu vực
+        //----------------------------------------------------
+        await this.areasService.subtractPoint(
+          area.id,
+          updatedTransaction.amount,
+          tx,
+        );
+        //----------------------------------------------------
+        // Cộng điểm cho shipper
+        //----------------------------------------------------
+        await this.deliversService.addPoint(
+          updatedTransaction.deliverId,
+          updatedTransaction.amount,
+          tx,
+        );
+        break;
+      }
+      case TransactionTypeEnum.WITHDRAW: {
+        if (deliver.point < updatedTransaction.amount) {
+          throw new ValidationException(ErrorCode.TR002);
+        }
+        //----------------------------------------------------
+        // Cộng điểm khu vực
+        //----------------------------------------------------
+        await this.areasService.addPoint(
+          area.id,
+          updatedTransaction.amount,
+          tx,
+        );
+        //----------------------------------------------------
+        // Trừ điểm cho shipper
+        //----------------------------------------------------
+        await this.deliversService.subtractPoint(
+          updatedTransaction.deliverId,
+          updatedTransaction.amount,
+          tx,
+        );
+        break;
+      }
+    }
+  }
+
+  async rejectTransaction(transactionId: number, payload: JwtPayloadType) {
+    return await this.db.transaction(async (tx) => {
+      const transaction = await this.existById(transactionId);
+      if (!transaction) {
+        throw new ValidationException(ErrorCode.TR001);
+      }
+      if (transaction.status !== TransactionStatus.PENDING) {
+        throw new ValidationException(ErrorCode.TR003);
+      }
+      const [updatedTransaction] = await tx
+        .update(transactions)
+        .set({
+          status: TransactionStatus.REJECTED,
+          approvedBy: payload.id,
+        })
+        .where(eq(transactions.id, transactionId))
+        .returning();
+      return plainToInstance(TransactionResDto, updatedTransaction);
+    });
+  }
 }
