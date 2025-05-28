@@ -997,24 +997,23 @@ export class OrdersService {
         subtractPoint,
         tx,
       );
-      //-------------------------------------------------
-      // Gửi thông báo FCM  cho người dùng về việc hủy đơn hàng
-      //-------------------------------------------------
-      const validUserFcmToken =
-        await this.usersService.getValidUserFcmTokenById(existOrder.userId);
-      if (validUserFcmToken.fcmToken) {
-        try {
-          await this.admin
-            .messaging()
-            .sendEachForMulticast(
-              buildMulticastMessage(
-                [validUserFcmToken.fcmToken],
-                'CANCEL_ORDER',
-              ),
-            );
-        } catch (error) {
-          this.logger.error('Error sending FCM notification', error);
-        }
+    }
+    //-------------------------------------------------
+    // Gửi thông báo FCM  cho người dùng về việc hủy đơn hàng
+    //-------------------------------------------------
+    const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(
+      existOrder.userId,
+    );
+    console.log('validUserFcmToken', validUserFcmToken);
+    if (validUserFcmToken.fcmToken) {
+      try {
+        await this.admin
+          .messaging()
+          .sendEachForMulticast(
+            buildMulticastMessage([validUserFcmToken.fcmToken], 'CANCEL_ORDER'),
+          );
+      } catch (error) {
+        this.logger.error('Error sending FCM notification', error);
       }
     }
   }
@@ -1047,21 +1046,19 @@ export class OrdersService {
       )
       .then((res) => res[0]);
 
-    console.log('countOrder', countOrder);
-
     if (countOrder.count > 3) {
       await this.lockDeliver(existOrder.deliverId);
       // bắn event out đăng nhập shipper
-      await this.emitter.emitAsync('deliver.out', existOrder.deliverId);
+      await this.emitter.emitAsync('deliver.locked', existDeliver);
       throw new ValidationException(ErrorCode.OD003);
     }
 
     // Số điểm sẽ được cộng lại cho người giao hàng
-    const subtractPoint =
-      existOrder.totalDelivery -
-      existOrder.incomeDeliver +
-      existOrder.userServiceFee +
-      existOrder.storeServiceFee;
+    const subtractPoint = Big(existOrder.totalDelivery || 0)
+      .minus(existOrder.incomeDeliver || 0)
+      .plus(existOrder.userServiceFee || 0)
+      .plus(existOrder.storeServiceFee || 0)
+      .toNumber(); // nếu bạn cần giá trị kiểu number
 
     // Cộng lại điểm cho người giao hàng
     await this.deliversService.addPoint(
@@ -1083,6 +1080,7 @@ export class OrdersService {
     const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(
       existOrder.userId,
     );
+    console.log('validUserFcmToken', validUserFcmToken);
     if (validUserFcmToken.fcmToken) {
       try {
         await this.admin

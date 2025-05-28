@@ -12,7 +12,7 @@ export type NotificationTemplate = {
 export type NotificationTemplateKey =
   | 'NEW_ORDER'
   | 'OTHER_TEMPLATE'
-  | 'LOCK_USER'
+  | 'LOCK_ACCOUNT'
   | 'CANCEL_ORDER'; // thêm key khác nếu cần
 
 export const NOTIFICATION_TEMPLATES: Record<
@@ -27,7 +27,7 @@ export const NOTIFICATION_TEMPLATES: Record<
       ios: 'alert.caf',
     },
   },
-  LOCK_USER: {
+  LOCK_ACCOUNT: {
     title: 'Tài khoản của bạn đã bị khóa',
     body: 'Tài khoản của bạn đã bị khóa, vui lòng liên hệ quản trị viên để biết thêm chi tiết',
     sound: {

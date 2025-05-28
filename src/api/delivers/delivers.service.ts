@@ -224,7 +224,7 @@ export class DeliversService implements OnModuleInit {
       //----------------------------------------------------------
       // Nếu status = false thì gửi event
       if (!result.status) {
-        this.emitter.emit('deliver.locked', result);
+        await this.emitter.emitAsync('deliver.locked', result);
       }
       return plainToInstance(DeliverResDto, result);
     });
