@@ -2,6 +2,7 @@ import { DeliverGateway } from '@/api/gateways/deliver.gateway';
 import { DRIZZLE } from '@/database/global';
 import { delivers } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
+import { buildMulticastMessage } from '@/utils/firebase.util';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import admin from 'firebase-admin';
@@ -22,17 +23,15 @@ export class DeliversEvent {
     this.logger.log(`Deliver locked: ${deliver.id}`);
 
     if (deliver.fcmToken) {
-      await this.admin.messaging().send({
-        token: deliver.fcmToken,
-        notification: {
-          title: 'Tài khoản bị khóa',
-          body: 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ với quản trị viên để biết thêm chi tiết.',
-        },
-        data: {
-          title: 'Tài khoản bị khóa',
-          body: 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ với quản trị viên để biết thêm chi tiết.',
-        },
-      });
+      try {
+        await this.admin
+          .messaging()
+          .sendEachForMulticast(
+            buildMulticastMessage([deliver.fcmToken], 'LOCK_USER'),
+          );
+      } catch (error) {
+        this.logger.error('Error sending FCM notification', error);
+      }
     }
     //----------------------------------------------------------
     // Emit an event to the deliver's socket connection

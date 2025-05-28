@@ -12,6 +12,7 @@ export type NotificationTemplate = {
 export type NotificationTemplateKey =
   | 'NEW_ORDER'
   | 'OTHER_TEMPLATE'
+  | 'LOCK_USER'
   | 'CANCEL_ORDER'; // thêm key khác nếu cần
 
 export const NOTIFICATION_TEMPLATES: Record<
@@ -21,6 +22,14 @@ export const NOTIFICATION_TEMPLATES: Record<
   NEW_ORDER: {
     title: 'Bạn có một đơn hàng mới',
     body: 'Có một đơn hàng mới cần giao, hãy kiểm tra ngay',
+    sound: {
+      android: 'alert.mp3',
+      ios: 'alert.caf',
+    },
+  },
+  LOCK_USER: {
+    title: 'Tài khoản của bạn đã bị khóa',
+    body: 'Tài khoản của bạn đã bị khóa, vui lòng liên hệ quản trị viên để biết thêm chi tiết',
     sound: {
       android: 'alert.mp3',
       ios: 'alert.caf',
