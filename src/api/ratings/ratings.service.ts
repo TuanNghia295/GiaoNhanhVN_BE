@@ -39,6 +39,8 @@ export class RatingsService {
         .insert(ratings)
         .values({
           ...reqDto,
+          storeRate: reqDto.ratingStore,
+          deliverRate: reqDto.ratingDeliver,
           userId: payload.id,
         })
         .returning();
