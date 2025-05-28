@@ -426,11 +426,12 @@ export class StoresService implements OnModuleInit {
         closeSecondTime: stores.closeSecondTime,
       })
       .from(stores)
-      .where(and(eq(stores.id, storeId), eq(stores.status, true)));
+      .where(and(eq(stores.id, storeId)));
 
     if (!store) {
       throw new ValidationException(ErrorCode.S001);
     }
+    console.log('store', store);
 
     const now = DateTime.now().setZone('Asia/Ho_Chi_Minh');
 

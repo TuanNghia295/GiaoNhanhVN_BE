@@ -17,6 +17,7 @@ import { DRIZZLE, Transaction } from '@/database/global';
 import {
   Area,
   areas,
+  CanceledReasonEnum,
   Deliver,
   delivers,
   Distance,
@@ -43,7 +44,13 @@ import { ValidationException } from '@/exceptions/validation.exception';
 import { GoongService } from '@/shared/goong.service';
 import { allowedTransitions } from '@/utils/util';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { forwardRef, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import {
+  forwardRef,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Big } from 'big.js';
 import { Cache } from 'cache-manager';
@@ -90,6 +97,8 @@ export class OrdersService {
     @Inject(CACHE_MANAGER) private cache: Cache,
     @Inject(DRIZZLE) private readonly db: DrizzleDB, // Replace with actual type
   ) {}
+
+  private readonly logger = new Logger(OrdersService.name);
 
   async getPageOrders(reqDto: PageOrderReqDto, payload: JwtPayloadType) {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.orders> = {
@@ -498,9 +507,10 @@ export class OrdersService {
         SET total_product     = GREATEST(odt.total_order_details, 0),
             total_voucher     = LEAST(odt.total_order_details, COALESCE(tsv.total_store, 0)),
             store_service_fee = GREATEST(
-              odt.total_order_details
-                * (1 - ${serviceFeeWithTypeFood.pricePct}::numeric / 100) -
-              COALESCE(${serviceFeeWithTypeFood.price}:: numeric, 0) - COALESCE(tsv.total_store, 0), 0),
+              odt.total_order_details * (${serviceFeeWithTypeFood.pricePct}::numeric / 100) +
+              COALESCE(${serviceFeeWithTypeFood.price}::numeric, 0) -
+              COALESCE(tsv.total_store, 0),
+              0),
             payfor_shop       = GREATEST(
               odt.total_order_details
                 * (1 - ${serviceFeeWithTypeFood.pricePct}::numeric / 100) -
@@ -516,44 +526,38 @@ export class OrdersService {
 
       // Tính tiền ship khi có và không áp dụng voucher
       await tx.execute(sql`
-        WITH total_admin_voucher AS (SELECT SUM(v.value) AS total_admin
-                                     FROM vouchers_on_orders ov
-                                            JOIN vouchers v ON ov.voucher_id = v.id
-                                     WHERE ov.order_id = ${order.id}
-                                       AND v.type IN (${VouchersTypeEnum.ADMIN}, ${VouchersTypeEnum.MANAGEMENT}))
+        WITH tav AS (SELECT SUM(v.value) AS total_admin
+                     FROM vouchers_on_orders ov
+                            JOIN vouchers v ON ov.voucher_id = v.id
+                     WHERE ov.order_id = ${order.id}
+                       AND v.type IN (${VouchersTypeEnum.ADMIN}, ${VouchersTypeEnum.MANAGEMENT}))
         UPDATE orders
         SET total_delivery = GREATEST(${calculateOrder.totalDelivery} - COALESCE(tav.total_admin, 0), 0),
             total_voucher  = orders.total_voucher + LEAST(${calculateOrder.totalDelivery}, COALESCE(tav.total_admin, 0)),
-            income_deliver = GREATEST(${calculateOrder.totalDelivery}::numeric
-                                        * (1 - ${serviceFeeWithTypeFood.deliverFeePct}::numeric / 100) -
-                                      COALESCE(${serviceFeeWithTypeFood.price}:: numeric, 0), 0)
-        FROM total_admin_voucher tav
+            income_deliver = GREATEST(
+              ${calculateOrder.totalDelivery}::numeric
+                * (1 - ${serviceFeeWithTypeFood.deliverFeePct}::numeric / 100)
+                - COALESCE(${serviceFeeWithTypeFood.price}::numeric, 0), 0)
+        FROM tav
         WHERE orders.id = ${order.id};
       `);
 
       await tx.execute(sql`
         UPDATE orders
-        SET user_service_fee  = ${calculateOrder.userServiceFee},
-            store_service_fee = orders.total_product - orders.payfor_shop,
-            distance          = ${calculateOrder.distance},
-            is_holiday        = ${calculateOrder.isHoliday},
-            is_rain           = ${calculateOrder.isRain}
+        SET user_service_fee = ${calculateOrder.userServiceFee},
+            distance         = ${calculateOrder.distance},
+            is_holiday       = ${calculateOrder.isHoliday},
+            is_rain          = ${calculateOrder.isRain}
         WHERE id = ${order.id};
       `);
       await tx.execute(sql`
-        WITH total_store_voucher AS (SELECT SUM(v.value) AS total_store
-                                     FROM vouchers_on_orders ov
-                                            JOIN vouchers v ON ov.voucher_id = v.id
-                                     WHERE ov.order_id = ${order.id}
-                                       AND v.type = ${VouchersTypeEnum.STORE})
         UPDATE orders
         SET total = GREATEST(
-                      COALESCE(total_product, 0)
-                        - COALESCE((SELECT total_store FROM total_store_voucher), 0),
-                      0
-                    )
-          + COALESCE(total_delivery, 0)
-          + COALESCE(user_service_fee, 0)
+          0,
+          COALESCE(total_product, 0) +
+          COALESCE(total_delivery, 0) +
+          COALESCE(user_service_fee, 0) -
+          COALESCE(total_voucher, 0))
         WHERE id = ${order.id};
       `);
 
@@ -562,6 +566,7 @@ export class OrdersService {
         where: eq(orders.id, order.id),
         with: {
           store: true,
+          user: true,
           vouchers: {
             with: {
               voucher: true,
@@ -859,7 +864,7 @@ export class OrdersService {
       // Kiểm tra xem người giao hàng có đủ điểm để nhận đơn không
       //--------------------------------------------
       if (existDeliver.point < subtractPoint) {
-        throw new ValidationException(ErrorCode.D006);
+        throw new ValidationException(ErrorCode.D005);
       }
 
       await this.deliversService.subtractPoint(payload.id, subtractPoint, tx);
@@ -877,7 +882,7 @@ export class OrdersService {
     });
   }
 
-  async updateStatusByDeliver(
+  async updateOrderStatusByDeliver(
     orderId: number,
     status: OrderStatusEnum,
     reason: string,
@@ -915,7 +920,6 @@ export class OrdersService {
     if (!existDeliver) {
       throw new ValidationException(ErrorCode.D001);
     }
-
     return this.db.transaction(async (tx) => {
       const [updatedOrder] = await tx
         .update(orders)
@@ -960,6 +964,19 @@ export class OrdersService {
         'Người quản lý hủy đơn hàng',
         tx,
       );
+      // Số điểm sẽ được cộng lại cho người giao hàng
+      const subtractPoint =
+        existOrder.totalDelivery -
+        existOrder.incomeDeliver +
+        existOrder.userServiceFee +
+        existOrder.storeServiceFee;
+
+      // Cộng lại điểm cho người giao hàng
+      await this.deliversService.addPoint(
+        existOrder.deliverId,
+        subtractPoint,
+        tx,
+      );
     }
   }
 
@@ -996,7 +1013,7 @@ export class OrdersService {
     if (countOrder.count > 3) {
       await this.lockDeliver(existOrder.deliverId);
       // bắn event out đăng nhập shipper
-      this.emitter.emit('deliver.out', existOrder.deliverId);
+      await this.emitter.emitAsync('deliver.out', existOrder.deliverId);
       throw new ValidationException(ErrorCode.OD003);
     }
 
@@ -1017,9 +1034,9 @@ export class OrdersService {
     await tx.insert(reasonDeliverCancelOrders).values({
       orderId: existOrder.id,
       reason: reason,
+      type: CanceledReasonEnum.NOTTAKEN,
       deliverId: existDeliver.id,
     });
-
     await tx
       .update(orders)
       .set({
@@ -1045,31 +1062,35 @@ export class OrdersService {
     existDeliver: Deliver,
     tx: Transaction,
   ) {
-    // Nếu có voucher thì cộng lại điểm cho người giao hàng
-    const voucher = await tx
+    const [refund] = await tx
       .select({
-        value: vouchers.value,
+        refundPoint: sql<number>`
+          LEAST
+          ( ${existOrder.totalDelivery},
+            COALESCE (SUM(${vouchers.value}), 0))
+        `,
       })
-      .from(vouchers)
-      .innerJoin(vouchersOnOrders, eq(vouchers.id, vouchersOnOrders.voucherId))
-      .where(
+      .from(orders)
+      .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
+      .leftJoin(
+        vouchers,
         and(
-          eq(vouchersOnOrders.orderId, existOrder.id),
-          eq(vouchers.type, VouchersTypeEnum.ADMIN),
+          eq(vouchers.id, vouchersOnOrders.voucherId),
+          inArray(vouchers.type, [
+            VouchersTypeEnum.ADMIN,
+            VouchersTypeEnum.MANAGEMENT,
+          ]),
         ),
       )
-      .limit(1)
-      .then((res) => res[0]);
-
-    if (voucher) {
-      await this.deliversService.addPoint(existDeliver.id, voucher.value, tx);
-    }
-    await tx
-      .update(orders)
-      .set({
-        status: OrderStatusEnum.DELIVERED,
-      })
       .where(eq(orders.id, existOrder.id))
-      .returning();
+      .groupBy(orders.id);
+    this.logger.log(
+      `Refund point for deliver ${existDeliver.id} is ${refund.refundPoint}`,
+    );
+    await this.deliversService.addPoint(
+      existDeliver.id,
+      refund.refundPoint,
+      tx,
+    );
   }
 }

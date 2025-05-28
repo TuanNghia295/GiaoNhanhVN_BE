@@ -123,6 +123,10 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
     fields: [orders.areaId],
     references: [areas.id],
   }),
+  user: one(users, {
+    fields: [orders.userId],
+    references: [users.id],
+  }),
   deliver: one(delivers, {
     fields: [orders.deliverId],
     references: [delivers.id],
@@ -133,10 +137,6 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
     references: [stores.id],
   }),
   vouchers: many(vouchersOnOrders),
-  user: one(users, {
-    fields: [orders.userId],
-    references: [users.id],
-  }),
   reasonDeliverCancelOrder: many(reasonDeliverCancelOrders),
 }));
 

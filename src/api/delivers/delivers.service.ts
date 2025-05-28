@@ -14,6 +14,7 @@ import {
   locations,
   orders,
   OrderStatusEnum,
+  reasonDeliverCancelOrders,
 } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
@@ -28,6 +29,7 @@ import {
   count,
   desc,
   eq,
+  getTableColumns,
   inArray,
   isNull,
   notInArray,
@@ -302,47 +304,80 @@ export class DeliversService implements OnModuleInit {
       .then((res) => res[0]);
   }
 
-  async getInfoById(id: number) {
-    const result = await this.db.query.delivers.findFirst({
-      where: and(eq(delivers.id, id), isNull(delivers.deletedAt)),
-      with: {
-        location: true,
-      },
-    });
-
-    const startDay: Date = DateTime.now().startOf('day').toJSDate();
-    const endDay: Date = DateTime.now().endOf('day').toJSDate();
-
-    const [stats] = await this.db
+  async getInfoById(deliverId: number) {
+    const startOfDay = DateTime.now().startOf('day').toJSDate();
+    const endOfDay = DateTime.now().endOf('day').toJSDate();
+    const [result] = await this.db
       .select({
-        totalCount: count(),
-        totalIncome: sql
+        ...getTableColumns(delivers),
+        totalOrders: sql
           .raw(
             `
-          SUM(
-          CASE
-              WHEN orders.status = 'DELIVERED'
-              THEN orders.income_deliver
-              ELSE 0
-            END
+          COALESCE(
+            CAST(
+              COUNT(orders.id)
+              FILTER (
+                WHERE BETWEEN(orders.created_at, ${sql.placeholder('startOfDay')}, ${sql.placeholder(
+                  'endOfDay',
+                )})
+                )
+              ) AS BIGINT
+            ), 0
           )
         `,
           )
           .mapWith(Number),
+        // cancelOrderCount: sql
+        //   .raw(
+        //     `
+        //   COALESCE(
+        //     CAST(
+        //       COUNT(reason_deliver_cancel_orders.id)
+        //       FILTER (
+        //       WHERE reason_deliver_cancel_orders.type = 'NOTTAKEN'
+        //       AND BETWEEN(orders.created_at, ${startOfDay}, ${endOfDay}
+        //       )
+        //       AS BIGINT
+        //     ), 0
+        //   )
+        // `,
+        //   )
+        //   .mapWith(Number),
+        // totalIncome: sql
+        //   .raw(
+        //     `COALESCE(
+        //         CAST(
+        //           SUM(orders.income_deliver)
+        //           FILTER (
+        //             WHERE orders.status = 'DELIVERED'
+        //             AND BETWEEN(orders.created_at, ${startOfDay}, ${endOfDay})
+        //           ) AS DECIMAL
+        //         ),
+        //         0
+        //       )`,
+        //   )
+        //   .mapWith(Number),
       })
-      .from(orders)
-      .where(
-        and(
-          eq(orders.deliverId, id),
-          between(orders.createdAt, startDay, endDay),
-        ),
-      );
-
-    return plainToInstance(DeliverResDto, {
+      .from(delivers)
+      .leftJoin(orders, eq(delivers.id, orders.deliverId))
+      .leftJoin(
+        reasonDeliverCancelOrders,
+        eq(reasonDeliverCancelOrders.orderId, orders.id),
+      )
+      .where(and(isNull(delivers.deletedAt), eq(delivers.id, deliverId)))
+      .groupBy(delivers.id)
+      .orderBy(delivers.id)
+      .execute({
+        startOfDay: startOfDay,
+        endOfDay: endOfDay,
+      });
+    console.log('getInfoById', result);
+    return {
       ...result,
-      orderCountInDay: stats.totalCount || 0,
-      incomeInDay: stats.totalIncome || 0,
-    });
+      orderCountInDay: result.totalOrders || 0,
+      // incomeInDay: result.totalIncome || 0,
+      // cancelOrderCount: result.cancelOrderCount || 0,
+    };
   }
 
   async getAcceptedOrders(payload: JwtPayloadType) {
@@ -409,10 +444,12 @@ export class DeliversService implements OnModuleInit {
   }
 
   async getRevenue(deliverId: number, reqDto: RevenueReqDto) {
+    console.log('getRevenue', reqDto);
     if (reqDto.to && reqDto.from) {
-      reqDto.to = DateTime.fromJSDate(reqDto.to).startOf('day').toJSDate();
-      reqDto.from = DateTime.fromJSDate(reqDto.from).endOf('day').toJSDate();
+      reqDto.from = DateTime.fromJSDate(reqDto.from).startOf('day').toJSDate();
+      reqDto.to = DateTime.fromJSDate(reqDto.to).endOf('day').toJSDate();
     }
+    console.log('getRevenue', reqDto.from, reqDto.to);
 
     const [results, incomeResult] = await Promise.all([
       this.db

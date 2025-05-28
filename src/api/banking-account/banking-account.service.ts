@@ -1,3 +1,4 @@
+import { CreateBankReqDto } from '@/api/banking-account/dto/create-bank.req.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
 import { banks } from '@/database/schemas';
@@ -19,5 +20,20 @@ export class BankingAccountService {
       throw new ValidationException(ErrorCode.BK001);
     }
     return bank;
+  }
+
+  async createOrUpdate(deliverId: number, reqDto: CreateBankReqDto) {
+    await this.db
+      .insert(banks)
+      .values({
+        ...reqDto,
+        authorId: deliverId,
+      })
+      .onConflictDoUpdate({
+        target: [banks.authorId],
+        set: {
+          ...reqDto,
+        },
+      });
   }
 }

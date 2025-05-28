@@ -192,7 +192,7 @@ export class DeliversController {
     @Param('status') status: OrderStatusEnum,
     @Body('reason') reason: string,
   ) {
-    return await this.ordersService.updateStatusByDeliver(
+    return await this.ordersService.updateOrderStatusByDeliver(
       orderId,
       status,
       reason,
