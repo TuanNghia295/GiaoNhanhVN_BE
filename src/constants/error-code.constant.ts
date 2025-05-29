@@ -57,6 +57,7 @@ export enum ErrorCode {
   V006 = 'voucher.error.not_useable',
   V007 = 'voucher.error.conflict_order_value',
   V008 = 'voucher.error.not_qualified',
+  V009 = 'voucher.error.bad_input',
 
   // Store Request
   SR001 = 'store_request.error.not_found',

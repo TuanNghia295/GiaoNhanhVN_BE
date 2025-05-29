@@ -1,3 +1,4 @@
+import { AreasService } from '@/api/areas/areas.service';
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { CreateVoucherReqDto } from '@/api/vouchers/dto/create-voucher.req.dto';
 import { PageVouchersReqDto } from '@/api/vouchers/dto/page-vouchers-req.dto';
@@ -43,11 +44,15 @@ import {
   SQL,
   sql,
 } from 'drizzle-orm';
-import _ from 'lodash';
+import _, { round } from 'lodash';
+import { DateTime } from 'luxon';
 
 @Injectable()
 export class VouchersService {
-  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
+  constructor(
+    private readonly areasService: AreasService,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
+  ) {}
 
   async getPageVouchers(reqDto: PageVouchersReqDto, payload: JwtPayloadType) {
     const qb = this.db
@@ -111,12 +116,7 @@ export class VouchersService {
               ]
             : []),
           ...(reqDto.isApp
-            ? [
-                inArray(vouchers.type, [
-                  VouchersTypeEnum.ADMIN,
-                  VouchersTypeEnum.ADMIN,
-                ]),
-              ]
+            ? [inArray(vouchers.type, [VouchersTypeEnum.MANAGEMENT])]
             : [eq(vouchers.type, VouchersTypeEnum.STORE)]),
           eq(vouchers.areaId, payload.areaId),
         );
@@ -194,6 +194,22 @@ export class VouchersService {
       throw new ValidationException(ErrorCode.V007, HttpStatus.BAD_REQUEST);
     }
 
+    if (reqDto.startDate && reqDto.endDate) {
+      reqDto.startDate = DateTime.fromJSDate(reqDto.startDate)
+        .startOf('day')
+        .toJSDate();
+      reqDto.endDate = DateTime.fromJSDate(reqDto.endDate)
+        .endOf('day')
+        .toJSDate();
+      if (reqDto.startDate >= reqDto.endDate) {
+        throw new ValidationException(
+          ErrorCode.V009,
+          HttpStatus.BAD_REQUEST,
+          'Start date must be before end date',
+        );
+      }
+    }
+
     // Chỉ có role MANAGEMENT với có điểm
     if ([RoleEnum.MANAGEMENT].includes(payload.role)) {
       const area = await this.db
@@ -223,11 +239,11 @@ export class VouchersService {
     const now = new Date();
     const status = _.cond([
       [
-        (d: CreateVoucherReqDto) => d.startDate && new Date(d.startDate) > now,
+        (d: CreateVoucherReqDto) => d.startDate && d.startDate > now,
         () => VouchersStatusEnum.PENDING,
       ],
       [
-        (d: CreateVoucherReqDto) => d.endDate && new Date(d.endDate) < now,
+        (d: CreateVoucherReqDto) => d.endDate && d.endDate < now,
         () => VouchersStatusEnum.EXPIRED,
       ],
       [_.stubTrue, () => VouchersStatusEnum.ACTIVE], // Trường hợp mặc định
@@ -374,25 +390,63 @@ export class VouchersService {
       });
   }
 
-  async softDelete(voucherId: number) {
-    const voucher = await this.db
-      .select()
-      .from(vouchers)
-      .where(eq(vouchers.id, voucherId))
-      .then((res) => res[0]);
-    if (!voucher) {
-      throw new ValidationException(ErrorCode.V001, HttpStatus.BAD_REQUEST);
-    }
+  async existById(voucherId: number) {
     return this.db
-      .update(vouchers)
-      .set({
-        deletedAt: new Date(),
+      .select({
+        id: vouchers.id,
       })
-      .where(eq(vouchers.id, voucherId))
-      .returning()
-      .then((res) => {
-        return plainToInstance(VoucherResDto, res[0]);
-      });
+      .from(vouchers)
+      .where(and(isNull(vouchers.deletedAt), eq(vouchers.id, voucherId)))
+      .then((res) => res[0]);
+  }
+
+  async softDelete(voucherId: number) {
+    return this.db.transaction(async (tx) => {
+      const voucher = await this.existById(voucherId);
+      if (!voucher) {
+        throw new ValidationException(ErrorCode.V001, HttpStatus.BAD_REQUEST);
+      }
+      const [updateVoucher] = await this.db
+        .update(vouchers)
+        .set({
+          deletedAt: new Date(),
+        })
+        .where(eq(vouchers.id, voucherId))
+        .returning();
+
+      switch (updateVoucher.type) {
+        case VouchersTypeEnum.MANAGEMENT: {
+          // ---------------------------------------------------
+          // Hoàn lại điểm cho khu vực
+          // ---------------------------------------------------
+          const area = await this.areasService.existById(updateVoucher.areaId);
+          if (!area) {
+            throw new ValidationException(
+              ErrorCode.AR001,
+              HttpStatus.BAD_REQUEST,
+            );
+          }
+          const [{ usedCount }] = await tx
+            .select({
+              usedCount: count(vouchersOnOrders.voucherId).mapWith(Number),
+            })
+            .from(vouchersOnOrders)
+            .where(eq(vouchersOnOrders.voucherId, updateVoucher.id))
+            .groupBy(vouchersOnOrders.voucherId);
+          const refundPoint = round(
+            (updateVoucher.maxUses - usedCount) * updateVoucher.value,
+            2,
+          );
+          await tx
+            .update(areas)
+            .set({
+              point: sql`${areas.point} +
+              ${refundPoint}`,
+            })
+            .where(eq(areas.id, updateVoucher.areaId));
+        }
+      }
+    });
   }
 
   async getDetailById(voucherId: number) {

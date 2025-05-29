@@ -44,6 +44,7 @@ import { SettingsModule } from './api/settings/settings.module';
 import { StoreMenusModule } from './api/store-menus/store-menus.module';
 import { StoreRequestsModule } from './api/store-requests/store-requests.module';
 import { StoresModule } from './api/stores/stores.module';
+import { TasksModule } from './api/tasks/tasks.module';
 import { TransactionsModule } from './api/transactions/transactions.module';
 import { VouchersModule } from './api/vouchers/vouchers.module';
 import { ZaloModule } from './api/zalo/zalo.module';
@@ -66,6 +67,7 @@ import { FirebaseModule } from './firebase/firebase.module';
       ],
       isGlobal: true,
     }),
+    ScheduleModule.forRoot(),
     CacheModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService<AllConfigType>) => {
@@ -88,7 +90,6 @@ import { FirebaseModule } from './firebase/firebase.module';
     EventEmitterModule.forRoot({
       global: true,
     }),
-    ScheduleModule.forRoot(),
     DatabaseModule,
     HealthModule,
     UsersModule,
@@ -122,6 +123,7 @@ import { FirebaseModule } from './firebase/firebase.module';
     CommentInRatingsModule,
     ExcelsModule,
     BankingAccountModule,
+    TasksModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -63,7 +63,7 @@ export class VouchersController {
     return await this.vouchersService.update(voucherId, reqDto);
   }
 
-  @Roles(RoleEnum.ADMIN, RoleEnum.STORE, RoleEnum.MANAGEMENT)
+  @Roles(RoleEnum.STORE)
   @ApiAuth({
     summary: 'Xóa voucher (admin, store, management)',
   })
