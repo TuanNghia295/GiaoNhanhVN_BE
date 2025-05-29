@@ -25,6 +25,7 @@ import { and, between, count, eq, sql, sum } from 'drizzle-orm';
 export type RevenueResult = {
   status: OrderStatusEnum | null; // null cho dòng tổng
   total_order: number;
+  total_user_service_fee?: number; // Chỉ có trong kết quả tổng
   total_product_price: number;
   total_user_payment: number;
   total_store_service_fee: number;
@@ -48,6 +49,7 @@ export class AnalyticsService {
         total_order: count(orders.id).mapWith(Number),
         total_product_price: sum(orders.totalProduct).mapWith(Number),
         total_user_payment: sum(orders.total).mapWith(Number),
+        total_user_service_fee: sum(orders.userServiceFee).mapWith(Number),
         total_store_service_fee: sum(orders.storeServiceFee).mapWith(Number),
         total_deliver_service_fee: sql<number>`SUM
           (${orders.totalDelivery} - ${orders.incomeDeliver})`.mapWith(Number),
@@ -57,8 +59,7 @@ export class AnalyticsService {
           (${orders.totalDelivery} - ${orders.incomeDeliver}) -
           (
           CASE
-          WHEN ${vouchers.managerId} IS NOT NULL THEN
-          LEAST(${orders.totalDelivery}, ${vouchers.value})
+          WHEN ${vouchers.managerId} IS NOT NULL THEN ${vouchers.value}
           ELSE 0
           END))`.mapWith(Number),
       })
@@ -87,6 +88,7 @@ export class AnalyticsService {
         total_product_price: 0,
         total_user_payment: 0,
         total_store_service_fee: 0,
+        total_user_service_fee: 0,
         total_deliver_service_fee: 0,
         total_voucher_value: 0,
         total_app_revenue: 0,
@@ -95,6 +97,7 @@ export class AnalyticsService {
       return {
         status,
         total_order: filterData.total_order,
+        total_user_service_fee: filterData.total_user_service_fee,
         total_product_price: filterData.total_product_price,
         total_user_payment: filterData.total_user_payment,
         total_store_service_fee: filterData.total_store_service_fee,
@@ -145,6 +148,10 @@ export class AnalyticsService {
         (acc, cur) => acc + cur.total_voucher_value,
         0,
       ),
+      total_user_service_fee: DATA_FILTERED.reduce(
+        (acc, cur) => acc + (cur.total_user_service_fee || 0),
+        0,
+      ),
       total_app_revenue: DATA_FILTERED.reduce(
         (acc, cur) => acc + cur.total_app_revenue,
         0,
@@ -153,6 +160,7 @@ export class AnalyticsService {
 
     const data = {
       all: result,
+      total_user_service_fee: total_all.total_user_service_fee.toString(),
       total_all_order: total_all.total_order.toString(),
       total_all_product_price: total_all.total_product_price.toString(),
       total_all_user_payment: total_all.total_user_payment.toString(),
@@ -344,7 +352,7 @@ export class AnalyticsService {
             CASE 
               WHEN vouchers.user_id IS NOT NULL 
               AND vouchers_on_orders.order_id IS NOT NULL 
-              THEN LEAST(vouchers.value, orders.total_product)
+              THEN vouchers.value
               ELSE 0 
             END
           )

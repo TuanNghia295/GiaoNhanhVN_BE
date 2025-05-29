@@ -483,9 +483,17 @@ export class VouchersService {
         .select({
           ...getTableColumns(vouchers),
           usedCount: count(vouchersOnOrders.voucherId).mapWith(Number),
+          usedByUserCount: count(voucherUsages.userId).mapWith(Number),
         })
         .from(vouchers)
         .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
+        .leftJoin(
+          voucherUsages,
+          and(
+            eq(voucherUsages.voucherId, vouchers.id),
+            eq(voucherUsages.userId, payload.id),
+          ),
+        )
         .where(
           and(
             isNull(vouchers.deletedAt),
@@ -504,7 +512,7 @@ export class VouchersService {
             eq(vouchers.areaId, reqDto.areaId),
           ),
         )
-        .groupBy(vouchers.id)
+        .groupBy(vouchers.id, voucherUsages.userId)
         .orderBy(desc(vouchers.createdAt))
         .having(
           and(
@@ -514,6 +522,9 @@ export class VouchersService {
             // lọc ra voucher chưa sử dụng hết
             sql`${count(vouchersOnOrders.voucherId)} <
             ${vouchers.maxUses}`,
+            // lọc ra voucher chưa sử dụng bởi user này
+            sql`${count(voucherUsages.userId)} <
+            ${vouchers.usePerUser}`,
           ),
         );
       if (voucherApps && voucherApps.length > 0) {
@@ -531,9 +542,17 @@ export class VouchersService {
           ...getTableColumns(vouchers),
           user: users,
           usedCount: count(vouchersOnOrders.voucherId).mapWith(Number),
+          usedByUserCount: count(voucherUsages.userId).mapWith(Number),
         })
         .from(vouchers)
         .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
+        .leftJoin(
+          voucherUsages,
+          and(
+            eq(voucherUsages.voucherId, vouchers.id),
+            eq(voucherUsages.userId, payload.id),
+          ),
+        )
         .leftJoin(users, eq(users.id, vouchers.userId))
         .leftJoin(stores, eq(stores.userId, users.id))
         .where(
@@ -560,6 +579,9 @@ export class VouchersService {
             // lọc ra voucher chưa sử dụng hết
             sql`${count(vouchersOnOrders.voucherId)} <
             ${vouchers.maxUses}`,
+            // lọc ra voucher chưa sử dụng bởi user này
+            // sql`${count(voucherUsages.userId)} <
+            // ${vouchers.usePerUser}`,
           ),
         );
       if (storeVouchers && storeVouchers.length > 0) {

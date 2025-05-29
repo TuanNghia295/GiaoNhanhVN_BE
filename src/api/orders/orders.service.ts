@@ -757,8 +757,12 @@ export class OrdersService {
 
     baseConfig.where = and(
       eq(orders.userId, userId),
-      // ...(reqDto.status ? [inArray(orders.status, reqDto.status)] : []),
-      // ...(reqDto.type ? [inArray(orders.type, reqDto.type)] : []),
+      ...(reqDto.status && reqDto.status.length > 0
+        ? [inArray(orders.status, reqDto.status)]
+        : []),
+      ...(reqDto.type && reqDto.type.length > 0
+        ? [inArray(orders.type, reqDto.type)]
+        : []),
     );
 
     const qCount = this.db.query.orders.findMany({
@@ -783,7 +787,6 @@ export class OrdersService {
         ? entity.vouchers.map((v) => v.voucher)
         : [],
     }));
-    console.log('entities', mappedEntities[0].vouchers);
 
     const totalsOrders = Object.fromEntries(
       (
@@ -791,7 +794,15 @@ export class OrdersService {
           .select({ status: orders.status, count: count(orders.id) })
           .from(orders)
           .where(
-            and(...(reqDto.type ? [inArray(orders.type, reqDto.type)] : [])),
+            and(
+              eq(orders.userId, userId),
+              ...(reqDto.status && reqDto.status.length > 0
+                ? [inArray(orders.status, reqDto.status)]
+                : []),
+              ...(reqDto.type && reqDto.type.length > 0
+                ? [inArray(orders.type, reqDto.type)]
+                : []),
+            ),
           )
           .groupBy(orders.status)
       ).map(({ status, count }) => [status, count]),
@@ -805,6 +816,7 @@ export class OrdersService {
       totalOrdersDelivered: totalsOrders[OrderStatusEnum.DELIVERED] ?? 0,
       totalOrdersCancelled: totalsOrders[OrderStatusEnum.CANCELED] ?? 0,
     };
+    console.log('mappedEntities', mappedEntities);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
     return new OrdersOffsetPaginatedResDto(

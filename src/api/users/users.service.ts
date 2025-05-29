@@ -148,7 +148,7 @@ export class UsersService implements OnModuleInit {
     if (!user) {
       throw new ValidationException(ErrorCode.U001, HttpStatus.NOT_FOUND);
     }
-    return plainToInstance(UserResDto, user);
+    return user;
   }
 
   async existById(userId: number) {
