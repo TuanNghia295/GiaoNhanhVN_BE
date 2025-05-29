@@ -1,8 +1,4 @@
 import { AdminRevenueReqDto } from '@/api/analytics/dto/admin-revenue.req.dto';
-import {
-  AdminRevenueResDto,
-  OrderStatusRevenueResDto,
-} from '@/api/analytics/dto/admin-revenue.res.dto';
 import { StoreRevenueReqDto } from '@/api/analytics/dto/store-revenue.req.dto';
 import {
   OrderStatusStoreRevenueResDto,
@@ -45,42 +41,26 @@ export class AnalyticsService {
   ) {}
 
   async getAdminRevenue(reqDto: AdminRevenueReqDto) {
-    const fieldsToSum = [
-      'total_order',
-      'total_product_price',
-      'total_user_payment',
-      'total_store_service_fee',
-      'total_deliver_service_fee',
-      'total_voucher_value',
-      'total_app_revenue',
-    ] as const;
-
-    let results = await this.db
+    const statuses: OrderStatusEnum[] = Object.values(OrderStatusEnum);
+    const results = await this.db
       .select({
         status: orders.status,
-        total_order: sql<number>`COUNT
-          (${orders.id})`,
-        total_product_price: sql<number>`SUM
-          (${orders.totalProduct})`,
-        total_user_payment: sql<number>`SUM
-          (${orders.total})`,
-        total_store_service_fee: sql<number>`SUM
-          (${orders.totalProduct} - ${orders.payforShop})`,
+        total_order: count(orders.id).mapWith(Number),
+        total_product_price: sum(orders.totalProduct).mapWith(Number),
+        total_user_payment: sum(orders.total).mapWith(Number),
+        total_store_service_fee: sum(orders.storeServiceFee).mapWith(Number),
         total_deliver_service_fee: sql<number>`SUM
-          (${orders.totalDelivery} - ${orders.incomeDeliver})`,
-        total_voucher_value: sql<number>`SUM
-        ( CASE
-          WHEN ${vouchers.managerId} IS NOT NULL THEN ${vouchers.value}
-          ELSE 0
-          END)`,
+          (${orders.totalDelivery} - ${orders.incomeDeliver})`.mapWith(Number),
+        total_voucher_value: sum(orders.totalVoucher).mapWith(Number),
         total_app_revenue: sql<number>`SUM
-        (
-          (${orders.totalProduct} - ${orders.payforShop}) + (${orders.totalDelivery} - ${orders.incomeDeliver}) -
-            (
-            CASE
-            WHEN ${vouchers.managerId} IS NOT NULL THEN ${vouchers.value}
-            ELSE 0
-            END))`,
+        ( (${orders.totalProduct} - ${orders.payforShop}) + ${orders.userServiceFee} +
+          (${orders.totalDelivery} - ${orders.incomeDeliver}) -
+          (
+          CASE
+          WHEN ${vouchers.managerId} IS NOT NULL THEN
+          LEAST(${orders.totalDelivery}, ${vouchers.value})
+          ELSE 0
+          END))`.mapWith(Number),
       })
       .from(orders)
       .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
@@ -101,75 +81,89 @@ export class AnalyticsService {
       )
       .groupBy(orders.status);
 
-    results = results.map((r) => {
-      const newResult: any = {};
-      if (r.status === 'CANCELED') {
-        newResult.status = OrderStatusEnum.CANCELED;
-        newResult.total_store_service_fee = `-${r.total_store_service_fee}`;
-        newResult.total_deliver_service_fee = `-${r.total_deliver_service_fee}`;
-        newResult.total_voucher_value = `+${r.total_voucher_value}`;
-        newResult.total_app_revenue = `-${r.total_app_revenue}`;
-      } else if (r.status === 'DELIVERED') {
-        newResult.status = OrderStatusEnum.DELIVERED;
-        newResult.total_store_service_fee = `+${r.total_store_service_fee}`;
-        newResult.total_deliver_service_fee = `+${r.total_deliver_service_fee}`;
-        newResult.total_voucher_value = `-${r.total_voucher_value}`;
-        newResult.total_app_revenue = `+${r.total_app_revenue}`;
-      } else {
-        newResult.total_store_service_fee = r.total_store_service_fee;
-        newResult.total_deliver_service_fee = r.total_deliver_service_fee;
-        newResult.total_voucher_value = r.total_voucher_value;
-        newResult.total_app_revenue = r.total_app_revenue;
-      }
+    const result = statuses.map((status) => {
+      const filterData = results.find((r) => r.status === status) || {
+        total_order: 0,
+        total_product_price: 0,
+        total_user_payment: 0,
+        total_store_service_fee: 0,
+        total_deliver_service_fee: 0,
+        total_voucher_value: 0,
+        total_app_revenue: 0,
+      };
+
       return {
-        ...r,
-        ...newResult,
+        status,
+        total_order: filterData.total_order,
+        total_product_price: filterData.total_product_price,
+        total_user_payment: filterData.total_user_payment,
+        total_store_service_fee: filterData.total_store_service_fee,
+        total_deliver_service_fee: filterData.total_deliver_service_fee,
+        total_voucher_value: filterData.total_voucher_value,
+        total_app_revenue: filterData.total_app_revenue,
       };
     });
 
-    // Tính tổng
-    const totals = results.reduce(
-      (acc, cur) => {
-        acc.total_all_order += Number(cur.total_order);
-        acc.total_all_product_price += Number(cur.total_product_price);
-        acc.total_all_user_payment += Number(cur.total_user_payment);
-        acc.total_all_store_service_fee += Number(cur.total_store_service_fee);
-        acc.total_all_deliver_service_fee += Number(
-          cur.total_deliver_service_fee,
-        );
-        acc.total_all_voucher_value += Number(cur.total_voucher_value);
-        acc.total_all_app_revenue += Number(cur.total_app_revenue);
-        return acc;
-      },
-      {
-        total_all_order: 0,
-        total_all_product_price: 0,
-        total_all_user_payment: 0,
-        total_all_store_service_fee: 0,
-        total_all_deliver_service_fee: 0,
-        total_all_voucher_value: 0,
-        total_all_app_revenue: 0,
-      },
+    // Sắp xếp theo thứ tự trạng thái
+    const statusOrder = [
+      OrderStatusEnum.DELIVERED,
+      OrderStatusEnum.CANCELED,
+      OrderStatusEnum.PENDING,
+      OrderStatusEnum.ACCEPTED,
+      OrderStatusEnum.DELIVERING,
+    ];
+    result.sort(
+      (a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status),
     );
 
-    const ORDER_STATUSES = Object.values(OrderStatusEnum);
-
-    const allWithDefaults = ORDER_STATUSES.map((status) => {
-      const found = results.find((r) => r.status === status);
-      const entry: Record<string, any> = { status };
-      fieldsToSum.forEach((field) => {
-        entry[field] = found?.[field] ?? 0;
-      });
-      return plainToInstance(OrderStatusRevenueResDto, entry);
-    });
-
-    return plainToInstance(AdminRevenueResDto, {
-      all: allWithDefaults.map((r) =>
-        plainToInstance(OrderStatusRevenueResDto, r),
+    const DATA_FILTERED = result.filter(
+      (item) => item.status !== OrderStatusEnum.CANCELED,
+    );
+    const total_all: RevenueResult = {
+      status: null, // Dòng tổng không có trạng thái
+      total_order: DATA_FILTERED.reduce(
+        (acc, cur) => acc + Number(cur.total_order),
+        0,
       ),
-      ...totals,
-      total_all_app_revenue: totals.total_all_app_revenue,
-    });
+      total_product_price: DATA_FILTERED.reduce(
+        (acc, cur) => acc + cur.total_product_price,
+        0,
+      ),
+      total_user_payment: DATA_FILTERED.reduce(
+        (acc, cur) => acc + cur.total_user_payment,
+        0,
+      ),
+      total_store_service_fee: DATA_FILTERED.reduce(
+        (acc, cur) => acc + cur.total_store_service_fee,
+        0,
+      ),
+      total_deliver_service_fee: DATA_FILTERED.reduce(
+        (acc, cur) => acc + cur.total_deliver_service_fee,
+        0,
+      ),
+      total_voucher_value: DATA_FILTERED.reduce(
+        (acc, cur) => acc + cur.total_voucher_value,
+        0,
+      ),
+      total_app_revenue: DATA_FILTERED.reduce(
+        (acc, cur) => acc + cur.total_app_revenue,
+        0,
+      ),
+    };
+
+    const data = {
+      all: result,
+      total_all_order: total_all.total_order.toString(),
+      total_all_product_price: total_all.total_product_price.toString(),
+      total_all_user_payment: total_all.total_user_payment.toString(),
+      total_all_store_service_fee: total_all.total_store_service_fee.toString(),
+      total_all_deliver_service_fee:
+        total_all.total_deliver_service_fee.toString(),
+      total_all_voucher_value: total_all.total_voucher_value.toString(),
+      total_all_app_revenue: total_all.total_app_revenue.toString(),
+    };
+    console.log('data', data);
+    return data;
   }
 
   async getMyStoreRevenue(reqDto: AdminRevenueReqDto, payload: JwtPayloadType) {

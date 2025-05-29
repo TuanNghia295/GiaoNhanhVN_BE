@@ -66,13 +66,17 @@ import {
   desc,
   eq,
   getTableColumns,
+  gte,
   ilike,
   inArray,
   isNotNull,
+  lt,
   SQL,
   sql,
+  sum,
 } from 'drizzle-orm';
 import admin from 'firebase-admin';
+import { DateTime } from 'luxon';
 import { v4 as uuidv4 } from 'uuid';
 import { FIREBASE_ADMIN } from '../../firebase/firebase.module';
 
@@ -167,7 +171,6 @@ export class OrdersService {
       }),
       this.db.select({ totalCount: count() }).from(sql`${qCount}`),
     ]);
-    console.log('entities', entities);
 
     const totalsOrders = Object.fromEntries(
       (
@@ -201,7 +204,7 @@ export class OrdersService {
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
     return new OrdersOffsetPaginatedResDto(
-      entities.map((e) => plainToInstance(OrderResDto, e)),
+      entities,
       meta,
       totalOrdersForPaginated,
     );
@@ -441,7 +444,34 @@ export class OrdersService {
     ]);
   }
 
+  /**
+   * Tạo mã đơn hàng duy nhất theo định dạng DH-YYYY-DD-XXXX
+   * @returns Mã đơn hàng duy nhất
+   */
+  private async createUniqueCode(): Promise<string> {
+    const now = DateTime.utc(); // luôn nên dùng UTC cho DB
+
+    const monthStart = now.startOf('month'); // 00:00 ngày đầu tháng
+    const monthEnd = now.endOf('month'); // 23:59:59.999 ngày cuối tháng
+
+    const year = now.year;
+    const month = now.month;
+
+    const [{ totalOrder }] = await this.db
+      .select({ totalOrder: count(orders.id) })
+      .from(orders)
+      .where(
+        and(
+          gte(orders.createdAt, monthStart.toJSDate()),
+          lt(orders.createdAt, monthEnd.toJSDate()),
+        ),
+      );
+
+    return `DH-${year}-${month}-${String((totalOrder ?? 0) + 1).padStart(4, '0')}`;
+  }
+
   async create(payload: JwtPayloadType, reqDto: OrderCreateReqDto) {
+    console.log('reqDto', reqDto);
     const calculateOrder = await this.cache.get<CalculateResponse>(
       reqDto.sessionId,
     );
@@ -464,7 +494,7 @@ export class OrdersService {
         .insert(orders)
         .values({
           ...reqDto,
-          code: `DH${Date.now()}`,
+          code: await this.createUniqueCode(),
           areaId: calculateOrder.areaId,
           storeId: reqDto.storeId,
           userId: payload.id,
@@ -482,10 +512,10 @@ export class OrdersService {
       }
       // Tạo chi tiết đơn hàng
       if (reqDto.items && reqDto.items.length > 0) {
-        await this.createOderDetails(order.id, reqDto.items, tx);
+        await this.createOrderDetails(order.id, reqDto.items, tx);
       }
 
-      const [serviceFeeWithTypeFood] = await tx
+      const [serviceFeeWithType] = await tx
         .select({
           ...getTableColumns(serviceFees),
         })
@@ -493,79 +523,105 @@ export class OrdersService {
         .innerJoin(settings, eq(serviceFees.settingId, settings.id))
         .where(
           and(
-            eq(serviceFees.type, OrderTypeEnum.FOOD), // bất kỳ loại nào
+            eq(serviceFees.type, reqDto.type),
             eq(settings.areaId, order.areaId),
           ),
         );
 
-      // Tính tổng tiền sản phẩm khu có/không áp dụng voucher của cửa hàng
-      await tx.execute(sql`
-        WITH order_details_total AS (SELECT od.order_id, SUM(od.total) AS total_order_details
-                                     FROM order_details od
-                                     WHERE od.order_id = ${order.id}
-                                     GROUP BY od.order_id),
-             total_store_voucher AS (SELECT SUM(v.value) AS total_store
-                                     FROM vouchers_on_orders ov
-                                            JOIN vouchers v ON ov.voucher_id = v.id
-                                     WHERE ov.order_id = ${order.id}
-                                       AND v.type = ${VouchersTypeEnum.STORE})
-        UPDATE orders o
-        SET total_product     = GREATEST(odt.total_order_details, 0),
-            total_voucher     = LEAST(odt.total_order_details, COALESCE(tsv.total_store, 0)),
-            store_service_fee = GREATEST(
-              odt.total_order_details * (${serviceFeeWithTypeFood.pricePct}::numeric / 100) +
-              COALESCE(${serviceFeeWithTypeFood.price}::numeric, 0) -
-              COALESCE(tsv.total_store, 0),
-              0),
-            payfor_shop       = GREATEST(
-              odt.total_order_details
-                * (1 - ${serviceFeeWithTypeFood.pricePct}::numeric / 100) -
-              COALESCE(${serviceFeeWithTypeFood.price}:: numeric, 0)
-                - COALESCE(tsv.total_store, 0),
-              0
-                                )
-        FROM order_details_total odt,
-             total_store_voucher tsv
-        WHERE o.id = ${order.id}
-          AND odt.order_id = o.id;
-      `);
+      const [totalProduct, totalVoucherStore, totalVoucherApp] =
+        await Promise.all([
+          tx
+            .select({
+              total: sum(orderDetails.total).mapWith(Number),
+            })
+            .from(orderDetails)
+            .where(eq(orderDetails.orderId, order.id))
+            .groupBy(orderDetails.orderId)
+            .then((res) => res[0]?.total ?? 0),
+          tx
+            .select({
+              total: sum(vouchers.value).mapWith(Number),
+            })
+            .from(vouchersOnOrders)
+            .innerJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
+            .where(
+              and(
+                eq(vouchersOnOrders.orderId, order.id),
+                eq(vouchers.type, VouchersTypeEnum.STORE),
+              ),
+            )
+            .then((res) => res[0]?.total ?? 0),
+          tx
+            .select({
+              total: sum(vouchers.value).mapWith(Number),
+            })
+            .from(vouchersOnOrders)
+            .innerJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
+            .where(
+              and(
+                eq(vouchersOnOrders.orderId, order.id),
+                inArray(vouchers.type, [
+                  VouchersTypeEnum.ADMIN,
+                  VouchersTypeEnum.MANAGEMENT,
+                ]),
+              ),
+            )
+            .then((res) => res[0]?.total ?? 0),
+        ]);
+      console.log(
+        'totalProduct',
+        totalProduct,
+        'totalVoucherStore',
+        totalVoucherStore,
+        'totalVoucherApp',
+        totalVoucherApp,
+      );
 
-      // Tính tiền ship khi có và không áp dụng voucher
-      await tx.execute(sql`
-        WITH tav AS (SELECT SUM(v.value) AS total_admin
-                     FROM vouchers_on_orders ov
-                            JOIN vouchers v ON ov.voucher_id = v.id
-                     WHERE ov.order_id = ${order.id}
-                       AND v.type IN (${VouchersTypeEnum.ADMIN}, ${VouchersTypeEnum.MANAGEMENT}))
-        UPDATE orders
-        SET total_delivery = GREATEST(${calculateOrder.totalDelivery} - COALESCE(tav.total_admin, 0), 0),
-            total_voucher  = orders.total_voucher + LEAST(${calculateOrder.totalDelivery}, COALESCE(tav.total_admin, 0)),
-            income_deliver = GREATEST(
-              ${calculateOrder.totalDelivery}::numeric
-                * (1 - ${serviceFeeWithTypeFood.deliverFeePct}::numeric / 100)
-                - COALESCE(${serviceFeeWithTypeFood.price}::numeric, 0), 0)
-        FROM tav
-        WHERE orders.id = ${order.id};
-      `);
+      const round = (value: number) => Math.round(value * 100) / 100;
 
-      await tx.execute(sql`
-        UPDATE orders
-        SET user_service_fee = ${calculateOrder.userServiceFee},
-            distance         = ${calculateOrder.distance},
-            is_holiday       = ${calculateOrder.isHoliday},
-            is_rain          = ${calculateOrder.isRain}
-        WHERE id = ${order.id};
-      `);
-      await tx.execute(sql`
-        UPDATE orders
-        SET total = GREATEST(
+      const storeServiceFee = round(
+        Math.max(
+          totalProduct * ((serviceFeeWithType.pricePct ?? 0) / 100) +
+            (serviceFeeWithType.price ?? 0) -
+            totalVoucherStore,
           0,
-          COALESCE(total_product, 0) +
-          COALESCE(total_delivery, 0) +
-          COALESCE(user_service_fee, 0) -
-          COALESCE(total_voucher, 0))
-        WHERE id = ${order.id};
-      `);
+        ),
+      );
+
+      const payforShop = round(
+        Math.max(
+          totalProduct * ((100 - (serviceFeeWithType.pricePct ?? 0)) / 100) -
+            (serviceFeeWithType.price ?? 0) -
+            totalVoucherStore,
+          0,
+        ),
+      );
+
+      const total = round(
+        Math.max(
+          0,
+          Math.max(totalProduct - totalVoucherStore, 0) +
+            Math.max(calculateOrder.totalDelivery - totalVoucherApp, 0) +
+            calculateOrder.userServiceFee,
+        ),
+      );
+      console.log('total', total);
+      await tx
+        .update(orders)
+        .set({
+          totalProduct: totalProduct,
+          totalVoucher: totalVoucherStore + totalVoucherApp,
+          storeServiceFee: storeServiceFee,
+          payforShop: payforShop,
+          totalDelivery: calculateOrder.totalDelivery,
+          incomeDeliver: calculateOrder.incomeDeliver,
+          userServiceFee: calculateOrder.userServiceFee,
+          distance: calculateOrder.distance,
+          isHoliday: calculateOrder.isHoliday,
+          isRain: calculateOrder.isRain,
+          total: total,
+        })
+        .where(eq(orders.id, order.id));
 
       await this.emitter.emitAsync('order.created', order);
       const orderDetail = await tx.query.orders.findFirst({
@@ -602,7 +658,7 @@ export class OrdersService {
     });
   }
 
-  async createOderDetails(
+  async createOrderDetails(
     orderId: number,
     items: CreateOrderDetailReqDto[],
     tx: Transaction,
@@ -612,12 +668,11 @@ export class OrdersService {
         .insert(orderDetails)
         .values({
           ...item,
-          orderId: orderId,
+          orderId,
         })
         .returning();
 
       if (item.extras.length > 0) {
-        // Tạo chi tiết đơn hàng cho các extras
         await tx
           .insert(extrasToOrderDetails)
           .values(
@@ -630,22 +685,21 @@ export class OrdersService {
           .returning();
       }
 
-      // tính tổng chi tiết đơn hàng rồi update vào field total
-
-      // lef join table options extras để lấy price
-
       await tx.execute(sql`
         UPDATE order_details
         SET total = (
           COALESCE(order_details.quantity * p.price, 0) +
-          COALESCE((SELECT o.price FROM options o WHERE o.id = order_details.option_id), 0) +
-          COALESCE((SELECT SUM(ex.price * etod.quantity)
-                    FROM extras_to_order_details etod
-                           JOIN extras ex ON ex.id = etod.extra_id
-                    WHERE etod.order_detail_id = order_details.id), 0)
+          COALESCE(order_details.quantity * (SELECT o.price
+                                             FROM options o
+                                             WHERE o.id = order_details.option_id), 0) +
+          COALESCE(order_details.quantity * (SELECT SUM(ex.price * etod.quantity)
+                                             FROM extras_to_order_details etod
+                                                    JOIN extras ex ON ex.id = etod.extra_id
+                                             WHERE etod.order_detail_id = order_details.id), 0)
           )
         FROM products p
-        WHERE order_details.product_id = p.id
+        WHERE order_details.id = ${orderDetail.id}
+          AND order_details.product_id = p.id
       `);
     }
   }
@@ -754,7 +808,7 @@ export class OrdersService {
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
     return new OrdersOffsetPaginatedResDto(
-      mappedEntities.map((e) => plainToInstance(OrderResDto, e)),
+      mappedEntities,
       meta,
       totalOrdersForPaginated,
     );

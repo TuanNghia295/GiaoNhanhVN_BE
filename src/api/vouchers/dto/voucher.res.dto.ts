@@ -1,5 +1,5 @@
 import { VouchersStatusEnum, VouchersTypeEnum } from '@/database/schemas';
-import { Expose } from 'class-transformer';
+import { Exclude, Expose } from 'class-transformer';
 import { AbstractResDto } from 'src/database/dto/abstract.res.dto';
 import {
   DateField,
@@ -9,8 +9,10 @@ import {
   StringFieldOptional,
 } from 'src/decorators/field.decorators';
 
+@Exclude()
 export class VoucherResDto extends AbstractResDto {
   @StringField()
+  @Expose()
   code: string;
 
   @NumberField()
@@ -18,12 +20,15 @@ export class VoucherResDto extends AbstractResDto {
   value: number;
 
   @EnumField(() => VouchersTypeEnum)
+  @Expose()
   type: VouchersTypeEnum;
 
   @DateField()
+  @Expose()
   startDate: Date;
 
   @DateField()
+  @Expose()
   endDate: Date;
 
   @NumberField()
@@ -39,6 +44,7 @@ export class VoucherResDto extends AbstractResDto {
   usedCount: number;
 
   @StringFieldOptional()
+  @Expose()
   description: string;
 
   @NumberField()
@@ -50,5 +56,6 @@ export class VoucherResDto extends AbstractResDto {
   maxOrderValue: number;
 
   @EnumField(() => VouchersStatusEnum)
+  @Expose()
   status: VouchersStatusEnum;
 }
