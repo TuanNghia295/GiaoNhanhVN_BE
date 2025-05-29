@@ -2,6 +2,7 @@ import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { CreateVoucherReqDto } from '@/api/vouchers/dto/create-voucher.req.dto';
 import { PageVouchersReqDto } from '@/api/vouchers/dto/page-vouchers-req.dto';
 import { UpdateVoucherReqDto } from '@/api/vouchers/dto/update-voucher.req.dto';
+import { UsableVoucherReqDto } from '@/api/vouchers/dto/usable-voucher.req.dto';
 import { VoucherResDto } from '@/api/vouchers/dto/voucher.res.dto';
 import { RoleEnum } from '@/database/schemas';
 import { CurrentUser } from '@/decorators/current-user.decorator';
@@ -88,19 +89,10 @@ export class VouchersController {
     type: VoucherResDto,
   })
   @Get('user')
-  async getVouchersForUser(
-    @Query('storeId') storeId: number,
-    @Query('areaId') areaId: number,
-    @Query('isHidden') isHidden: boolean,
-    @Query('code') code: string,
+  async getUsableVouchers(
+    @Query() reqDto: UsableVoucherReqDto,
     @CurrentUser() payload: JwtPayloadType,
   ) {
-    return await this.vouchersService.getVouchersForUser(
-      storeId,
-      areaId,
-      isHidden,
-      code,
-      payload,
-    );
+    return await this.vouchersService.getUsableVouchers(reqDto, payload);
   }
 }

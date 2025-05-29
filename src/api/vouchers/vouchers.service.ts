@@ -3,6 +3,7 @@ import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { CreateVoucherReqDto } from '@/api/vouchers/dto/create-voucher.req.dto';
 import { PageVouchersReqDto } from '@/api/vouchers/dto/page-vouchers-req.dto';
 import { UpdateVoucherReqDto } from '@/api/vouchers/dto/update-voucher.req.dto';
+import { UsableVoucherReqDto } from '@/api/vouchers/dto/usable-voucher.req.dto';
 import { VoucherResDto } from '@/api/vouchers/dto/voucher.res.dto';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
@@ -37,9 +38,11 @@ import {
   desc,
   eq,
   getTableColumns,
+  gte,
   ilike,
   inArray,
   isNull,
+  lte,
   or,
   SQL,
   sql,
@@ -465,37 +468,106 @@ export class VouchersService {
     return plainToInstance(VoucherResDto, voucher);
   }
 
-  async getVouchersForUser(
-    storeId: number,
-    areaId: number,
-    isHidden: boolean,
-    code: string,
+  async getUsableVouchers(
+    reqDto: UsableVoucherReqDto,
     payload: JwtPayloadType,
   ) {
-    return this.db
-      .select({
-        ...getTableColumns(vouchers),
-        usedCount: count(vouchersOnOrders.voucherId),
-        user: users,
-      })
-      .from(vouchers)
-      .leftJoin(users, eq(users.id, vouchers.userId))
-      .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
-      .where(
-        and(
-          isNull(vouchers.deletedAt),
-          eq(vouchers.status, VouchersStatusEnum.ACTIVE),
-          // ...(payload.role === RoleEnum.STORE
-          //   ? [eq(vouchers.userId, payload.id)]
-          //   : []),
-          // ...(payload.role === RoleEnum.USER
-          //   ? [or(eq(vouchers.areaId, areaId), eq(vouchers.isHidden, isHidden))]
-          //   : []),
-          // ...(storeId ? [eq(stores.id, storeId)] : []),
-          // ...(code ? [ilike(vouchers.code, `%${code}%`)] : []),
-        ),
-      )
-      .groupBy(vouchers.id, users.id)
-      .orderBy(desc(vouchers.createdAt));
+    console.log('reqDto', reqDto);
+    const usableVouchers = [];
+
+    //---------------------------------------------------------
+    // Lấy voucher type ADMIN vs MANAGEMENT nếu có areaId
+    //---------------------------------------------------------
+    if (reqDto.areaId) {
+      const voucherApps = await this.db
+        .select({
+          ...getTableColumns(vouchers),
+          usedCount: count(vouchersOnOrders.voucherId).mapWith(Number),
+        })
+        .from(vouchers)
+        .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
+        .where(
+          and(
+            isNull(vouchers.deletedAt),
+            // Nếu isHidden thì chỉ lấy voucher có code trùng với code đã gửi
+            ...(reqDto.isHidden
+              ? [
+                  eq(vouchers.isHidden, reqDto.isHidden),
+                  eq(vouchers.code, reqDto.code),
+                ]
+              : [eq(vouchers.isHidden, false)]),
+            eq(vouchers.status, VouchersStatusEnum.ACTIVE),
+            inArray(vouchers.type, [
+              VouchersTypeEnum.ADMIN,
+              VouchersTypeEnum.MANAGEMENT,
+            ]),
+            eq(vouchers.areaId, reqDto.areaId),
+          ),
+        )
+        .groupBy(vouchers.id)
+        .orderBy(desc(vouchers.createdAt))
+        .having(
+          and(
+            // lọc ra voucher còn hiệu lực startDate <= now <= endDate
+            lte(vouchers.startDate, new Date()), // startDate <= NOW
+            gte(vouchers.endDate, new Date()), // endDate >= NOW
+            // lọc ra voucher chưa sử dụng hết
+            sql`${count(vouchersOnOrders.voucherId)} <
+            ${vouchers.maxUses}`,
+          ),
+        );
+      if (voucherApps && voucherApps.length > 0) {
+        console.log('voucherApps', voucherApps);
+        usableVouchers.push(...voucherApps);
+      }
+    }
+
+    //---------------------------------------------------------
+    // Lấy voucher type STORE nếu có storeId
+    //---------------------------------------------------------
+    if (reqDto.storeId) {
+      const storeVouchers = await this.db
+        .select({
+          ...getTableColumns(vouchers),
+          user: users,
+          usedCount: count(vouchersOnOrders.voucherId).mapWith(Number),
+        })
+        .from(vouchers)
+        .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
+        .leftJoin(users, eq(users.id, vouchers.userId))
+        .leftJoin(stores, eq(stores.userId, users.id))
+        .where(
+          and(
+            ...(reqDto.isHidden
+              ? [
+                  eq(vouchers.isHidden, reqDto.isHidden),
+                  eq(vouchers.code, reqDto.code),
+                ]
+              : [eq(vouchers.isHidden, false)]),
+            isNull(vouchers.deletedAt),
+            eq(vouchers.status, VouchersStatusEnum.ACTIVE),
+            eq(vouchers.type, VouchersTypeEnum.STORE),
+            eq(stores.id, reqDto.storeId),
+          ),
+        )
+        .groupBy(vouchers.id, users.id)
+        .orderBy(desc(vouchers.createdAt))
+        .having(
+          and(
+            // lọc ra voucher còn hiệu lực startDate <= now <= endDate
+            lte(vouchers.startDate, new Date()), // startDate <= NOW
+            gte(vouchers.endDate, new Date()), // endDate >= NOW
+            // lọc ra voucher chưa sử dụng hết
+            sql`${count(vouchersOnOrders.voucherId)} <
+            ${vouchers.maxUses}`,
+          ),
+        );
+      if (storeVouchers && storeVouchers.length > 0) {
+        usableVouchers.push(...storeVouchers);
+      }
+    }
+    console.log('usableVouchers', usableVouchers);
+
+    return usableVouchers;
   }
 }
