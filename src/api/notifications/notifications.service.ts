@@ -237,11 +237,6 @@ export class NotificationsService implements OnModuleInit {
     switch (payload.role) {
       case RoleEnum.USER:
       case RoleEnum.STORE:
-        console.log(
-          'remove notification for user or store',
-          notificationId,
-          payload.id,
-        );
         return this.db
           .delete(notificationsToUsers)
           .where(

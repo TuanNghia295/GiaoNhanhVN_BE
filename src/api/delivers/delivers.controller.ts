@@ -235,6 +235,6 @@ export class DeliversController {
     @Query('input') input: string,
     @Query('areaId') areaId: number,
   ) {
-    return await this.deliversService.getDeliversByPhoneOrName(input, areaId);
+    return this.deliversService.getDeliversByPhoneOrName(input, areaId);
   }
 }

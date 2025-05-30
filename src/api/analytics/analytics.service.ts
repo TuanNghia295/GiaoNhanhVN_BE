@@ -178,7 +178,6 @@ export class AnalyticsService {
       total_all_voucher_value: total_all.total_voucher_value.toString(),
       total_all_app_revenue: total_all.total_app_revenue.toString(),
     };
-    console.log('data', data);
     return data;
   }
 
@@ -285,7 +284,6 @@ export class AnalyticsService {
       (a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status),
     );
 
-    console.log('formattedResult', formattedResult);
     // ✅ Tính tổng trừ các đơn hàng đã hủy
     const DATA_FILTERED = formattedResult.filter(
       (item) => item.status !== OrderStatusEnum.CANCELED,
@@ -402,8 +400,6 @@ export class AnalyticsService {
     result.sort(
       (a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status),
     );
-
-    console.log('result', result);
 
     // ✅ Tính tổng trừ các đơn hàng đã hủy
     const DATA_FILTERED = result.filter(

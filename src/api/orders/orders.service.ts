@@ -1,4 +1,3 @@
-import { AreasService } from '@/api/areas/areas.service';
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { DeliversService } from '@/api/delivers/delivers.service';
 import { CreateOrderDetailReqDto } from '@/api/order-details/dto/create-order-detail.req.dto';
@@ -13,6 +12,8 @@ import { UsersService } from '@/api/users/users.service';
 import { VouchersService } from '@/api/vouchers/vouchers.service';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
 import { OrdersOffsetPaginatedResDto } from '@/common/dto/offset-pagination/orders-offset-paginated.res.dto';
+import { AllConfigType } from '@/config/config.type';
+import { Environment } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE, increment, Transaction } from '@/database/global';
 import {
@@ -53,6 +54,7 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Big } from 'big.js';
 import { Cache } from 'cache-manager';
@@ -96,7 +98,7 @@ export interface CalculateResponse {
 @Injectable()
 export class OrdersService {
   constructor(
-    private readonly areasService: AreasService,
+    private readonly configService: ConfigService<AllConfigType>,
     private readonly usersService: UsersService,
     private readonly storesService: StoresService,
     private readonly emitter: EventEmitter2,
@@ -299,14 +301,11 @@ export class OrdersService {
         .then((res) => res[0]);
     }
 
-    console.log('area', area);
-
     if (!area) {
       throw new ValidationException(ErrorCode.AR001, HttpStatus.NOT_FOUND);
     }
 
     const response = await this.goongService.getDistanceMatrix(reqDto);
-    console.log('response', response);
     const distance = Math.ceil(
       response.rows[0].elements[0].distance.value / 1000,
     );
@@ -483,7 +482,6 @@ export class OrdersService {
   }
 
   async create(payload: JwtPayloadType, reqDto: OrderCreateReqDto) {
-    console.log('reqDto', reqDto);
     const calculateOrder = await this.cache.get<CalculateResponse>(
       reqDto.sessionId,
     );
@@ -594,14 +592,11 @@ export class OrdersService {
         await this.applyCoupon(order.id, reqDto.voucherStoreId, payload, tx);
       }
 
-      console.log(
-        'totalProduct',
-        totalProduct,
-        'totalVoucherStore',
-        totalVoucherStore,
-        'totalVoucherApp',
-        totalVoucherApp,
-      );
+      console.group('🏷️ Voucher Totals');
+      console.log('🛒 Total Product     :', totalProduct);
+      console.log('🏪 Store Voucher     :', totalVoucherStore);
+      console.log('📱 App Voucher       :', totalVoucherApp);
+      console.groupEnd();
 
       const storeServiceFee = _.round(
         Math.max(
@@ -629,7 +624,17 @@ export class OrdersService {
           0,
         ),
       );
-      console.log('total', total);
+      if (
+        this.configService.get('app.nodeEnv', { infer: true }) ===
+        Environment.DEVELOPMENT
+      ) {
+        console.group('💰 Service Fee & Payment Calculation');
+        console.log('🏪 storeServiceFee:', storeServiceFee);
+        console.log('🛍️ payforShop     :', payforShop);
+        console.log('🧾 total          :', total);
+
+        console.groupEnd();
+      }
       await tx
         .update(orders)
         .set({
@@ -963,14 +968,28 @@ export class OrdersService {
       //--------------------------------------------
       // Tổng point mà người giao hàng sẽ bị trừ khi nhận đơn
       //--------------------------------------------
-      const subtractPoint = Big(existOrder.totalDelivery || 0)
-        .minus(existOrder.incomeDeliver || 0)
-        .plus(existOrder.userServiceFee || 0)
-        .plus(existOrder.storeServiceFee || 0)
-        .toNumber(); // nếu bạn cần giá trị kiểu number
-      console.log('subtractPoint', subtractPoint);
-      console.log('existDeliver.point', existDeliver.point);
-      console.log('existOrder.totalDelivery', existOrder.totalDelivery);
+      const subtractPoint = _.round(
+        Math.max(
+          existOrder.totalDelivery -
+            (existOrder.incomeDeliver || 0) +
+            (existOrder.userServiceFee || 0) +
+            (existOrder.storeServiceFee || 0),
+          0,
+        ),
+      );
+      if (
+        this.configService.get('app.nodeEnv', { infer: true }) ===
+        Environment.DEVELOPMENT
+      ) {
+        console.group('🚚 Delivery Calculation');
+        console.log('📦 totalDelivery   :', existOrder.totalDelivery);
+        console.log('💸 incomeDeliver   :', existOrder.incomeDeliver || 0);
+        console.log('🧾 userServiceFee  :', existOrder.userServiceFee || 0);
+        console.log('🏪 storeServiceFee :', existOrder.storeServiceFee || 0);
+        console.log('➖ subtractPoint    :', subtractPoint);
+        console.log('🎯 currentPoint     :', existDeliver.point);
+        console.groupEnd();
+      }
 
       //--------------------------------------------
       // Kiểm tra xem người giao hàng có đủ điểm để nhận đơn không
@@ -1076,11 +1095,15 @@ export class OrdersService {
       //-------------------------------------------------
       // Cộng lại điểm cho người giao hàng
       //-------------------------------------------------
-      const subtractPoint = Big(existOrder.totalDelivery || 0)
-        .minus(existOrder.incomeDeliver || 0)
-        .plus(existOrder.userServiceFee || 0)
-        .plus(existOrder.storeServiceFee || 0)
-        .toNumber(); // nếu bạn cần giá trị kiểu number
+      const subtractPoint = _.round(
+        Math.max(
+          existOrder.totalDelivery -
+            (existOrder.incomeDeliver || 0) +
+            (existOrder.userServiceFee || 0) +
+            (existOrder.storeServiceFee || 0),
+          0,
+        ),
+      );
 
       await this.deliversService.addPoint(
         existOrder.deliverId,
@@ -1144,11 +1167,15 @@ export class OrdersService {
     }
 
     // Số điểm sẽ được cộng lại cho người giao hàng
-    const subtractPoint = Big(existOrder.totalDelivery || 0)
-      .minus(existOrder.incomeDeliver || 0)
-      .plus(existOrder.userServiceFee || 0)
-      .plus(existOrder.storeServiceFee || 0)
-      .toNumber(); // nếu bạn cần giá trị kiểu number
+    const subtractPoint = _.round(
+      Math.max(
+        existOrder.totalDelivery -
+          (existOrder.incomeDeliver || 0) +
+          (existOrder.userServiceFee || 0) +
+          (existOrder.storeServiceFee || 0),
+        0,
+      ),
+    );
 
     // Cộng lại điểm cho người giao hàng
     await this.deliversService.addPoint(
@@ -1222,9 +1249,15 @@ export class OrdersService {
       )
       .where(eq(orders.id, existOrder.id))
       .groupBy(orders.id);
-    this.logger.log(
-      `Refund point for deliver ${existDeliver.id} is ${refund.refundPoint}`,
-    );
+    if (
+      this.configService.get('app.nodeEnv', { infer: true }) ===
+      Environment.DEVELOPMENT
+    ) {
+      console.group('♻️ Refund Point Issued');
+      console.log('🚚 Deliver ID   :', existDeliver.id);
+      console.log('💰 Refund Point :', refund.refundPoint);
+      console.groupEnd();
+    }
     await this.deliversService.addPoint(
       existDeliver.id,
       refund.refundPoint,

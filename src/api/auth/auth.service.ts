@@ -175,7 +175,6 @@ export class AuthService {
         if (!myDeliver) {
           throw new UnauthorizedException();
         }
-        console.log('myDeliver', myDeliver);
         if (!myDeliver.status) {
           throw new UnauthorizedException('Account has been locked');
         }

@@ -7,7 +7,8 @@ import { UsableVoucherReqDto } from '@/api/vouchers/dto/usable-voucher.req.dto';
 import { VoucherResDto } from '@/api/vouchers/dto/voucher.res.dto';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
-import { Order } from '@/constants/app.constant';
+import { AllConfigType } from '@/config/config.type';
+import { Environment, Order } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE, Transaction, withPagination } from '@/database/global';
 import {
@@ -31,6 +32,7 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { plainToInstance } from 'class-transformer';
 import {
   and,
@@ -56,6 +58,7 @@ import { DateTime } from 'luxon';
 export class VouchersService {
   constructor(
     private readonly areasService: AreasService,
+    private readonly configService: ConfigService<AllConfigType>,
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
   ) {}
 
@@ -357,14 +360,19 @@ export class VouchersService {
       );
     }
 
-    this.logger.debug('📦 Voucher Info', {
-      usedCount: voucher.usedCount,
-      userUsageCount: userUsageCount,
-      maxUses: voucher.maxUses,
-      usePerUser: voucher.usePerUser,
-      minOrderValue: voucher.minOrderValue,
-      totalProduct,
-    });
+    if (
+      this.configService.get('app', { infer: true }).nodeEnv ===
+      Environment.DEVELOPMENT
+    ) {
+      console.group('🎟️ Voucher Usage Details');
+      console.log('🔢 Used Count          :', voucher.usedCount);
+      console.log('👤 User Usage Count    :', userUsageCount);
+      console.log('📈 Max Uses            :', voucher.maxUses);
+      console.log('👥 Uses Per User       :', voucher.usePerUser);
+      console.log('💰 Min Order Value     :', voucher.minOrderValue);
+      console.log('🛒 Total Product Value :', totalProduct);
+      console.groupEnd();
+    }
 
     if (
       voucher.usedCount >= voucher.maxUses ||

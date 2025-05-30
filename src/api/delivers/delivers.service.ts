@@ -8,7 +8,7 @@ import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagi
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { Order } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { DRIZZLE, Transaction } from '@/database/global';
+import { decrement, DRIZZLE, Transaction } from '@/database/global';
 import {
   delivers,
   locations,
@@ -168,8 +168,7 @@ export class DeliversService implements OnModuleInit {
     return tx
       .update(delivers)
       .set({
-        point: sql`${delivers.point} -
-        ${point}`,
+        point: decrement(delivers.point, point),
       })
       .where(eq(delivers.id, deliverId));
   }
@@ -312,53 +311,19 @@ export class DeliversService implements OnModuleInit {
     const [result] = await this.db
       .select({
         ...getTableColumns(delivers),
-        totalOrders: sql
-          .raw(
-            `
-          COALESCE(
-            CAST(
-              COUNT(orders.id)
-              FILTER (
-                WHERE BETWEEN(orders.created_at, ${sql.placeholder('startOfDay')}, ${sql.placeholder(
-                  'endOfDay',
-                )})
-                )
-              ) AS BIGINT
-            ), 0
-          )
-        `,
-          )
-          .mapWith(Number),
-        // cancelOrderCount: sql
-        //   .raw(
-        //     `
-        //   COALESCE(
-        //     CAST(
-        //       COUNT(reason_deliver_cancel_orders.id)
-        //       FILTER (
-        //       WHERE reason_deliver_cancel_orders.type = 'NOTTAKEN'
-        //       AND BETWEEN(orders.created_at, ${startOfDay}, ${endOfDay}
-        //       )
-        //       AS BIGINT
-        //     ), 0
-        //   )
-        // `,
-        //   )
-        //   .mapWith(Number),
-        // totalIncome: sql
-        //   .raw(
-        //     `COALESCE(
-        //         CAST(
-        //           SUM(orders.income_deliver)
-        //           FILTER (
-        //             WHERE orders.status = 'DELIVERED'
-        //             AND BETWEEN(orders.created_at, ${startOfDay}, ${endOfDay})
-        //           ) AS DECIMAL
-        //         ),
-        //         0
-        //       )`,
-        //   )
-        //   .mapWith(Number),
+
+        totalOrders: sql`coalesce
+        (cast(count(orders.id) filter (where orders.created_at between ${startOfDay} and ${endOfDay}) as bigint), 0)`.mapWith(
+          Number,
+        ),
+        cancelOrderCount: sql`coalesce
+        (cast(count(reason_deliver_cancel_orders.id) filter (where reason_deliver_cancel_orders.type = 'NOTTAKEN' and orders.created_at between ${startOfDay} and ${endOfDay}) as bigint), 0)`.mapWith(
+          Number,
+        ),
+        totalIncome: sql`coalesce
+        (cast(sum(orders.income_deliver) filter (where orders.status = 'DELIVERED' and orders.created_at between ${startOfDay} and ${endOfDay}) as decimal), 0)`.mapWith(
+          Number,
+        ),
       })
       .from(delivers)
       .leftJoin(orders, eq(delivers.id, orders.deliverId))
@@ -370,10 +335,9 @@ export class DeliversService implements OnModuleInit {
       .groupBy(delivers.id)
       .orderBy(delivers.id)
       .execute({
-        startOfDay: startOfDay,
-        endOfDay: endOfDay,
+        startOfDay,
+        endOfDay,
       });
-    console.log('getInfoById', result);
     return {
       ...result,
       orderCountInDay: result.totalOrders || 0,
@@ -446,12 +410,10 @@ export class DeliversService implements OnModuleInit {
   }
 
   async getRevenue(deliverId: number, reqDto: RevenueReqDto) {
-    console.log('getRevenue', reqDto);
     if (reqDto.to && reqDto.from) {
       reqDto.from = DateTime.fromJSDate(reqDto.from).startOf('day').toJSDate();
       reqDto.to = DateTime.fromJSDate(reqDto.to).endOf('day').toJSDate();
     }
-    console.log('getRevenue', reqDto.from, reqDto.to);
 
     const [results, incomeResult] = await Promise.all([
       this.db

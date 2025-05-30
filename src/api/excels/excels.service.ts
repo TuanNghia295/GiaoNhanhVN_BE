@@ -130,13 +130,11 @@ export class ExcelsService {
   async parseExcelBufferToData(buffer: Buffer): Promise<ParsedProductRow[]> {
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
-    console.log(sheetName);
     const worksheet = workbook.Sheets[sheetName];
     const jsonData = XLSX.utils.sheet_to_json(worksheet, {
       header: 1,
       raw: false,
     });
-    // console.log('jsonData', jsonData);
     const headers = jsonData[0] as string[];
     return jsonData
       .slice(1)
