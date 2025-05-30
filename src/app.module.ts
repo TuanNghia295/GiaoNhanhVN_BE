@@ -11,7 +11,7 @@ import { DatabaseModule } from '@/database/database.module';
 import { SharedModule } from '@/shared/shared.module';
 import { createKeyv } from '@keyv/redis';
 import { CacheModule } from '@nestjs/cache-manager';
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -52,6 +52,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import firebaseConfig from './firebase/config/firebase.config';
 import { FirebaseModule } from './firebase/firebase.module';
+import { UserAgentMiddleware } from './ua.middleware';
 
 @Module({
   imports: [
@@ -128,4 +129,8 @@ import { FirebaseModule } from './firebase/firebase.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(UserAgentMiddleware).forRoutes('*');
+  }
+}

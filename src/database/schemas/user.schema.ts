@@ -1,3 +1,4 @@
+import { fcmTokens } from '@/database/schemas/fcmToken.schema';
 import { notificationsToUsers } from '@/database/schemas/notification.schema';
 import { orders } from '@/database/schemas/order.schema';
 import { storeRequests } from '@/database/schemas/store-request.schema';
@@ -39,7 +40,6 @@ export const users = pgTable('users', {
   fcmToken: varchar('fcm_token', { length: 255 }),
   refreshToken: varchar('refresh_token', { length: 255 }),
   deletedAt: timestamp('deleted_at'),
-
   // lượt quay
   count: integer('count').notNull().default(0),
   // xu
@@ -60,6 +60,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   storeRequests: many(storeRequests),
   orders: many(orders),
   notifications: many(notificationsToUsers),
+  fcmTokens: many(fcmTokens),
 }));
 
 export type User = typeof users.$inferSelect;

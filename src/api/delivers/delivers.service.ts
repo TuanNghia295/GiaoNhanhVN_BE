@@ -468,4 +468,16 @@ export class DeliversService implements OnModuleInit {
       orderBy: desc(delivers.createdAt),
     });
   }
+
+  async logout(id: number) {
+    return this.db
+      .update(delivers)
+      .set({
+        fcmToken: null,
+        refreshToken: null,
+      })
+      .where(eq(delivers.id, id))
+      .returning()
+      .then((res) => res[0]);
+  }
 }

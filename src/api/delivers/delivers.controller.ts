@@ -25,12 +25,15 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes } from '@nestjs/swagger';
+import { Request } from 'express';
 import { memoryStorage } from 'multer';
+import { UAParser } from 'ua-parser-js';
 import { LoginResDto } from '../auth/dto/login.res.dto';
 import { DeliversService } from './delivers.service';
 
@@ -48,8 +51,26 @@ export class DeliversController {
     summary: 'Đăng nhập bằng phone và password (deliver)',
   })
   @Post('login')
-  async loginDeliver(@Body() reqDto: LoginReqDto): Promise<LoginResDto> {
+  async loginDeliver(
+    @Req() req: Request,
+    @Body() reqDto: LoginReqDto,
+  ): Promise<LoginResDto> {
+    const userAgent = req.headers['user-agent'] || '';
+    const parser = new UAParser(userAgent); // ✅ đúng cách
+    const result = parser.getResult();
+
+    console.log(result);
     return await this.authService.loginDeliver(reqDto);
+  }
+
+  @Roles(RoleEnum.DELIVER)
+  @ApiAuth({
+    summary: 'Đăng xuất (deliver)',
+    type: DeliverResDto,
+  })
+  @Patch('logout')
+  async logout(@CurrentUser() payload: JwtPayloadType) {
+    return await this.deliversService.logout(payload.id);
   }
 
   @Roles(RoleEnum.ADMIN, RoleEnum.MANAGEMENT)
