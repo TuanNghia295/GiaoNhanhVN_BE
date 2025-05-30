@@ -30,9 +30,11 @@ import {
   desc,
   eq,
   getTableColumns,
+  ilike,
   inArray,
   isNull,
   notInArray,
+  or,
   sql,
   sum,
 } from 'drizzle-orm';
@@ -486,5 +488,23 @@ export class DeliversService implements OnModuleInit {
       totalIncome: incomeResult[0]?.totalIncome || 0,
       orders: results,
     };
+  }
+
+  async getDeliversByPhoneOrName(input: string, areaId: number) {
+    return this.db.query.delivers.findMany({
+      where: and(
+        isNull(delivers.deletedAt),
+        ...(areaId ? [eq(delivers.areaId, areaId)] : []),
+        ...(input
+          ? [
+              or(
+                ilike(delivers.phone, `%${input}%`),
+                ilike(delivers.fullName, `%${input}%`),
+              ),
+            ]
+          : []),
+      ),
+      orderBy: desc(delivers.createdAt),
+    });
   }
 }

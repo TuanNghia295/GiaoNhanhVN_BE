@@ -1,5 +1,7 @@
 import { AdminRevenueReqDto } from '@/api/analytics/dto/admin-revenue.req.dto';
 import { AdminRevenueResDto } from '@/api/analytics/dto/admin-revenue.res.dto';
+import { DeliverRevenueReqDto } from '@/api/analytics/dto/deliver-revenue.req.dto';
+import { DeliverRevenueResDto } from '@/api/analytics/dto/deliver-revenue.res.dto';
 import { StoreRevenueReqDto } from '@/api/analytics/dto/store-revenue.req.dto';
 import { StoreRevenueResDto } from '@/api/analytics/dto/store-revenue.res.dto';
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
@@ -14,7 +16,7 @@ import { AnalyticsService } from './analytics.service';
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
-  // @Roles(RoleEnum.MANAGEMENT)
+  @Roles(RoleEnum.MANAGEMENT)
   @ApiAuth({
     summary: 'Thống kê doanh thu của admin management (admin, management)',
     type: AdminRevenueResDto,
@@ -22,6 +24,26 @@ export class AnalyticsController {
   @Get('admin')
   async getAdminRevenue(@Query() reqDto: AdminRevenueReqDto) {
     return this.analyticsService.getAdminRevenue(reqDto);
+  }
+
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'Thống kê doanh thu của cửa hàng (admin)',
+    type: StoreRevenueResDto,
+  })
+  @Get('store')
+  async getStoreRevenue(@Query() reqDto: StoreRevenueReqDto) {
+    return this.analyticsService.getStoreRevenue(reqDto);
+  }
+
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'Thống kê doanh thu của shipper (admin)',
+    type: DeliverRevenueResDto,
+  })
+  @Get('deliver')
+  async getDeliverRevenue(@Query() reqDto: DeliverRevenueReqDto) {
+    return this.analyticsService.getDeliverRevenue(reqDto);
   }
 
   @Roles(RoleEnum.STORE)
@@ -36,7 +58,7 @@ export class AnalyticsController {
   ) {
     switch (payload.role) {
       case RoleEnum.STORE:
-        return this.analyticsService.getStoreRevenue(reqDto, payload);
+        return this.analyticsService.getMyStoreRevenue(reqDto, payload);
       default:
         throw new ForbiddenException(
           'You do not have permission to access this resource.',
