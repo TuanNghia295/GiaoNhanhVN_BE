@@ -13,4 +13,4 @@ services:
 
 networks:
   giao-nhanh-network:
-    external: true
+    driver: bridge
