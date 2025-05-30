@@ -72,8 +72,12 @@ export const vouchersRelations = relations(vouchers, ({ many }) => ({
 export const vouchersOnOrders = pgTable(
   'vouchers_on_orders',
   {
-    orderId: integer('order_id').notNull(),
-    voucherId: integer('voucher_id').notNull(),
+    orderId: integer('order_id')
+      .references(() => orders.id)
+      .notNull(),
+    voucherId: integer('voucher_id')
+      .references(() => vouchers.id)
+      .notNull(),
   },
   (t) => [primaryKey({ columns: [t.orderId, t.voucherId] })],
 );

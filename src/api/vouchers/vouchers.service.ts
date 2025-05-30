@@ -42,6 +42,7 @@ import {
   ilike,
   inArray,
   isNull,
+  lt,
   lte,
   or,
   SQL,
@@ -334,7 +335,7 @@ export class VouchersService {
 
     const [{ userUsageCount }] = await tx
       .select({
-        userUsageCount: count(),
+        userUsageCount: count(voucherUsages.usageCount).mapWith(Number),
       })
       .from(voucherUsages)
       .where(
@@ -482,8 +483,8 @@ export class VouchersService {
       const voucherApps = await this.db
         .select({
           ...getTableColumns(vouchers),
-          usedCount: count(vouchersOnOrders.voucherId).mapWith(Number),
-          usedByUserCount: count(voucherUsages.userId).mapWith(Number),
+          usedCount: count(vouchersOnOrders.voucherId),
+          usedByUserCount: count(voucherUsages.userId),
         })
         .from(vouchers)
         .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
@@ -497,7 +498,6 @@ export class VouchersService {
         .where(
           and(
             isNull(vouchers.deletedAt),
-            // Nếu isHidden thì chỉ lấy voucher có code trùng với code đã gửi
             ...(reqDto.isHidden
               ? [
                   eq(vouchers.isHidden, reqDto.isHidden),
@@ -509,22 +509,17 @@ export class VouchersService {
               VouchersTypeEnum.ADMIN,
               VouchersTypeEnum.MANAGEMENT,
             ]),
+            lte(vouchers.startDate, new Date()),
+            gte(vouchers.endDate, new Date()),
             eq(vouchers.areaId, reqDto.areaId),
           ),
         )
-        .groupBy(vouchers.id, voucherUsages.userId)
+        .groupBy(vouchers.id, voucherUsages.userId, voucherUsages.usageCount)
         .orderBy(desc(vouchers.createdAt))
         .having(
           and(
-            // lọc ra voucher còn hiệu lực startDate <= now <= endDate
-            lte(vouchers.startDate, new Date()), // startDate <= NOW
-            gte(vouchers.endDate, new Date()), // endDate >= NOW
-            // lọc ra voucher chưa sử dụng hết
-            sql`${count(vouchersOnOrders.voucherId)} <
-            ${vouchers.maxUses}`,
-            // lọc ra voucher chưa sử dụng bởi user này
-            sql`${count(voucherUsages.userId)} <
-            ${vouchers.usePerUser}`,
+            lt(count(vouchersOnOrders.voucherId), vouchers.maxUses),
+            lt(voucherUsages.usageCount, vouchers.usePerUser),
           ),
         );
       if (voucherApps && voucherApps.length > 0) {
@@ -540,11 +535,11 @@ export class VouchersService {
       const storeVouchers = await this.db
         .select({
           ...getTableColumns(vouchers),
-          user: users,
           usedCount: count(vouchersOnOrders.voucherId).mapWith(Number),
-          usedByUserCount: count(voucherUsages.userId).mapWith(Number),
+          usedByUserCount: count(voucherUsages.usageCount), // 👈 sửa chỗ này
         })
         .from(vouchers)
+        .leftJoin(users, eq(users.id, vouchers.userId))
         .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
         .leftJoin(
           voucherUsages,
@@ -553,7 +548,6 @@ export class VouchersService {
             eq(voucherUsages.userId, payload.id),
           ),
         )
-        .leftJoin(users, eq(users.id, vouchers.userId))
         .leftJoin(stores, eq(stores.userId, users.id))
         .where(
           and(
@@ -567,23 +561,24 @@ export class VouchersService {
             eq(vouchers.status, VouchersStatusEnum.ACTIVE),
             eq(vouchers.type, VouchersTypeEnum.STORE),
             eq(stores.id, reqDto.storeId),
+            lte(vouchers.startDate, new Date()),
+            gte(vouchers.endDate, new Date()),
           ),
         )
-        .groupBy(vouchers.id, users.id)
+        .groupBy(
+          vouchers.id,
+          users.id,
+          voucherUsages.userId,
+          voucherUsages.usageCount,
+        )
         .orderBy(desc(vouchers.createdAt))
         .having(
           and(
-            // lọc ra voucher còn hiệu lực startDate <= now <= endDate
-            lte(vouchers.startDate, new Date()), // startDate <= NOW
-            gte(vouchers.endDate, new Date()), // endDate >= NOW
-            // lọc ra voucher chưa sử dụng hết
-            sql`${count(vouchersOnOrders.voucherId)} <
-            ${vouchers.maxUses}`,
-            // lọc ra voucher chưa sử dụng bởi user này
-            // sql`${count(voucherUsages.userId)} <
-            // ${vouchers.usePerUser}`,
+            lt(count(vouchersOnOrders.voucherId), vouchers.maxUses),
+            lt(voucherUsages.usageCount, vouchers.usePerUser),
           ),
         );
+
       if (storeVouchers && storeVouchers.length > 0) {
         usableVouchers.push(...storeVouchers);
       }

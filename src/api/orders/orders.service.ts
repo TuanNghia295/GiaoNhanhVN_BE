@@ -14,7 +14,7 @@ import { VouchersService } from '@/api/vouchers/vouchers.service';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
 import { OrdersOffsetPaginatedResDto } from '@/common/dto/offset-pagination/orders-offset-paginated.res.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { DRIZZLE, Transaction } from '@/database/global';
+import { DRIZZLE, increment, Transaction } from '@/database/global';
 import {
   Area,
   areas,
@@ -76,6 +76,7 @@ import {
   sum,
 } from 'drizzle-orm';
 import admin from 'firebase-admin';
+import _ from 'lodash';
 import { DateTime } from 'luxon';
 import { v4 as uuidv4 } from 'uuid';
 import { FIREBASE_ADMIN } from '../../firebase/firebase.module';
@@ -305,6 +306,7 @@ export class OrdersService {
     }
 
     const response = await this.goongService.getDistanceMatrix(reqDto);
+    console.log('response', response);
     const distance = Math.ceil(
       response.rows[0].elements[0].distance.value / 1000,
     );
@@ -342,8 +344,8 @@ export class OrdersService {
 
     const distanceFee = await this.calculateDistanceFee(
       distance,
-      serviceFeeWithType?.distance,
-      serviceFeeWithType?.distancePct,
+      serviceFeeWithType.distance as Distance[],
+      serviceFeeWithType.distancePct,
     );
 
     // phí dịch vụ môi trường
@@ -440,7 +442,18 @@ export class OrdersService {
     await this.vouchersService.ensureVoucherIsActive(voucherId, payload.id, tx);
     await Promise.all([
       tx.insert(vouchersOnOrders).values({ orderId: orderId, voucherId }),
-      tx.insert(voucherUsages).values({ userId: payload.id, voucherId }),
+      tx
+        .insert(voucherUsages)
+        .values({
+          userId: payload.id,
+          voucherId,
+        })
+        .onConflictDoUpdate({
+          target: [voucherUsages.userId, voucherUsages.voucherId],
+          set: {
+            usageCount: increment(voucherUsages.usageCount),
+          },
+        }),
     ]);
   }
 
@@ -577,9 +590,7 @@ export class OrdersService {
         totalVoucherApp,
       );
 
-      const round = (value: number) => Math.round(value * 100) / 100;
-
-      const storeServiceFee = round(
+      const storeServiceFee = _.round(
         Math.max(
           totalProduct * ((serviceFeeWithType.pricePct ?? 0) / 100) +
             (serviceFeeWithType.price ?? 0) -
@@ -588,7 +599,7 @@ export class OrdersService {
         ),
       );
 
-      const payforShop = round(
+      const payforShop = _.round(
         Math.max(
           totalProduct * ((100 - (serviceFeeWithType.pricePct ?? 0)) / 100) -
             (serviceFeeWithType.price ?? 0) -
@@ -597,12 +608,12 @@ export class OrdersService {
         ),
       );
 
-      const total = round(
+      const total = _.round(
         Math.max(
-          0,
           Math.max(totalProduct - totalVoucherStore, 0) +
             Math.max(calculateOrder.totalDelivery - totalVoucherApp, 0) +
             calculateOrder.userServiceFee,
+          0,
         ),
       );
       console.log('total', total);

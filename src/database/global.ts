@@ -1,7 +1,7 @@
 import { DEFAULT_PAGE_LIMIT } from '@/constants/app.constant';
 import * as schema from '@/database/schemas';
 import { config } from 'dotenv';
-import { count } from 'drizzle-orm';
+import { AnyColumn, count, sql } from 'drizzle-orm';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { PgSelect } from 'drizzle-orm/pg-core';
 import { Pool } from 'pg';
@@ -37,3 +37,13 @@ export async function queryWithCount<T extends PgSelect>(
 export type Transaction = Parameters<
   Parameters<(typeof db)['transaction']>[0]
 >[0];
+
+export const increment = (column: AnyColumn, value = 1) => {
+  return sql`${column} +
+  ${value}`;
+};
+
+export const decrement = (column: AnyColumn, value = 1) => {
+  return sql`${column} -
+  ${value}`;
+};
