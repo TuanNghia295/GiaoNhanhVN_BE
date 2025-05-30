@@ -8,7 +8,7 @@ import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagi
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { Order } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { decrement, DRIZZLE, Transaction } from '@/database/global';
+import { decrement, DRIZZLE, increment, Transaction } from '@/database/global';
 import {
   delivers,
   locations,
@@ -158,8 +158,7 @@ export class DeliversService implements OnModuleInit {
     return tx
       .update(delivers)
       .set({
-        point: sql`${delivers.point} +
-        ${point}`,
+        point: increment(delivers.point, point),
       })
       .where(eq(delivers.id, deliverId));
   }
