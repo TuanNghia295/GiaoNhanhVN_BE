@@ -10,23 +10,18 @@ services:
       - "8000:8000"
     networks:
       - dokploy-network
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.api.rule=Host(`nest-boilerplate-be-nzo9a5-5bf75f-45-77-246-99.traefik.me`)
-      - traefik.http.routers.api.entrypoints=web
-      - traefik.http.services.api.loadbalancer.server.port=8000
-  postgres:
-    image: postgres:17
-    container_name: postgres
-    ports:
-      - "25432:5432"
-    environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: 123456
-    volumes:
-      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
-    networks:
-      - dokploy-network
+#  postgres:
+#    image: postgres:17
+#    container_name: postgres
+#    ports:
+#      - "25432:5432"
+#    environment:
+#      POSTGRES_USER: root
+#      POSTGRES_PASSWORD: 123456
+#    volumes:
+#      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+#    networks:
+#      - dokploy-network
 
 networks:
   dokploy-network:
