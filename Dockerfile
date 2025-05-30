@@ -2,7 +2,7 @@
 # BUILD BASE IMAGE
 ##################
 
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 
 # Install and use pnpm
 RUN npm install -g pnpm
@@ -11,20 +11,14 @@ RUN npm install -g pnpm
 # BUILD FOR LOCAL DEVELOPMENT
 #############################
 
-FROM base As development
+FROM base AS development
 WORKDIR /app
-RUN chown -R node:node /app
 
-COPY --chown=node:node package*.json pnpm-lock.yaml ./
-
-# Install all dependencies (including devDependencies)
+COPY package*.json pnpm-lock.yaml ./
 RUN pnpm install
 
 # Bundle app source
-COPY --chown=node:node . .
-
-# Use the node user from the image (instead of the root user)
-USER node
+COPY . .
 
 #####################
 # BUILD BUILDER IMAGE
@@ -33,42 +27,30 @@ USER node
 FROM base AS builder
 WORKDIR /app
 
-COPY --chown=node:node package*.json pnpm-lock.yaml ./
-COPY --chown=node:node --from=development /app/node_modules ./node_modules
-COPY --chown=node:node --from=development /app/src ./src
-COPY --chown=node:node --from=development /app/tsconfig.json ./tsconfig.json
-COPY --chown=node:node --from=development /app/tsconfig.build.json ./tsconfig.build.json
-COPY --chown=node:node --from=development /app/nest-cli.json ./nest-cli.json
+COPY package*.json pnpm-lock.yaml ./
+COPY --from=development /app/node_modules ./node_modules
+COPY --from=development /app/src ./src
+COPY --from=development /app/tsconfig.json ./tsconfig.json
+COPY --from=development /app/tsconfig.build.json ./tsconfig.build.json
+COPY --from=development /app/nest-cli.json ./nest-cli.json
 
 RUN pnpm build
 
-# Removes unnecessary packages adn re-install only production dependencies
-ENV NODE_ENV production
+# Re-install only production dependencies
+ENV NODE_ENV=production
 RUN pnpm prune --prod
 RUN pnpm install --prod
-
-USER node
 
 ######################
 # BUILD FOR PRODUCTION
 ######################
 
-FROM node:20-alpine AS production
+FROM node:22-alpine AS production
 WORKDIR /app
 
-
-# Copy the bundled code from the build stage to the production image
-COPY --chown=node:node --from=builder /app/node_modules ./node_modules
-COPY --chown=node:node --from=builder /app/dist ./dist
-COPY --chown=node:node --from=builder /app/package.json ./
-
-RUN mkdir -p uploads && chown -R node:node uploads
-RUN mkdir -p uploads/stores && chown -R node:node uploads
-RUN mkdir -p uploads/products && chown -R node:node uploads
-RUN mkdir -p uploads/users && chown -R node:node uploads
-
-
-USER node
-
-# Start the server using the production build
-CMD [ "node", "dist/main.js" ]
+# Copy production files
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package.json ./
+# Start the server
+CMD ["node", "dist/main.js"]
