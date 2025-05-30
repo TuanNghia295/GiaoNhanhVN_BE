@@ -33,6 +33,7 @@ COPY --from=development /app/src ./src
 COPY --from=development /app/tsconfig.json ./tsconfig.json
 COPY --from=development /app/tsconfig.build.json ./tsconfig.build.json
 COPY --from=development /app/nest-cli.json ./nest-cli.json
+COPY --from=development /app/assets ./assets
 
 RUN pnpm build
 
