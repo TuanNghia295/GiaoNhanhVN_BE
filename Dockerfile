@@ -52,5 +52,9 @@ WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
+
+# Copy ảnh từ builder hoặc context
+COPY --from=builder /app/assets ./assets
+RUN mkdir -p uploads && cp -r ./assets/* ./uploads/
 # Start the server
 CMD ["node", "dist/main.js"]

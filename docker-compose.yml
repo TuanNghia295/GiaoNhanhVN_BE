@@ -7,22 +7,10 @@ services:
     env_file:
       - .env
     volumes:
-        - ./uploads:/app/uploads
+      - ./uploads:/app/uploads
     networks:
-      - dokploy-network
-#  postgres:
-#    image: postgres:17
-#    container_name: postgres
-#    ports:
-#      - "25432:5432"
-#    environment:
-#      POSTGRES_USER: root
-#      POSTGRES_PASSWORD: 123456
-#    volumes:
-#      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
-#    networks:
-#      - dokploy-network
+      - giao-nhanh-network
 
 networks:
-  dokploy-network:
+  giao-nhanh-network:
     external: true
