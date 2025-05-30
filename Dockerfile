@@ -64,6 +64,9 @@ COPY --chown=node:node --from=builder /app/package.json ./
 
 RUN mkdir -p uploads && chown -R node:node uploads
 RUN mkdir -p uploads/stores && chown -R node:node uploads
+RUN mkdir -p uploads/products && chown -R node:node uploads
+RUN mkdir -p uploads/users && chown -R node:node uploads
+R
 
 
 USER node
