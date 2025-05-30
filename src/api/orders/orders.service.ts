@@ -1187,7 +1187,7 @@ export class OrdersService {
     await tx.insert(reasonDeliverCancelOrders).values({
       orderId: existOrder.id,
       reason: reason,
-      type: CanceledReasonEnum.NOTTAKEN,
+      type: CanceledReasonEnum.CANCELED,
       deliverId: existDeliver.id,
     });
 
@@ -1229,11 +1229,7 @@ export class OrdersService {
   ) {
     const [refund] = await tx
       .select({
-        refundPoint: sql<number>`
-          LEAST
-          ( ${existOrder.totalDelivery},
-            COALESCE (SUM(${vouchers.value}), 0))
-        `,
+        refundPoint: sum(vouchers.value).mapWith(Number),
       })
       .from(orders)
       .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
