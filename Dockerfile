@@ -62,6 +62,9 @@ COPY --chown=node:node --from=builder /app/node_modules ./node_modules
 COPY --chown=node:node --from=builder /app/dist ./dist
 COPY --chown=node:node --from=builder /app/package.json ./
 
+RUN mkdir -p uploads && chown -R node:node uploads
+
+
 USER node
 
 # Start the server using the production build
