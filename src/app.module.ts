@@ -84,7 +84,7 @@ import { FirebaseModule } from './firebase/firebase.module';
       inject: [ConfigService],
     }),
     ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', '..', 'uploads'),
+      rootPath: join(__dirname, '..', 'uploads'), // vì đang chạy trong /app/dist
       serveRoot: '/api/images',
     }),
     EventEmitterModule.forRoot({
