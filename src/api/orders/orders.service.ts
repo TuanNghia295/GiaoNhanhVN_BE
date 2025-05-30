@@ -56,7 +56,6 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Big } from 'big.js';
 import { Cache } from 'cache-manager';
 import { plainToInstance } from 'class-transformer';
 import { endOfDay, getHours, startOfDay } from 'date-fns';
@@ -352,13 +351,15 @@ export class OrdersService {
 
     // const totalDelivery = distanceFee + distanceFee * envFeePct;
     // phí dịch vụ
-    const incomeDeliver =
-      distanceFee * (1 - (serviceFeeWithType?.deliverFeePct ?? 0) / 100);
+    const incomeDeliver = _.round(
+      distanceFee * (1 - (serviceFeeWithType?.deliverFeePct ?? 0) / 100),
+    );
 
     // phí dịch vụ người dùng
-    const userServiceFee =
+    const userServiceFee = _.round(
       serviceFeeWithType.userServiceFee *
-      (1 + (serviceFeeWithType.userServiceFeePct ?? 0) / 100);
+        (1 + (serviceFeeWithType.userServiceFeePct ?? 0) / 100),
+    );
 
     const sessionId = uuidv4();
 
@@ -384,15 +385,15 @@ export class OrdersService {
     distances: Distance[] = [],
     distancePct: number = 0,
   ) {
-    let baseRate = new Big(0);
-    const multiplier = new Big(1).plus(new Big(distancePct).div(100));
+    let baseRate = 0;
+    const multiplier = 1 + distancePct / 100;
 
     while (totalDistance > 0) {
       const lastDistance = distances[distances.length - 1];
 
-      if (totalDistance > lastDistance?.maxDistance) {
-        const rate = new Big(lastDistance?.rate ?? 0);
-        baseRate = baseRate.plus(rate.times(multiplier));
+      if (totalDistance > (lastDistance?.maxDistance ?? 0)) {
+        const rate = lastDistance?.rate ?? 0;
+        baseRate += rate * multiplier;
         totalDistance -= 1;
       } else {
         const matchedDistance = distances.find(
@@ -400,14 +401,13 @@ export class OrdersService {
             totalDistance >= distance.minDistance &&
             totalDistance <= distance.maxDistance,
         );
-
-        const rate = new Big(matchedDistance?.rate ?? 0);
-        baseRate = baseRate.plus(rate.times(multiplier));
+        const rate = matchedDistance?.rate ?? 0;
+        baseRate += rate * multiplier;
         totalDistance -= 1;
       }
     }
 
-    return baseRate.toNumber();
+    return _.round(baseRate); // Làm tròn 2 chữ số thập phân
   }
 
   //hàm tính phí dịch vụ môi tường
