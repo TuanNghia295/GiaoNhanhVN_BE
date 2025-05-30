@@ -55,6 +55,8 @@ COPY --from=builder /app/package.json ./
 
 # Copy ảnh từ builder hoặc context
 COPY --from=builder /app/assets ./assets
-RUN mkdir -p uploads && cp -r ./assets/* ./uploads/
+# Copy uploads directory and assets
+RUN mkdir -p uploads && mkdir -p uploads/assets  && \
+    cp -r /app/assets/* /app/uploads/assets/ || true
 # Start the server
 CMD ["node", "dist/main.js"]
