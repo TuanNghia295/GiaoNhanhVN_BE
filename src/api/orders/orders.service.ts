@@ -433,13 +433,12 @@ export class OrdersService {
     return parseFloat(totalFee);
   }
 
-  private async applyVoucher(
+  private async applyCoupon(
     orderId: number,
     voucherId: number,
     payload: JwtPayloadType,
     tx: Transaction,
   ) {
-    await this.vouchersService.ensureVoucherIsActive(voucherId, payload.id, tx);
     await Promise.all([
       tx.insert(vouchersOnOrders).values({ orderId: orderId, voucherId }),
       tx
@@ -514,15 +513,6 @@ export class OrdersService {
         })
         .returning();
 
-      // Kiểm tra voucher admin
-      if (reqDto.voucherAdminId && reqDto.voucherAdminId > 0) {
-        await this.applyVoucher(order.id, reqDto.voucherAdminId, payload, tx);
-      }
-
-      // Kiểm tra voucher cửa hàng
-      if (reqDto.voucherStoreId && reqDto.voucherStoreId > 0) {
-        await this.applyVoucher(order.id, reqDto.voucherStoreId, payload, tx);
-      }
       // Tạo chi tiết đơn hàng
       if (reqDto.items && reqDto.items.length > 0) {
         await this.createOrderDetails(order.id, reqDto.items, tx);
@@ -581,6 +571,29 @@ export class OrdersService {
             )
             .then((res) => res[0]?.total ?? 0),
         ]);
+
+      // Kiểm tra voucher admin
+      if (reqDto.voucherAdminId && reqDto.voucherAdminId > 0) {
+        await this.vouchersService.ensureVoucherIsActive(
+          totalProduct,
+          reqDto.voucherAdminId,
+          payload.id,
+          tx,
+        );
+        await this.applyCoupon(order.id, reqDto.voucherAdminId, payload, tx);
+      }
+
+      // Kiểm tra voucher cửa hàng
+      if (reqDto.voucherStoreId && reqDto.voucherStoreId > 0) {
+        await this.vouchersService.ensureVoucherIsActive(
+          totalProduct,
+          reqDto.voucherStoreId,
+          payload.id,
+          tx,
+        );
+        await this.applyCoupon(order.id, reqDto.voucherStoreId, payload, tx);
+      }
+
       console.log(
         'totalProduct',
         totalProduct,

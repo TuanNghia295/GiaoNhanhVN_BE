@@ -29,6 +29,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import {
@@ -57,6 +58,8 @@ export class VouchersService {
     private readonly areasService: AreasService,
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
   ) {}
+
+  private readonly logger = new Logger(VouchersService.name);
 
   async getPageVouchers(reqDto: PageVouchersReqDto, payload: JwtPayloadType) {
     const qb = this.db
@@ -312,6 +315,7 @@ export class VouchersService {
   }
 
   async ensureVoucherIsActive(
+    totalProduct: number,
     voucherId: number,
     userId: number,
     tx: Transaction,
@@ -321,6 +325,7 @@ export class VouchersService {
         maxUses: vouchers.maxUses,
         usePerUser: vouchers.usePerUser,
         usedCount: count(vouchersOnOrders.voucherId),
+        minOrderValue: vouchers.minOrderValue,
       })
       .from(vouchers)
       .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
@@ -335,7 +340,7 @@ export class VouchersService {
 
     const [{ userUsageCount }] = await tx
       .select({
-        userUsageCount: count(voucherUsages.usageCount).mapWith(Number),
+        userUsageCount: voucherUsages.usageCount,
       })
       .from(voucherUsages)
       .where(
@@ -352,15 +357,28 @@ export class VouchersService {
       );
     }
 
-    console.log('voucher', voucher);
-    console.log('userUsageCount', userUsageCount);
-    console.log('voucher.maxUses', voucher.maxUses);
-    console.log('voucher.usePerUser', voucher.usePerUser);
+    this.logger.debug('📦 Voucher Info', {
+      usedCount: voucher.usedCount,
+      userUsageCount: userUsageCount,
+      maxUses: voucher.maxUses,
+      usePerUser: voucher.usePerUser,
+      minOrderValue: voucher.minOrderValue,
+      totalProduct,
+    });
+
     if (
       voucher.usedCount >= voucher.maxUses ||
       userUsageCount >= voucher.usePerUser
     ) {
       throw new ValidationException(ErrorCode.V006, HttpStatus.BAD_REQUEST);
+    }
+
+    if (voucher.minOrderValue && totalProduct < voucher.minOrderValue) {
+      throw new ValidationException(
+        ErrorCode.V008,
+        HttpStatus.BAD_REQUEST,
+        `Minimum order value for this voucher is ${voucher.minOrderValue}`,
+      );
     }
   }
 
@@ -484,7 +502,8 @@ export class VouchersService {
         .select({
           ...getTableColumns(vouchers),
           usedCount: count(vouchersOnOrders.voucherId),
-          usedByUserCount: count(voucherUsages.userId),
+          userUsageCount: sql<number>`COALESCE
+            (${voucherUsages.usageCount}, 0)`.mapWith(Number),
         })
         .from(vouchers)
         .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
@@ -514,16 +533,23 @@ export class VouchersService {
             eq(vouchers.areaId, reqDto.areaId),
           ),
         )
-        .groupBy(vouchers.id, voucherUsages.userId, voucherUsages.usageCount)
+        .groupBy(
+          vouchers.id,
+          voucherUsages.usageCount, // chỉ cần usageCount nếu cần so sánh
+        )
         .orderBy(desc(vouchers.createdAt))
         .having(
           and(
             lt(count(vouchersOnOrders.voucherId), vouchers.maxUses),
-            lt(voucherUsages.usageCount, vouchers.usePerUser),
+            lt(
+              sql`coalesce
+                (${voucherUsages.usageCount}, 0)`,
+              vouchers.usePerUser,
+            ),
           ),
         );
-      if (voucherApps && voucherApps.length > 0) {
-        console.log('voucherApps', voucherApps);
+
+      if (voucherApps?.length > 0) {
         usableVouchers.push(...voucherApps);
       }
     }
@@ -536,7 +562,8 @@ export class VouchersService {
         .select({
           ...getTableColumns(vouchers),
           usedCount: count(vouchersOnOrders.voucherId).mapWith(Number),
-          usedByUserCount: count(voucherUsages.usageCount), // 👈 sửa chỗ này
+          usedByUserCount: sql<number>`COALESCE
+            (${voucherUsages.usageCount}, 0)`.mapWith(Number),
         })
         .from(vouchers)
         .leftJoin(users, eq(users.id, vouchers.userId))
@@ -575,7 +602,11 @@ export class VouchersService {
         .having(
           and(
             lt(count(vouchersOnOrders.voucherId), vouchers.maxUses),
-            lt(voucherUsages.usageCount, vouchers.usePerUser),
+            lt(
+              sql`coalesce
+                (${voucherUsages.usageCount}, 0)`,
+              vouchers.usePerUser,
+            ),
           ),
         );
 
@@ -583,7 +614,6 @@ export class VouchersService {
         usableVouchers.push(...storeVouchers);
       }
     }
-    console.log('usableVouchers', usableVouchers);
 
     return usableVouchers;
   }
