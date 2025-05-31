@@ -189,7 +189,7 @@ export class OrdersService {
               ),
               ...(reqDto.q ? [ilike(orders.code, `%${reqDto.q}%`)] : []),
               ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
-              ...(reqDto.type ? [eq(orders.type, reqDto.type)] : []),
+              // ...(reqDto.type ? [eq(orders.type, reqDto.type)] : []),
             ),
           )
           .groupBy(orders.status)
@@ -837,9 +837,9 @@ export class OrdersService {
               ...(reqDto.status && reqDto.status.length > 0
                 ? [inArray(orders.status, reqDto.status)]
                 : []),
-              ...(reqDto.type && reqDto.type.length > 0
-                ? [inArray(orders.type, reqDto.type)]
-                : []),
+              // ...(reqDto.type && reqDto.type.length > 0
+              //   ? [inArray(orders.type, reqDto.type)]
+              //   : []),
             ),
           )
           .groupBy(orders.status)
