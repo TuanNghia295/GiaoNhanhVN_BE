@@ -117,6 +117,7 @@ export class OrdersService {
       with: {
         store: true,
         vouchers: true,
+        user: true,
         reasonDeliverCancelOrder: true,
         deliver: true,
         orderDetails: {
@@ -218,6 +219,12 @@ export class OrdersService {
       where: eq(orders.id, orderId),
       with: {
         store: true,
+        vouchers: {
+          with: {
+            voucher: true,
+          },
+        },
+        user: true,
         orderDetails: {
           with: {
             product: true,
@@ -770,6 +777,7 @@ export class OrdersService {
             voucher: true,
           },
         },
+        user: true,
         reasonDeliverCancelOrder: true,
         orderDetails: {
           with: {
