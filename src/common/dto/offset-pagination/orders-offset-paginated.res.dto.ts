@@ -1,9 +1,9 @@
+import { OrderResDto } from '@/api/orders/dto/order.res.dto';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
-import { Order } from '@/database/schemas';
 import { NumberField } from '@/decorators/field.decorators';
 import { OffsetPaginatedDto } from 'src/common/dto/offset-pagination/paginated.dto';
 
-export class OrdersOffsetPaginatedResDto extends OffsetPaginatedDto<Order> {
+export class OrdersOffsetPaginatedResDto extends OffsetPaginatedDto<OrderResDto> {
   @NumberField()
   totalOrders: number;
 
@@ -23,7 +23,7 @@ export class OrdersOffsetPaginatedResDto extends OffsetPaginatedDto<Order> {
   totalOrdersCancelled: number;
 
   constructor(
-    data: any[],
+    data: OrderResDto[],
     meta: OffsetPaginationDto,
     totalOrders?: TOTAL_ORDERS_FOR_PAGINATED,
   ) {

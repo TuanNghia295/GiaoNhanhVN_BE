@@ -205,8 +205,9 @@ export class OrdersService {
     };
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
+
     return new OrdersOffsetPaginatedResDto(
-      entities,
+      entities.map((order) => plainToInstance(OrderResDto, order)),
       meta,
       totalOrdersForPaginated,
     );
@@ -849,7 +850,7 @@ export class OrdersService {
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
     return new OrdersOffsetPaginatedResDto(
-      mappedEntities,
+      mappedEntities.map((order) => plainToInstance(OrderResDto, order)),
       meta,
       totalOrdersForPaginated,
     );

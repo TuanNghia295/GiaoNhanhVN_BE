@@ -5,6 +5,7 @@ export * from './category-item.schema';
 export * from './category.schema';
 export * from './comments-to-ratings.schema';
 export * from './deliver.schema';
+export * from './delivery-region.schema';
 export * from './distance.schema';
 export * from './extra.schema';
 export * from './location.schema';

@@ -28,6 +28,7 @@ import { CategoriesModule } from './api/categories/categories.module';
 import { CategoryItemsModule } from './api/category-items/category-items.module';
 import { CommentInRatingsModule } from './api/comment-in-ratings/comment-in-ratings.module';
 import { DeliversModule } from './api/delivers/delivers.module';
+import { DeliveryRegionsModule } from './api/delivery-regions/delivery-regions.module';
 import { EventsModule } from './api/events/events.module';
 import { ExcelsModule } from './api/excels/excels.module';
 import { ExtrasModule } from './api/extras/extras.module';
@@ -125,6 +126,7 @@ import { UserAgentMiddleware } from './ua.middleware';
     ExcelsModule,
     BankingAccountModule,
     TasksModule,
+    DeliveryRegionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
