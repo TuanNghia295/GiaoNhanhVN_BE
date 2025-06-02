@@ -11,7 +11,10 @@ import { StoresService } from '@/api/stores/stores.service';
 import { UsersService } from '@/api/users/users.service';
 import { VouchersService } from '@/api/vouchers/vouchers.service';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
-import { OrdersOffsetPaginatedResDto } from '@/common/dto/offset-pagination/orders-offset-paginated.res.dto';
+import {
+  OrdersOffsetPaginatedResDto,
+  TOTAL_ORDERS_FOR_PAGINATED,
+} from '@/common/dto/offset-pagination/orders-offset-paginated.res.dto';
 import { AllConfigType } from '@/config/config.type';
 import { Environment } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
@@ -134,12 +137,12 @@ export class OrdersService {
       },
     };
 
+    // Date range
+    const fromDate = startOfDay(new Date(reqDto.from ?? Date.now()));
+    const toDate = endOfDay(new Date(reqDto.to ?? Date.now()));
+
     const whereClauses: SQL[] = [
-      between(
-        orders.createdAt,
-        startOfDay(new Date(reqDto.from ?? Date.now())),
-        endOfDay(new Date(reqDto.to ?? Date.now())),
-      ),
+      between(orders.createdAt, fromDate, toDate),
       ...(reqDto.q ? [ilike(orders.code, `%${reqDto.q}%`)] : []),
       ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
       ...(reqDto.status ? [eq(orders.status, reqDto.status)] : []),
@@ -158,46 +161,41 @@ export class OrdersService {
       );
     }
 
-    baseConfig.where = and(...whereClauses);
+    const baseWhere = and(...whereClauses);
+    baseConfig.where = baseWhere;
 
-    const qCount = this.db.query.orders.findMany({
-      ...baseConfig,
-      columns: { id: true },
-    });
-
-    const [entities, [{ totalCount }]] = await Promise.all([
+    const [entities, [{ totalCount }], statusCounts] = await Promise.all([
       this.db.query.orders.findMany({
         ...baseConfig,
         orderBy: desc(orders.createdAt),
         limit: reqDto.limit,
         offset: reqDto.offset,
       }),
-      this.db.select({ totalCount: count() }).from(sql`${qCount}`),
+      this.db.select({ totalCount: count() }).from(orders).where(baseWhere),
+      this.db
+        .select({ status: orders.status, count: count(orders.id) })
+        .from(orders)
+        .where(
+          and(
+            between(orders.createdAt, fromDate, toDate),
+            ...(reqDto.q ? [ilike(orders.code, `%${reqDto.q}%`)] : []),
+            ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
+            ...(reqDto.type ? [eq(orders.type, reqDto.type)] : []),
+          ),
+        )
+        .groupBy(orders.status),
     ]);
 
     const totalsOrders = Object.fromEntries(
-      (
-        await this.db
-          .select({ status: orders.status, count: count(orders.id) })
-          .from(orders)
-          .where(
-            and(
-              between(
-                orders.createdAt,
-                startOfDay(new Date(reqDto.from ?? Date.now())),
-                endOfDay(new Date(reqDto.to ?? Date.now())),
-              ),
-              ...(reqDto.q ? [ilike(orders.code, `%${reqDto.q}%`)] : []),
-              ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
-              // ...(reqDto.type ? [eq(orders.type, reqDto.type)] : []),
-            ),
-          )
-          .groupBy(orders.status)
-      ).map(({ status, count }) => [status, count]),
+      statusCounts.map(({ status, count }) => [status, count]),
+    );
+    const allCount = Object.values(totalsOrders).reduce(
+      (sum, val) => sum + val,
+      0,
     );
 
-    const totalOrdersForPaginated = {
-      totalOrders: totalCount,
+    const totalOrdersForPaginated: TOTAL_ORDERS_FOR_PAGINATED = {
+      totalOrders: allCount,
       totalOrdersPending: totalsOrders[OrderStatusEnum.PENDING] ?? 0,
       totalOrdersAccepted: totalsOrders[OrderStatusEnum.ACCEPTED] ?? 0,
       totalOrdersDelivering: totalsOrders[OrderStatusEnum.DELIVERING] ?? 0,
