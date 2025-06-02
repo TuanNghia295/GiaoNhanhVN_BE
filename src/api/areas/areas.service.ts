@@ -1,12 +1,12 @@
 import { CreateAreaReqDto } from '@/api/areas/dto/create-area.req.dto';
 import { UpdateAreaReqDto } from '@/api/areas/dto/update-area.req.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { DRIZZLE, Transaction } from '@/database/global';
+import { decrement, DRIZZLE, increment, Transaction } from '@/database/global';
 import { areas } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { and, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, ilike, isNull, or } from 'drizzle-orm';
 
 @Injectable()
 export class AreasService {
@@ -84,16 +84,22 @@ export class AreasService {
       .then((result) => result[0] ?? null);
   }
 
-  async getAreas() {
-    return this.db.query.areas.findMany();
+  async getAreas(q?: string) {
+    return this.db.query.areas.findMany({
+      where: and(
+        q
+          ? or(ilike(areas.name, `%${q}%`), ilike(areas.code, `%${q}%`))
+          : undefined,
+      ),
+      orderBy: [asc(areas.parent)],
+    });
   }
 
   async subtractPoint(areaId: number, point: number, tx: Transaction) {
     await tx
       .update(areas)
       .set({
-        point: sql`${areas.point} -
-        ${point}`,
+        point: decrement(areas.point, point),
       })
       .where(eq(areas.id, areaId));
   }
@@ -102,8 +108,7 @@ export class AreasService {
     await tx
       .update(areas)
       .set({
-        point: sql`${areas.point} +
-        ${point}`,
+        point: increment(areas.point, point),
       })
       .where(eq(areas.id, areaId));
   }

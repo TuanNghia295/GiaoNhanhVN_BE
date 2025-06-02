@@ -9,7 +9,7 @@ import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto
 import { Order } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
-import { RoleEnum, users } from '@/database/schemas';
+import { areas, RoleEnum, users } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { normalizeImagePath } from '@/utils/util';
@@ -166,11 +166,30 @@ export class UsersService implements OnModuleInit {
       throw new ValidationException(ErrorCode.U001, HttpStatus.NOT_FOUND);
     }
 
-    console.log('reqDto', reqDto);
+    //----------------------------------------------------------------
+    // Nếu người dùng nằm trong khu vực quản lý  thì cập nhật areaId
+    //----------------------------------------------------------------
+    let areaId: number | undefined = undefined;
+    if (reqDto.parent && reqDto.province) {
+      const area = await this.db.query.areas.findFirst({
+        where: and(
+          eq(areas.parent, reqDto.parent),
+          eq(areas.name, reqDto.province),
+        ),
+        columns: {
+          id: true,
+        },
+      });
+      if (area) {
+        areaId = area.id;
+      }
+    }
+
     return this.db
       .update(users)
       .set({
         ...reqDto,
+        ...(areaId ? { areaId } : {}),
       })
       .where(eq(users.id, payload.id))
       .returning()

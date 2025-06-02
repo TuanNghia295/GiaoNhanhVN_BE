@@ -148,19 +148,21 @@ export class OrdersService {
       ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
       ...(reqDto.status ? [eq(orders.status, reqDto.status)] : []),
       ...(reqDto.type ? [eq(orders.type, reqDto.type)] : []),
+      ...(payload.role === RoleEnum.MANAGEMENT
+        ? [eq(orders.areaId, payload.areaId)]
+        : []),
+      ...(payload.role === RoleEnum.STORE
+        ? [
+            inArray(
+              orders.storeId,
+              this.db
+                .select({ id: stores.id })
+                .from(stores)
+                .where(eq(stores.userId, payload.id)),
+            ),
+          ]
+        : []),
     ];
-
-    if (payload.role === RoleEnum.STORE) {
-      whereClauses.push(
-        inArray(
-          orders.storeId,
-          this.db
-            .select({ id: stores.id })
-            .from(stores)
-            .where(eq(stores.userId, payload.id)),
-        ),
-      );
-    }
 
     const baseWhere = and(...whereClauses);
     baseConfig.where = baseWhere;
@@ -182,6 +184,20 @@ export class OrdersService {
             ...(reqDto.q ? [ilike(orders.code, `%${reqDto.q}%`)] : []),
             ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
             ...(reqDto.type ? [eq(orders.type, reqDto.type)] : []),
+            ...(payload.role === RoleEnum.MANAGEMENT
+              ? [eq(orders.areaId, payload.areaId)]
+              : []),
+            ...(payload.role === RoleEnum.STORE
+              ? [
+                  inArray(
+                    orders.storeId,
+                    this.db
+                      .select({ id: stores.id })
+                      .from(stores)
+                      .where(eq(stores.userId, payload.id)),
+                  ),
+                ]
+              : []),
           ),
         )
         .groupBy(orders.status),

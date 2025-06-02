@@ -13,6 +13,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { AreasService } from './areas.service';
 
@@ -45,8 +46,9 @@ export class AreasController {
     summary: 'Lấy danh sách tất cả khu vực [PUBLIC]',
     type: AreaResDto,
   })
-  async getAreas() {
-    return this.areasService.getAreas();
+  async getAreas(@Query('q') q?: string) {
+    console.log('getAreas', q);
+    return this.areasService.getAreas(q);
   }
 
   @Get(':id')

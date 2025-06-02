@@ -8,9 +8,7 @@ import { PageUserReqDto } from '@/api/users/dto/page-user.req.dto';
 import { UpdateUserReqDto } from '@/api/users/dto/update-user.req.dto';
 import { UserResDto } from '@/api/users/dto/user.res.dto';
 import { UsersService } from '@/api/users/users.service';
-import { DRIZZLE } from '@/database/global';
 import { RoleEnum } from '@/database/schemas';
-import { DrizzleDB } from '@/database/types/drizzle';
 import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth, ApiPublic } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
@@ -18,7 +16,6 @@ import {
   Body,
   Controller,
   Get,
-  Inject,
   Patch,
   Post,
   Query,
@@ -32,7 +29,6 @@ import { UpdateImageReqDto } from '../delivers/dto/update-image.req.dto';
 @Controller('users')
 export class UsersController {
   constructor(
-    @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
   ) {}
