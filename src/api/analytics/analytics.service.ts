@@ -1,4 +1,5 @@
 import { AdminRevenueReqDto } from '@/api/analytics/dto/admin-revenue.req.dto';
+import { AdminRevenueResDto } from '@/api/analytics/dto/admin-revenue.res.dto';
 import { DeliverRevenueReqDto } from '@/api/analytics/dto/deliver-revenue.req.dto';
 import { StoreRevenueReqDto } from '@/api/analytics/dto/store-revenue.req.dto';
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
@@ -18,6 +19,7 @@ import {
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
 import { endOfDay, startOfDay } from 'date-fns';
 import {
   and,
@@ -166,19 +168,17 @@ export class AnalyticsService {
       ),
     };
 
-    const data = {
+    return plainToInstance(AdminRevenueResDto, {
       all: result,
-      total_user_service_fee: total_all.total_user_service_fee.toString(),
-      total_all_order: total_all.total_order.toString(),
-      total_all_product_price: total_all.total_product_price.toString(),
-      total_all_user_payment: total_all.total_user_payment.toString(),
-      total_all_store_service_fee: total_all.total_store_service_fee.toString(),
-      total_all_deliver_service_fee:
-        total_all.total_deliver_service_fee.toString(),
-      total_all_voucher_value: total_all.total_voucher_value.toString(),
-      total_all_app_revenue: total_all.total_app_revenue.toString(),
-    };
-    return data;
+      total_user_service_fee: total_all.total_user_service_fee,
+      total_all_order: total_all.total_order,
+      total_all_product_price: total_all.total_product_price,
+      total_all_user_payment: total_all.total_user_payment,
+      total_all_store_service_fee: total_all.total_store_service_fee,
+      total_all_deliver_service_fee: total_all.total_deliver_service_fee,
+      total_all_voucher_value: total_all.total_voucher_value,
+      total_all_app_revenue: total_all.total_app_revenue,
+    });
   }
 
   async getStoreRevenue(reqDto: StoreRevenueReqDto) {

@@ -14,35 +14,35 @@ export class OrderStatusRevenueResDto {
   @Expose()
   total_order: number;
 
-  @StringField()
+  @NumberField()
   @Expose()
-  total_product_price: string;
+  total_product_price: number;
 
-  @StringField()
+  @NumberField()
   @Expose()
-  total_user_payment: string;
+  total_user_payment: number;
 
-  @StringField()
+  @NumberField()
   @Expose()
-  total_store_service_fee: string;
+  total_store_service_fee: number;
 
-  @StringField()
+  @NumberField()
   @Expose()
-  total_deliver_service_fee: string;
+  total_deliver_service_fee: number;
 
-  @StringField()
+  @NumberField()
   @Expose()
-  total_voucher_value: string;
+  total_voucher_value: number;
 
-  @StringField()
+  @NumberField()
   @Expose()
-  total_app_revenue: string;
+  total_app_revenue: number;
 }
 
 export class AdminRevenueResDto {
   @ClassField(() => OrderStatusRevenueResDto)
   @Expose()
-  all: OrderStatusRevenueResDto;
+  all: OrderStatusRevenueResDto[];
 
   @NumberField()
   @Expose()

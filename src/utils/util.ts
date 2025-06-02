@@ -42,3 +42,14 @@ export const allowedTransitions: Record<OrderStatusEnum, OrderStatusEnum[]> = {
   [OrderStatusEnum.DELIVERED]: [],
   [OrderStatusEnum.CANCELED]: [],
 };
+
+export function getOrderStatusLabel(status: OrderStatusEnum | string): string {
+  const statusLabels: Record<OrderStatusEnum, string> = {
+    [OrderStatusEnum.PENDING]: 'Đang chờ',
+    [OrderStatusEnum.ACCEPTED]: 'Đã nhận',
+    [OrderStatusEnum.DELIVERING]: 'Đang giao hàng',
+    [OrderStatusEnum.DELIVERED]: 'Đã hoàn thành',
+    [OrderStatusEnum.CANCELED]: 'Đã hủy',
+  };
+  return statusLabels[status as OrderStatusEnum] ?? 'Không xác định';
+}

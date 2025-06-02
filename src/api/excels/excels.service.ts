@@ -1,3 +1,7 @@
+import {
+  AdminRevenueResDto,
+  OrderStatusRevenueResDto,
+} from '@/api/analytics/dto/admin-revenue.res.dto';
 import { ProductsService } from '@/api/products/products.service';
 import { StoresService } from '@/api/stores/stores.service';
 import { ImportHeaderKeys, ImportHeaderLabels } from '@/constants/app.constant';
@@ -7,13 +11,16 @@ import {
   categoryItems,
   extras,
   options,
+  Order,
   products,
   storeMenus,
 } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
+import { getOrderStatusLabel } from '@/utils/util';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
+import * as ExcelJS from 'exceljs';
 import * as XLSX from 'xlsx';
 
 export type ParsedProductRow = Partial<Record<ImportHeaderKeys, string>>;
@@ -147,5 +154,226 @@ export class ExcelsService {
         });
         return rowData;
       });
+  }
+
+  async createMainDetailSheet(
+    worksheet: ExcelJS.Worksheet,
+    all: OrderStatusRevenueResDto[],
+  ) {
+    console.log('all', all);
+    // Set the columns for the worksheet
+    worksheet.columns = [
+      {
+        header: 'Trạng thái đơn hàng',
+        key: 'status',
+        width: 30,
+      },
+      {
+        header: 'Số lượng đơn hàng',
+        key: 'total_order',
+        width: 30,
+      },
+      {
+        header: 'Tổng phí bán hàng',
+        key: 'total_store_service_fee',
+        width: 30,
+      },
+      {
+        header: 'Tổng % thu của shipper',
+        key: 'total_deliver_service_fee',
+        width: 30,
+      },
+      {
+        header: 'Tổng phí voucher app',
+        key: 'total_voucher_value',
+        width: 30,
+      },
+      {
+        header: 'Tổng thu nhập của app',
+        key: 'total_app_revenue',
+        width: 30,
+      },
+    ];
+
+    all.forEach((item) => {
+      worksheet.addRow({
+        ...item,
+        status: getOrderStatusLabel(item.status),
+      });
+    });
+
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) {
+        //----------------------------------------------------
+        // Định dạng hàng đầu tiên (tiêu đề)
+        //---------------------------------------------------
+        row.eachCell((cell) => {
+          cell.font = { bold: true, size: 12 };
+          cell.alignment = { horizontal: 'center' };
+        });
+      } else {
+        //----------------------------------------------------
+        // Format các hàng từ thứ 2 trở đi
+        //---------------------------------------------------
+        row.eachCell((cell, cellIndex) => {
+          //---------------------------------------------
+          // Định dạng các ô dữ liệu  trừ cột đầu tiên vì là tổng đơn hàng
+          //---------------------------------------------
+          if (typeof cell.value === 'number' && cellIndex > 2) {
+            cell.numFmt = '#,##0.00';
+          }
+          cell.alignment = { horizontal: 'right' };
+        });
+      }
+
+      //----------------------------------------------------
+      // Định dạng viền cho tất cả các ô trong hàng
+      //---------------------------------------------------
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' },
+        };
+      });
+    });
+  }
+
+  async createMainSheet(
+    worksheet: ExcelJS.Worksheet,
+    analyticTotalRevenue: AdminRevenueResDto,
+  ) {
+    // Set the columns for the worksheet
+    worksheet.columns = [
+      {
+        header: 'Tổng số lượng đơn',
+        key: 'total_all_order',
+        width: 30,
+      },
+      {
+        header: 'Tổng phí bán hàng',
+        key: 'total_all_store_service_fee',
+        width: 30,
+      },
+      {
+        header: 'Tổng % thu của shipper',
+        key: 'total_all_deliver_service_fee',
+        width: 30,
+      },
+      {
+        header: 'Tổng phí voucher app',
+        key: 'total_all_voucher_value',
+        width: 30,
+      },
+      {
+        header: 'Tổng thu nhập của app',
+        key: 'total_all_app_revenue',
+        width: 30,
+      },
+    ];
+    worksheet.addRow({ ...analyticTotalRevenue });
+
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) {
+        //----------------------------------------------------
+        // Định dạng hàng đầu tiên (tiêu đề)
+        //---------------------------------------------------
+        row.eachCell((cell) => {
+          cell.font = { bold: true, size: 12 };
+          cell.alignment = { horizontal: 'center' };
+        });
+      } else {
+        //----------------------------------------------------
+        // Format các hàng từ thứ 2 trở đi
+        //---------------------------------------------------
+        row.eachCell((cell, cellIndex) => {
+          //---------------------------------------------
+          // Định dạng các ô dữ liệu  trừ cột đầu tiên vì là tổng đơn hàng
+          //---------------------------------------------
+          if (typeof cell.value === 'number' && cellIndex > 1) {
+            cell.numFmt = '#,##0.00';
+          }
+          cell.alignment = { horizontal: 'right' };
+        });
+      }
+
+      //----------------------------------------------------
+      // Định dạng viền cho tất cả các ô trong hàng
+      //---------------------------------------------------
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' },
+        };
+      });
+    });
+  }
+
+  async createOrdersSheet(worksheet: ExcelJS.Worksheet, orders: Order[]) {
+    // Set the columns for the worksheet
+    worksheet.columns = [
+      { header: 'Mã đơn hàng', key: 'code', width: 20 },
+      { header: 'Tên khách hàng', key: 'user.fullName', width: 25 },
+      { header: 'Số điện thoại', key: 'user.phone', width: 20 },
+      { header: 'Địa chỉ', key: 'addressTo', width: 40 },
+      { header: 'Thời gian đặt hàng', key: 'createdAt', width: 20 },
+      { header: 'Tổng tiền', key: 'total', width: 15 },
+      { header: 'Phí ship', key: 'deliverServiceFee', width: 15 },
+      { header: 'Phí dịch vụ', key: 'storeServiceFee', width: 15 },
+      { header: 'Phí voucher', key: 'totalVoucher', width: 15 },
+      { header: 'Trạng thái', key: 'status', width: 15 },
+    ];
+
+    orders.forEach((order) => {
+      worksheet.addRow({
+        ...order,
+        deliverServiceFee: order.totalDelivery - order.incomeDeliver || 0,
+        status: getOrderStatusLabel(order.status),
+        'user.fullName': order.user?.fullName || 'N/A',
+        'user.phone': order.user?.phone || 'N/A',
+        'deliver.fullName': order.deliver?.fullName || 'N/A',
+        'deliver.phone': order.deliver?.phone || 'N/A',
+      });
+    });
+
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) {
+        row.eachCell((cell) => {
+          cell.font = { bold: true, size: 12 };
+          cell.alignment = { horizontal: 'center' };
+        });
+      } else {
+        row.eachCell((cell, cellIndex) => {
+          if (cellIndex === 5) {
+            // Thời gian đặt hàng
+            cell.numFmt = 'dd/mm/yyyy hh:mm:ss';
+            cell.alignment = { horizontal: 'center' };
+          } else if (typeof cell.value === 'number') {
+            // Các cột số
+            if (typeof cell.value === 'number') {
+              cell.numFmt = '#,##0.00';
+            }
+            cell.alignment = { horizontal: 'right' };
+          } else {
+            // Các cột còn lại
+            cell.alignment = { horizontal: 'left' };
+          }
+          cell.alignment = { horizontal: 'left' };
+        });
+      }
+
+      // Định dạng viền cho tất cả các ô trong hàng
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' },
+        };
+      });
+    });
   }
 }

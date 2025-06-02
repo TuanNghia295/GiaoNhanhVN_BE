@@ -140,4 +140,7 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   reasonDeliverCancelOrder: many(reasonDeliverCancelOrders),
 }));
 
-export type Order = typeof orders.$inferSelect;
+export type Order = typeof orders.$inferSelect & {
+  user?: typeof users.$inferSelect;
+  deliver?: typeof delivers.$inferSelect;
+};

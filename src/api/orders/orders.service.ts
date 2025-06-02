@@ -75,6 +75,7 @@ import {
   inArray,
   isNotNull,
   lt,
+  lte,
   SQL,
   sql,
   sum,
@@ -1266,5 +1267,20 @@ export class OrdersService {
       refund.refundPoint,
       tx,
     );
+  }
+
+  async getOrdersByDateRange(from: Date, to: Date, areaId?: number) {
+    return this.db.query.orders.findMany({
+      where: and(
+        ...(areaId ? [eq(orders.areaId, areaId)] : []),
+        gte(orders.createdAt, from),
+        lte(orders.createdAt, to),
+      ),
+      orderBy: desc(orders.createdAt),
+      with: {
+        user: true,
+        deliver: true,
+      },
+    });
   }
 }
