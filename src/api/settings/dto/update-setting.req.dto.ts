@@ -3,6 +3,7 @@ import {
   DateFieldOptional,
   NumberField,
   NumberFieldOptional,
+  StringFieldOptional,
 } from '@/decorators/field.decorators';
 
 export class UpdateSettingReqDto {
@@ -10,10 +11,10 @@ export class UpdateSettingReqDto {
   openFullTime?: boolean;
 
   @DateFieldOptional()
-  openTime?: Date;
+  startNightTime?: Date;
 
   @DateFieldOptional()
-  closeTime?: Date;
+  endNightTime?: Date;
 
   @BooleanFieldOptional()
   isRain?: boolean;
@@ -21,20 +22,17 @@ export class UpdateSettingReqDto {
   @BooleanFieldOptional()
   isNight?: boolean;
 
-  @BooleanFieldOptional()
-  isHoliday?: boolean;
+  @StringFieldOptional()
+  hotline?: string;
+
+  @StringFieldOptional()
+  fanpage?: string;
 
   @NumberFieldOptional()
-  holidayPct?: number;
+  nightFee?: number;
 
   @NumberFieldOptional()
-  rainMorningPct?: number;
-
-  @NumberFieldOptional()
-  rainNightPct?: number;
-
-  @NumberFieldOptional()
-  nightFeePct?: number;
+  rainFee?: number;
 
   @NumberField()
   id: number;

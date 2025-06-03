@@ -14,7 +14,7 @@ export class SettingsService {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
 
   async getSettings(areaId: number) {
-    const results = await this.db
+    return this.db
       .select()
       .from(settings)
       .where(
@@ -24,8 +24,6 @@ export class SettingsService {
             : [isNull(settings.areaId)]),
         ),
       );
-
-    return results.map((result) => plainToInstance(SettingResDto, result));
   }
 
   async getServiceFees(settingId: number) {
@@ -86,6 +84,7 @@ export class SettingsService {
           }),
         );
       }
+
       const [serviceFee] = await tx
         .update(serviceFees)
         .set({

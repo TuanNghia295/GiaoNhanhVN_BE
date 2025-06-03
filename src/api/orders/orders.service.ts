@@ -61,7 +61,7 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Cache } from 'cache-manager';
 import { plainToInstance } from 'class-transformer';
-import { endOfDay, getHours, startOfDay } from 'date-fns';
+import { endOfDay, startOfDay } from 'date-fns';
 import {
   and,
   asc,
@@ -93,7 +93,6 @@ export interface CalculateResponse {
   userServiceFee: number;
   totalDelivery: number;
   distanceFee: number;
-  isHoliday: boolean;
   isRain: boolean;
   areaId: number;
 }
@@ -375,14 +374,12 @@ export class OrdersService {
     // const totalDelivery = distanceFee + distanceFee * envFeePct;
     // phí dịch vụ
     const incomeDeliver = _.round(
-      distanceFee * (1 - (serviceFeeWithType?.deliverFeePct ?? 0) / 100),
+      (distanceFee * (100 - (serviceFeeWithType?.deliverFeePct ?? 0))) / 100 -
+        serviceFeeWithType?.deliverFee,
     );
 
     // phí dịch vụ người dùng
-    const userServiceFee = _.round(
-      serviceFeeWithType.userServiceFee *
-        (1 + (serviceFeeWithType.userServiceFeePct ?? 0) / 100),
-    );
+    const userServiceFee = _.round(serviceFeeWithType.userServiceFee);
 
     const sessionId = uuidv4();
 
@@ -393,7 +390,6 @@ export class OrdersService {
       userServiceFee: userServiceFee,
       totalDelivery: distanceFee,
       distanceFee: distanceFee,
-      isHoliday: setting.isHoliday,
       isRain: setting.isRain,
       areaId: area.id,
     };
@@ -435,24 +431,30 @@ export class OrdersService {
 
   //hàm tính phí dịch vụ môi tường
   private async calculateEnvironmentFeePct(setting: Setting) {
-    const vnDate = new Date().toLocaleString('en-US', {
-      timeZone: 'Asia/Ho_Chi_Minh',
+    const now = DateTime.now();
+
+    const startNight = DateTime.fromJSDate(setting.startNightTime).set({
+      year: now.year,
+      month: now.month,
+      day: now.day,
     });
-    const currentHour = getHours(new Date(vnDate));
-    const isDay = currentHour >= 6 && currentHour < 18;
+    let endNight = DateTime.fromJSDate(setting.endNightTime).set({
+      year: now.year,
+      month: now.month,
+      day: now.day,
+    });
 
-    const nightFeePercent =
-      setting.isNight && !isDay ? (setting.nightFeePct || 0) / 100 : 0;
+    // Nếu end < start (ví dụ 06:00 < 22:00) => end là ngày hôm sau
+    if (endNight <= startNight) {
+      endNight = endNight.plus({ days: 1 });
+    }
+    // Kiểm tra xem thời gian hiện tại có nằm trong khoảng ban đêm không
+    const isNight = now >= startNight && now <= endNight;
+    const nightFeePercent = setting.isNight && isNight ? setting.nightFee : 0;
 
-    const rainFeePercent = setting.isRain
-      ? isDay
-        ? (setting.rainMorningPct || 0) / 100
-        : (setting.rainNightPct || 0) / 100
-      : 0;
+    const rainFeePercent = setting.isRain ? setting.rainFee : 0;
 
-    const totalFee = (rainFeePercent + nightFeePercent).toFixed(2);
-
-    return parseFloat(totalFee);
+    return _.round(nightFeePercent + rainFeePercent);
   }
 
   private async applyCoupon(
@@ -669,7 +671,6 @@ export class OrdersService {
           incomeDeliver: calculateOrder.incomeDeliver,
           userServiceFee: calculateOrder.userServiceFee,
           distance: calculateOrder.distance,
-          isHoliday: calculateOrder.isHoliday,
           isRain: calculateOrder.isRain,
           total: total,
         })

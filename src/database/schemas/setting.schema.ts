@@ -4,23 +4,29 @@ import { relations } from 'drizzle-orm';
 import {
   boolean,
   integer,
+  numeric,
   pgTable,
   serial,
+  text,
   timestamp,
+  varchar,
 } from 'drizzle-orm/pg-core';
 
 export const settings = pgTable('settings', {
   id: serial().primaryKey().notNull(),
   openFullTime: boolean('open_full_time').notNull().default(false),
-  openTime: timestamp('open_time'),
-  closeTime: timestamp('close_time'),
+  startNightTime: timestamp('start_night_time').notNull().default(new Date()),
+  endNightTime: timestamp('end_night_time').notNull().default(new Date()),
+  hotline: varchar('hotline', { length: 20 }).notNull().default(''),
+  fanpage: text('fanpage').notNull().default(''),
   isRain: boolean('is_rain').notNull().default(false),
   isNight: boolean('is_night').notNull().default(false),
-  isHoliday: boolean('is_holiday').notNull().default(false),
-  holidayPct: integer('holiday_percent').notNull().default(0),
-  rainMorningPct: integer('rain_moring').notNull().default(0),
-  rainNightPct: integer('rain_night').notNull().default(0),
-  nightFeePct: integer('night_fee').notNull().default(0),
+  nightFee: numeric('night_fee', { precision: 10, scale: 2, mode: 'number' })
+    .notNull()
+    .default(0),
+  rainFee: numeric('rain_fee', { precision: 10, scale: 2, mode: 'number' })
+    .notNull()
+    .default(0),
   areaId: integer('area_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at')
