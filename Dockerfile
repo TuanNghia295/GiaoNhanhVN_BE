@@ -33,7 +33,6 @@ COPY --from=development /app/src ./src
 COPY --from=development /app/tsconfig.json ./tsconfig.json
 COPY --from=development /app/tsconfig.build.json ./tsconfig.build.json
 COPY --from=development /app/nest-cli.json ./nest-cli.json
-COPY --from=development /app/assets ./assets
 
 RUN pnpm build
 
@@ -53,8 +52,6 @@ WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
-# Copy folder assets vào uploads
-COPY --from=builder /app/assets ./uploads
 # Copy ảnh từ builder hoặc context
 # Start the server
 CMD ["node", "dist/main.js"]
