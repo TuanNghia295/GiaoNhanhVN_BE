@@ -2,11 +2,9 @@ import { AreasService } from '@/api/areas/areas.service';
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { CreateLocationReqDto } from '@/api/locations/dto/create-location.req.dto';
 import { LocationResDto } from '@/api/locations/dto/location.res.dto';
-import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
 import { locations } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
-import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { and, desc, eq } from 'drizzle-orm';
@@ -19,11 +17,12 @@ export class LocationsService {
   ) {}
 
   async create(payload: JwtPayloadType, reqDto: CreateLocationReqDto) {
-    const provinceName = reqDto.province?.replace(/'/g, '').trim();
-    const existArea = await this.areasService.existByName(provinceName);
-    if (!existArea) {
-      throw new ValidationException(ErrorCode.AR001);
-    }
+    console.log('create location', reqDto);
+    // const provinceName = reqDto.province?.replace(/'/g, '').trim();
+    // const existArea = await this.areasService.existByName(provinceName);
+    // if (!existArea) {
+    //   throw new ValidationException(ErrorCode.AR001);
+    // }
 
     const [existLocation] = await this.db
       .select()
@@ -45,7 +44,6 @@ export class LocationsService {
       .values({
         ...reqDto,
         userId: payload.id,
-        areaId: existArea.id,
       })
       .returning();
 
