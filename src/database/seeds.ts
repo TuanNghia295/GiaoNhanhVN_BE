@@ -34,8 +34,6 @@ async function main() {
   if (existSettingsAdmin.length === 0) {
     await db.insert(settings).values({
       areaId: null,
-      openTime: new Date('2023-01-01T08:00:00Z'),
-      closeTime: new Date('2023-01-01T22:00:00Z'),
     });
   }
 

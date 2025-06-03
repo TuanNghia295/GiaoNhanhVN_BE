@@ -19,7 +19,6 @@ import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { startOfDay } from 'date-fns';
 import { and, count, desc, eq, ilike, or, sql } from 'drizzle-orm';
 
 @Injectable()
@@ -75,8 +74,6 @@ export class ManagersService {
         .insert(settings)
         .values({
           areaId: reqDto.areaId,
-          openTime: startOfDay(new Date()),
-          closeTime: startOfDay(new Date()),
         })
         .returning({
           id: settings.id,
