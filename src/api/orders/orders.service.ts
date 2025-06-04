@@ -25,7 +25,6 @@ import {
   CanceledReasonEnum,
   Deliver,
   delivers,
-  Distance,
   distances,
   extrasToOrderDetails,
   Order,
@@ -39,6 +38,8 @@ import {
   Setting,
   settings,
   stores,
+  TDistance,
+  TServiceFee,
   vouchers,
   vouchersOnOrders,
   VouchersTypeEnum,
@@ -92,8 +93,8 @@ export interface CalculateResponse {
   incomeDeliver: number;
   userServiceFee: number;
   totalDelivery: number;
-  distanceFee: number;
   isRain: boolean;
+  isNight: boolean;
   areaId: number;
 }
 
@@ -327,7 +328,7 @@ export class OrdersService {
     }
 
     const response = await this.goongService.getDistanceMatrix(reqDto);
-    const distance = Math.ceil(
+    const distanceRate = Math.ceil(
       response.rows[0].elements[0].distance.value / 1000,
     );
 
@@ -337,20 +338,10 @@ export class OrdersService {
     if (!setting) {
       throw new ValidationException(ErrorCode.ST001, HttpStatus.NOT_FOUND);
     }
-
-    //----------------------------------------------------
-    // Check if the order type is ANOTHER_SHOP
-    // and set the order type to FOOD
-    //-----------------------------------------------------
-
-    const orderType =
-      reqDto.orderType === OrderTypeEnum.ANOTHER_SHOP
-        ? OrderTypeEnum.FOOD
-        : reqDto.orderType;
-    const serviceFeeWithType = await this.db.query.serviceFees.findFirst({
+    const serviceFeeWithTypeFood = await this.db.query.serviceFees.findFirst({
       where: and(
         eq(serviceFees.settingId, setting.id),
-        eq(serviceFees.type, orderType), // bất kỳ loại nào
+        eq(serviceFees.type, OrderTypeEnum.FOOD), // bất kỳ loại nào
       ),
       with: {
         distance: {
@@ -358,50 +349,136 @@ export class OrdersService {
         },
       },
     });
-    if (!serviceFeeWithType) {
+    if (!serviceFeeWithTypeFood) {
       throw new ValidationException(ErrorCode.SF001, HttpStatus.NOT_FOUND);
     }
 
-    const distanceFee = await this.calculateDistanceFee(
-      distance,
-      serviceFeeWithType.distance as Distance[],
-      serviceFeeWithType.distancePct,
-    );
+    let calculationResult: CalculateResponse;
+    const isAnotherShop = reqDto.orderType === OrderTypeEnum.ANOTHER_SHOP;
 
-    // phí dịch vụ môi trường
-    // const envFeePct = await this.calculateEnvironmentFeePct(setting);
+    if (isAnotherShop) {
+      calculationResult = await this.handleAnotherShopOrder(
+        reqDto,
+        setting,
+        distanceRate,
+        serviceFeeWithTypeFood,
+      );
+    } else {
+      calculationResult = await this.handleRegularOrder(
+        reqDto,
+        setting,
+        distanceRate,
+        serviceFeeWithTypeFood,
+      );
+    }
 
-    // const totalDelivery = distanceFee + distanceFee * envFeePct;
-    // phí dịch vụ
+    // 24h
+    await this.cache.set(
+      calculationResult.sessionId,
+      calculationResult,
+      24 * 60 * 60 * 1000,
+    ); // in milliseconds with v5!
+    return calculationResult;
+  }
+
+  private async handleAnotherShopOrder(
+    reqDto: CalculateOrderReqDto,
+    setting: Setting,
+    distanceRate: number = 0,
+    serviceFeeWithTypeFood: TServiceFee,
+  ): Promise<CalculateResponse> {
+    //--------------------------------------------------------------
+    // Tính phí dịch vụ giao hàng
+    //--------------------------------------------------------------
+    const deliveryRegion = {
+      name: 'Delivery Region',
+      price: 300000,
+    };
+    const distanceFee = deliveryRegion.price;
+
+    //--------------------------------------------------------------
+    // Tính phí dịch vụ môi trường
+    //--------------------------------------------------------------
+    const envFee = await this.calculateEnvironmentFee(setting);
+
+    const totalDelivery = _.round(distanceFee + envFee);
+    //----------------------------------------------
+    // Thu nhập của người giao hàng
+    //----------------------------------------------
     const incomeDeliver = _.round(
-      (distanceFee * (100 - (serviceFeeWithType?.deliverFeePct ?? 0))) / 100 -
-        serviceFeeWithType?.deliverFee,
+      (distanceFee * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) /
+        100 -
+        serviceFeeWithTypeFood?.deliverFee,
     );
 
     // phí dịch vụ người dùng
-    const userServiceFee = _.round(serviceFeeWithType.userServiceFee);
+    const FIXED_USER_SERVICE_FEE = 3000; // Phí dịch vụ người dùng cố định
 
     const sessionId = uuidv4();
 
-    const payload: CalculateResponse = {
+    return {
       sessionId: sessionId,
-      distance: distance,
+      distance: distanceRate,
+      incomeDeliver: incomeDeliver,
+      userServiceFee: FIXED_USER_SERVICE_FEE,
+      totalDelivery: totalDelivery,
+      isRain: setting.isRain,
+      isNight: setting.isNight,
+      areaId: setting.areaId,
+    };
+  }
+
+  private async handleRegularOrder(
+    reqDto: CalculateOrderReqDto,
+    setting: Setting,
+    distanceRate: number,
+    serviceFeeWithTypeFood: TServiceFee,
+  ) {
+    //--------------------------------------------------------------
+    // Tính phí dịch vụ giao hàng
+    //--------------------------------------------------------------
+    const distanceFee = await this.calculateDistanceFee(
+      distanceRate,
+      serviceFeeWithTypeFood.distance,
+      serviceFeeWithTypeFood.distancePct,
+    );
+
+    //--------------------------------------------------------------
+    // Tính phí dịch vụ môi trường
+    //--------------------------------------------------------------
+    const envFee = await this.calculateEnvironmentFee(setting);
+
+    const totalDelivery = _.round(distanceFee + envFee);
+    //----------------------------------------------
+    // Thu nhập của người giao hàng
+    //----------------------------------------------
+    const incomeDeliver = _.round(
+      (distanceFee * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) /
+        100 -
+        serviceFeeWithTypeFood?.deliverFee,
+    );
+
+    // phí dịch vụ người dùng
+    const userServiceFee = _.round(serviceFeeWithTypeFood.userServiceFee);
+
+    const sessionId = uuidv4();
+
+    return {
+      sessionId: sessionId,
+      distance: distanceRate,
       incomeDeliver: incomeDeliver,
       userServiceFee: userServiceFee,
-      totalDelivery: distanceFee,
-      distanceFee: distanceFee,
+      totalDelivery: totalDelivery,
       isRain: setting.isRain,
-      areaId: area.id,
+      isNight: setting.isNight,
+      areaId: setting.areaId,
     };
-    // 24h
-    await this.cache.set(sessionId, payload, 24 * 60 * 60 * 1000); // v
-    return payload;
   }
 
   //hàm tính khoảng cách phí giao hàng
   private async calculateDistanceFee(
     totalDistance: number,
-    distances: Distance[] = [],
+    distances: TDistance[] = [],
     distancePct: number = 0,
   ) {
     let baseRate = 0;
@@ -430,7 +507,7 @@ export class OrdersService {
   }
 
   //hàm tính phí dịch vụ môi tường
-  private async calculateEnvironmentFeePct(setting: Setting) {
+  private async calculateEnvironmentFee(setting: Setting) {
     const now = DateTime.now();
 
     const startNight = DateTime.fromJSDate(setting.startNightTime).set({
@@ -595,7 +672,9 @@ export class OrdersService {
             .then((res) => res[0]?.total ?? 0),
         ]);
 
-      // Kiểm tra voucher admin
+      //-------------------------------------------------
+      // Kiểm tra voucher app
+      //-------------------------------------------------
       if (reqDto.voucherAdminId && reqDto.voucherAdminId > 0) {
         await this.vouchersService.ensureVoucherIsActive(
           totalProduct,
@@ -606,7 +685,9 @@ export class OrdersService {
         await this.applyCoupon(order.id, reqDto.voucherAdminId, payload, tx);
       }
 
-      // Kiểm tra voucher cửa hàng
+      //-------------------------------------------------
+      // Kiểm tra voucher của cửa hàng
+      //-------------------------------------------------
       if (reqDto.voucherStoreId && reqDto.voucherStoreId > 0) {
         await this.vouchersService.ensureVoucherIsActive(
           totalProduct,

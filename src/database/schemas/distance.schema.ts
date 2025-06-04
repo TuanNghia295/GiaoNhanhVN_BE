@@ -28,4 +28,4 @@ export const distancesRelations = relations(distances, ({ one }) => ({
   }),
 }));
 
-export type Distance = typeof distances.$inferSelect;
+export type TDistance = typeof distances.$inferSelect;

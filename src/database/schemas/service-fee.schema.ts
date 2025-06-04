@@ -1,4 +1,4 @@
-import { distances } from '@/database/schemas/distance.schema';
+import { distances, TDistance } from '@/database/schemas/distance.schema';
 import { settings } from '@/database/schemas/setting.schema';
 import { relations } from 'drizzle-orm';
 import {
@@ -59,3 +59,7 @@ export const serviceFeesRelations = relations(serviceFees, ({ one, many }) => ({
   }),
   distance: many(distances),
 }));
+
+export type TServiceFee = typeof serviceFees.$inferSelect & {
+  distance: TDistance[];
+};
