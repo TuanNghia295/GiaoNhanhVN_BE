@@ -1,5 +1,5 @@
 services:
-  api:
+  api-giao-nhanh:
     container_name: api
     build:
       context: .
