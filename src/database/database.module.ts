@@ -25,7 +25,7 @@ import * as schema from './schemas';
             'DatabaseModule',
           );
           await pool.end();
-          process.exit(0);
+          // process.exit(0);
         });
 
         process.on('SIGINT', async () => {
@@ -34,7 +34,7 @@ import * as schema from './schemas';
             'DatabaseModule',
           );
           await pool.end();
-          process.exit(0);
+          // process.exit(0);
         });
         return drizzle(pool, { schema }) as NodePgDatabase<typeof schema>;
       },

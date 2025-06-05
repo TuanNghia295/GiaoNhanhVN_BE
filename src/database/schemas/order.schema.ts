@@ -41,6 +41,7 @@ export const orders = pgTable('orders', {
     .$type<OrderStatusEnum>()
     .default(OrderStatusEnum.PENDING),
   isHoliday: boolean('is_holiday').notNull().default(false),
+  isNight: boolean('is_night').notNull().default(false),
   isRain: boolean('is_rain').notNull().default(false),
   distance: decimal('distance', { precision: 15, scale: 2, mode: 'number' })
     .notNull()

@@ -25,6 +25,7 @@ import {
   CanceledReasonEnum,
   Deliver,
   delivers,
+  deliveryRegions,
   distances,
   extrasToOrderDetails,
   Order,
@@ -287,6 +288,17 @@ export class OrdersService {
       });
     }
 
+    if (reqDto.parent && reqDto.name) {
+      // Nếu có parent và name, lấy area theo tên
+      console.log(`lấy area theo tên`, reqDto.parent + ' - ' + reqDto.name);
+      area = await this.db.query.areas.findFirst({
+        where: and(
+          eq(areas.parent, reqDto.parent),
+          eq(areas.name, reqDto.name),
+        ),
+      });
+    }
+
     //------------------------------------------------------------
     // B2 : Nếu không có areaId thì tìm khu vực gần nhất
     //------------------------------------------------------------
@@ -368,7 +380,6 @@ export class OrdersService {
         reqDto,
         setting,
         distanceRate,
-        serviceFeeWithTypeFood,
       );
     }
 
@@ -390,10 +401,9 @@ export class OrdersService {
     //--------------------------------------------------------------
     // Tính phí dịch vụ giao hàng
     //--------------------------------------------------------------
-    const deliveryRegion = {
-      name: 'Delivery Region',
-      price: 300000,
-    };
+    const deliveryRegion = await this.db.query.deliveryRegions.findFirst({
+      where: eq(deliveryRegions.id, reqDto.deliveryRegionId),
+    });
     const distanceFee = deliveryRegion.price;
 
     //--------------------------------------------------------------
@@ -432,15 +442,28 @@ export class OrdersService {
     reqDto: CalculateOrderReqDto,
     setting: Setting,
     distanceRate: number,
-    serviceFeeWithTypeFood: TServiceFee,
   ) {
+    const serviceFeeWithType = await this.db.query.serviceFees.findFirst({
+      where: and(
+        eq(serviceFees.settingId, setting.id),
+        eq(serviceFees.type, OrderTypeEnum.FOOD), // bất kỳ loại nào
+      ),
+      with: {
+        distance: {
+          orderBy: asc(distances.minDistance),
+        },
+      },
+    });
+    if (!serviceFeeWithType) {
+      throw new ValidationException(ErrorCode.SF001, HttpStatus.NOT_FOUND);
+    }
     //--------------------------------------------------------------
     // Tính phí dịch vụ giao hàng
     //--------------------------------------------------------------
     const distanceFee = await this.calculateDistanceFee(
       distanceRate,
-      serviceFeeWithTypeFood.distance,
-      serviceFeeWithTypeFood.distancePct,
+      serviceFeeWithType.distance,
+      serviceFeeWithType.distancePct,
     );
 
     //--------------------------------------------------------------
@@ -453,13 +476,12 @@ export class OrdersService {
     // Thu nhập của người giao hàng
     //----------------------------------------------
     const incomeDeliver = _.round(
-      (distanceFee * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) /
-        100 -
-        serviceFeeWithTypeFood?.deliverFee,
+      (distanceFee * (100 - (serviceFeeWithType?.deliverFeePct ?? 0))) / 100 -
+        serviceFeeWithType?.deliverFee,
     );
 
     // phí dịch vụ người dùng
-    const userServiceFee = _.round(serviceFeeWithTypeFood.userServiceFee);
+    const userServiceFee = _.round(serviceFeeWithType.userServiceFee);
 
     const sessionId = uuidv4();
 
@@ -704,23 +726,33 @@ export class OrdersService {
       console.log('📱 App Voucher       :', totalVoucherApp);
       console.groupEnd();
 
-      const storeServiceFee = _.round(
-        Math.max(
-          totalProduct * ((serviceFeeWithType.pricePct ?? 0) / 100) +
-            (serviceFeeWithType.price ?? 0) -
-            totalVoucherStore,
-          0,
-        ),
-      );
+      const storeServiceFee =
+        reqDto.type === OrderTypeEnum.FOOD
+          ? _.round(
+              Math.max(
+                totalProduct * ((serviceFeeWithType.pricePct ?? 0) / 100) +
+                  (serviceFeeWithType.price ?? 0) -
+                  totalVoucherStore,
+                0,
+              ),
+            )
+          : 0;
 
-      const payforShop = _.round(
-        Math.max(
-          totalProduct * ((100 - (serviceFeeWithType.pricePct ?? 0)) / 100) -
-            (serviceFeeWithType.price ?? 0) -
-            totalVoucherStore,
-          0,
-        ),
-      );
+      //-------------------------------------------------
+      // Tính tiền shipper phải đưa cho shop - chỉ tính đơn đò ăn
+      //-------------------------------------------------
+      const payforShop =
+        reqDto.type === OrderTypeEnum.FOOD
+          ? _.round(
+              Math.max(
+                totalProduct *
+                  ((100 - (serviceFeeWithType.pricePct ?? 0)) / 100) -
+                  (serviceFeeWithType.price ?? 0) -
+                  totalVoucherStore,
+                0,
+              ),
+            )
+          : 0;
 
       const total = _.round(
         Math.max(
@@ -753,6 +785,7 @@ export class OrdersService {
           userServiceFee: calculateOrder.userServiceFee,
           distance: calculateOrder.distance,
           isRain: calculateOrder.isRain,
+          isNight: calculateOrder.isNight,
           total: total,
         })
         .where(eq(orders.id, order.id));
