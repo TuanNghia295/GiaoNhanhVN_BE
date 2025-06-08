@@ -28,6 +28,7 @@ import {
   count,
   desc,
   eq,
+  getTableColumns,
   ilike,
   inArray,
   isNull,
@@ -308,6 +309,7 @@ export class DeliversService implements OnModuleInit {
 
     const result = await this.db
       .select({
+        ...getTableColumns(delivers),
         totalOrders: count(orders.id).mapWith(Number),
         totalIncome: sum(orders.incomeDeliver).mapWith(Number),
         // cancelOrderCount: count(orders.id)

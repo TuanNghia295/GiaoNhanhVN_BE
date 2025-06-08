@@ -156,7 +156,6 @@ export class TransactionsService {
       case RoleEnum.ADMIN:
         baseConfig.where = and(
           not(eq(transactions.status, TransactionStatus.PENDING)),
-          isNotNull(transactions.managerId),
           // Lọc ra các giao dịch của shipper đó
           ...(reqDto.deliverId
             ? [eq(transactions.deliverId, reqDto.deliverId)]
