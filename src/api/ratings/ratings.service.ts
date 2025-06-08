@@ -30,7 +30,10 @@ export class RatingsService {
 
     // check deliverId?
 
-    if (!(await this.storesService.existById(reqDto.storeId))) {
+    if (
+      reqDto.storeId &&
+      !(await this.storesService.existById(reqDto.storeId))
+    ) {
       throw new ValidationException(ErrorCode.CM003, HttpStatus.BAD_REQUEST);
     }
 
@@ -39,14 +42,14 @@ export class RatingsService {
         .insert(ratings)
         .values({
           ...reqDto,
-          storeRate: reqDto.ratingStore,
-          deliverRate: reqDto.ratingDeliver,
+          storeRate: reqDto?.ratingStore,
+          deliverRate: reqDto?.ratingDeliver,
           userId: payload.id,
         })
         .returning();
 
       // check if storeComment is an array
-      if (isArray(reqDto.storeComment)) {
+      if (isArray(reqDto.storeComment && reqDto.storeComment.length > 0)) {
         const comments = reqDto.storeComment.map((comment) => ({
           commentId: comment.id,
           ratingId: result[0].id,
@@ -54,7 +57,7 @@ export class RatingsService {
         await tx.insert(commentsToRatings).values(comments);
       }
 
-      if (isArray(reqDto.deliverComment)) {
+      if (isArray(reqDto.deliverComment) && reqDto.deliverComment.length > 0) {
         const comments = reqDto.deliverComment.map((comment) => ({
           commentId: comment.id,
           ratingId: result[0].id,
