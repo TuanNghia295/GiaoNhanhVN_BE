@@ -42,7 +42,7 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, unlinkSync } from 'fs';
 import { DateTime } from 'luxon';
 import { join } from 'path';
 import sharp from 'sharp';
@@ -98,9 +98,7 @@ export class StoresService implements OnModuleInit {
       .then((res) => res[0] ?? null);
   }
 
-  async existStoreByUserId(userId: number): Promise<{
-    storeId: number;
-  }> {
+  async existStoreByUserId(userId: number) {
     return await this.db
       .select({
         storeId: stores.id,
@@ -564,6 +562,17 @@ export class StoresService implements OnModuleInit {
     if (!existStore) {
       throw new ValidationException(ErrorCode.S001);
     }
+    //remove old background image if exists
+    if (existStore.background) {
+      const oldImagePath = join(this.basePath, existStore.background);
+      if (existsSync(oldImagePath)) {
+        try {
+          unlinkSync(oldImagePath);
+        } catch (error) {
+          console.error('Error removing old background image:', error);
+        }
+      }
+    }
     const fileName = await this.buildFileName('store_background');
     const fullImagePath = join(this.basePath, fileName);
     await sharp(background.buffer).jpeg({ quality: 80 }).toFile(fullImagePath);
@@ -582,6 +591,16 @@ export class StoresService implements OnModuleInit {
     const existStore = await this.existStoreByUserId(userId);
     if (!existStore) {
       throw new ValidationException(ErrorCode.S001);
+    }
+    if (existStore.avatar) {
+      const oldImagePath = join(this.basePath, existStore.avatar);
+      if (existsSync(oldImagePath)) {
+        try {
+          unlinkSync(oldImagePath);
+        } catch (error) {
+          console.error('Error removing old background image:', error);
+        }
+      }
     }
     const fileName = await this.buildFileName('store_avatar');
     const fullImagePath = join(this.basePath, fileName);
