@@ -30,6 +30,7 @@ import { HttpStatus, Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import {
   and,
+  avg,
   count,
   desc,
   eq,
@@ -120,8 +121,7 @@ export class StoresService implements OnModuleInit {
     const baseQb = this.db
       .select({
         ...getTableColumns(stores),
-        rating: sql`avg
-          (${ratings.storeRate})`.as('rating'),
+        rating: avg(ratings.storeRate).mapWith(String).as('rating'),
         distance: sql
           .raw(
             `

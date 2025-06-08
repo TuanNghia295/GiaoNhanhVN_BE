@@ -337,7 +337,7 @@ export class DeliversService implements OnModuleInit {
     // lấy ra rating
     const rating = await this.db
       .select({
-        rating: avg(ratings.deliverRate).mapWith(Number),
+        rating: avg(ratings.deliverRate).mapWith(String),
       })
       .from(ratings)
       .where(eq(ratings.deliverId, deliverId))
