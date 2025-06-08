@@ -15,6 +15,9 @@ import {
   orders,
   OrderStatusEnum,
   ratings,
+  vouchers,
+  vouchersOnOrders,
+  VouchersTypeEnum,
 } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
@@ -422,12 +425,23 @@ export class DeliversService implements OnModuleInit {
       this.db
         .select({
           ...getTableColumns(orders),
-          subtractPoint:
-            sql`(${orders.totalDelivery} - ${orders.incomeDeliver} + ${orders.userServiceFee} + ${orders.storeServiceFee})`.mapWith(
-              Number,
-            ),
+          subtractPoint: sql`
+            ( COALESCE(SUM(${vouchers.value}), 0) -
+              (${orders.totalDelivery} - ${orders.incomeDeliver} + ${orders.userServiceFee} + ${orders.storeServiceFee}))
+          `.mapWith(Number),
         })
         .from(orders)
+        .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
+        .leftJoin(
+          vouchers,
+          and(
+            eq(vouchers.id, vouchersOnOrders.voucherId),
+            inArray(vouchers.type, [
+              VouchersTypeEnum.MANAGEMENT,
+              VouchersTypeEnum.ADMIN,
+            ]),
+          ),
+        )
         .where(
           and(
             eq(orders.deliverId, deliverId),
@@ -439,7 +453,8 @@ export class DeliversService implements OnModuleInit {
               ? [between(orders.createdAt, reqDto.from, reqDto.to)]
               : []),
           ),
-        ),
+        )
+        .groupBy(orders.id),
       this.db
         .select({ totalIncome: sum(orders.incomeDeliver).mapWith(Number) })
         .from(orders)
