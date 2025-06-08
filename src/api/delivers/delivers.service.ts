@@ -454,7 +454,8 @@ export class DeliversService implements OnModuleInit {
               : []),
           ),
         )
-        .groupBy(orders.id),
+        .groupBy(orders.id)
+        .orderBy(desc(orders.createdAt)),
       this.db
         .select({ totalIncome: sum(orders.incomeDeliver).mapWith(Number) })
         .from(orders)
