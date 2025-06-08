@@ -1,2 +1,0 @@
-ALTER TABLE "settings" ADD COLUMN "start_night_time" timestamp DEFAULT '2025-06-03 07:30:35.685' NOT NULL;--> statement-breakpoint
-ALTER TABLE "settings" ADD COLUMN "end_night_time" timestamp DEFAULT '2025-06-03 07:30:35.685' NOT NULL;

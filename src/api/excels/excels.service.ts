@@ -53,8 +53,7 @@ export class ExcelsService {
         row.storePhone,
       );
       if (!existStore) {
-        console.log('Store not found:', row.storePhone);
-        continue; // Skip this row if store does not exist
+        throw new ValidationException(ErrorCode.S001);
       }
 
       //--------------------------------------------------
@@ -73,8 +72,7 @@ export class ExcelsService {
             ),
           );
         if (!existStoreMenu) {
-          console.log('Store menu not found:', row.menuName);
-          return; // Skip this row if store menu does not exist
+          throw new ValidationException(ErrorCode.SM001);
         }
 
         const [categoryItem] = await this.db
@@ -84,8 +82,7 @@ export class ExcelsService {
           .from(categoryItems)
           .where(and(eq(categoryItems.name, row.categoryName)));
         if (!categoryItem) {
-          console.log('Category item not found:', row.categoryName);
-          return; // Skip this row if category item does not exist
+          throw new ValidationException(ErrorCode.CI001);
         }
 
         console.log('Creating product:', row);

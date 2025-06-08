@@ -274,10 +274,74 @@ export class OrdersService {
   }
 
   async calculate(reqDto: CalculateOrderReqDto) {
+    let distance: number = 0;
+    const area = await this.findNearestArea(reqDto);
+    if (!area) {
+      throw new ValidationException(ErrorCode.AR001, HttpStatus.NOT_FOUND);
+    }
+
+    if (reqDto.origins && reqDto.destinations) {
+      const response = await this.goongService.getDistanceMatrix({
+        origins: reqDto.origins,
+        destinations: reqDto.destinations,
+        vehicle: 'bike',
+      });
+      distance = Math.ceil(response.rows[0].elements[0].distance.value / 1000);
+    }
+
+    const setting = await this.db.query.settings.findFirst({
+      where: eq(settings.areaId, area.id),
+    });
+    if (!setting) {
+      throw new ValidationException(ErrorCode.ST001, HttpStatus.NOT_FOUND);
+    }
+    const serviceFeeWithTypeFood = await this.db.query.serviceFees.findFirst({
+      where: and(
+        eq(serviceFees.settingId, setting.id),
+        eq(serviceFees.type, OrderTypeEnum.FOOD), // bất kỳ loại nào
+      ),
+      with: {
+        distance: {
+          orderBy: asc(distances.minDistance),
+        },
+      },
+    });
+    if (!serviceFeeWithTypeFood) {
+      throw new ValidationException(ErrorCode.SF001, HttpStatus.NOT_FOUND);
+    }
+
+    let calculationResult: CalculateResponse;
+    const isAnotherShop = reqDto.orderType === OrderTypeEnum.ANOTHER_SHOP;
+
+    if (isAnotherShop) {
+      calculationResult = await this.handleAnotherShopOrder(
+        reqDto,
+        setting,
+        distance,
+        serviceFeeWithTypeFood,
+      );
+    } else {
+      calculationResult = await this.handleRegularOrder(
+        reqDto,
+        setting,
+        distance,
+      );
+    }
+
+    // 24h
+    await this.cache.set(
+      calculationResult.sessionId,
+      calculationResult,
+      24 * 60 * 60 * 1000,
+    ); // in milliseconds with v5!
+    return calculationResult;
+  }
+
+  async findNearestArea(reqDto: CalculateOrderReqDto) {
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
     let area: Area & {
       distance?: number;
-    } = null;
+    };
 
     //------------------------------------------------------------
     // B1 : Nếu tồn tại areaId thì lấy thông tin khu vực đó
@@ -334,62 +398,7 @@ export class OrdersService {
         .limit(1)
         .then((res) => res[0]);
     }
-
-    if (!area) {
-      throw new ValidationException(ErrorCode.AR001, HttpStatus.NOT_FOUND);
-    }
-
-    const response = await this.goongService.getDistanceMatrix(reqDto);
-    const distanceRate = Math.ceil(
-      response.rows[0].elements[0].distance.value / 1000,
-    );
-
-    const setting = await this.db.query.settings.findFirst({
-      where: eq(settings.areaId, area.id),
-    });
-    if (!setting) {
-      throw new ValidationException(ErrorCode.ST001, HttpStatus.NOT_FOUND);
-    }
-    const serviceFeeWithTypeFood = await this.db.query.serviceFees.findFirst({
-      where: and(
-        eq(serviceFees.settingId, setting.id),
-        eq(serviceFees.type, OrderTypeEnum.FOOD), // bất kỳ loại nào
-      ),
-      with: {
-        distance: {
-          orderBy: asc(distances.minDistance),
-        },
-      },
-    });
-    if (!serviceFeeWithTypeFood) {
-      throw new ValidationException(ErrorCode.SF001, HttpStatus.NOT_FOUND);
-    }
-
-    let calculationResult: CalculateResponse;
-    const isAnotherShop = reqDto.orderType === OrderTypeEnum.ANOTHER_SHOP;
-
-    if (isAnotherShop) {
-      calculationResult = await this.handleAnotherShopOrder(
-        reqDto,
-        setting,
-        distanceRate,
-        serviceFeeWithTypeFood,
-      );
-    } else {
-      calculationResult = await this.handleRegularOrder(
-        reqDto,
-        setting,
-        distanceRate,
-      );
-    }
-
-    // 24h
-    await this.cache.set(
-      calculationResult.sessionId,
-      calculationResult,
-      24 * 60 * 60 * 1000,
-    ); // in milliseconds with v5!
-    return calculationResult;
+    return area;
   }
 
   private async handleAnotherShopOrder(

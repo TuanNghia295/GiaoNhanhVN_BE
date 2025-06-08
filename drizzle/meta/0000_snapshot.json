@@ -1,5 +1,5 @@
 {
-  "id": "be690625-d490-4dbf-b809-da8c477f5c94",
+  "id": "039166a5-8a6d-4271-8c96-88deef2985d6",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -70,6 +70,71 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.banks": {
+      "name": "banks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name_bank": {
+          "name": "name_bank",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "account_number": {
+          "name": "account_number",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "account_name": {
+          "name": "account_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "author_id": {
+          "name": "author_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "banks_author_id_unique": {
+          "name": "banks_author_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "author_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -475,6 +540,77 @@
         }
       },
       "indexes": {},
+      "foreignKeys": {
+        "delivers_areaId_areas_fk": {
+          "name": "delivers_areaId_areas_fk",
+          "tableFrom": "delivers",
+          "tableTo": "areas",
+          "columnsFrom": [
+            "area_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.delivery_regions": {
+      "name": "delivery_regions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price": {
+          "name": "price",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "area_id": {
+          "name": "area_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -584,7 +720,21 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "extras_productId_products_fk": {
+          "name": "extras_productId_products_fk",
+          "tableFrom": "extras",
+          "tableTo": "products",
+          "columnsFrom": [
+            "product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -603,13 +753,13 @@
         },
         "extra_id": {
           "name": "extra_id",
-          "type": "serial",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
         "order_detail_id": {
           "name": "order_detail_id",
-          "type": "serial",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         }
@@ -629,10 +779,10 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "extras_to_order_details_order_detail_id_products_id_fk": {
-          "name": "extras_to_order_details_order_detail_id_products_id_fk",
+        "extras_to_order_details_order_detail_id_order_details_id_fk": {
+          "name": "extras_to_order_details_order_detail_id_order_details_id_fk",
           "tableFrom": "extras_to_order_details",
-          "tableTo": "products",
+          "tableTo": "order_details",
           "columnsFrom": [
             "order_detail_id"
           ],
@@ -649,6 +799,66 @@
           "columns": [
             "extra_id",
             "order_detail_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.fcm_tokens": {
+      "name": "fcm_tokens",
+      "schema": "",
+      "columns": {
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "platform": {
+          "name": "platform",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'unknown'"
+        },
+        "device_info": {
+          "name": "device_info",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "fcm_tokens_user_id_token_pk": {
+          "name": "fcm_tokens_user_id_token_pk",
+          "columns": [
+            "user_id",
+            "token"
           ]
         }
       },
@@ -792,8 +1002,8 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "managers_area_id_areas_id_fk": {
-          "name": "managers_area_id_areas_id_fk",
+        "managers_areaId_areas_fk": {
+          "name": "managers_areaId_areas_fk",
           "tableFrom": "managers",
           "tableTo": "areas",
           "columnsFrom": [
@@ -803,7 +1013,7 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "cascade"
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -993,7 +1203,21 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "products_productId_options_fk": {
+          "name": "products_productId_options_fk",
+          "tableFrom": "options",
+          "tableTo": "products",
+          "columnsFrom": [
+            "product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -1057,7 +1281,21 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "order_details_order_id_orders_pk": {
+          "name": "order_details_order_id_orders_pk",
+          "tableFrom": "order_details",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -1096,6 +1334,13 @@
         },
         "is_holiday": {
           "name": "is_holiday",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "is_night": {
+          "name": "is_night",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
@@ -1677,17 +1922,33 @@
           "notNull": true,
           "default": false
         },
-        "open_time": {
-          "name": "open_time",
+        "start_night_time": {
+          "name": "start_night_time",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'2025-06-05 02:57:15.156'"
         },
-        "close_time": {
-          "name": "close_time",
+        "end_night_time": {
+          "name": "end_night_time",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'2025-06-05 02:57:15.156'"
+        },
+        "hotline": {
+          "name": "hotline",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "fanpage": {
+          "name": "fanpage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
         },
         "is_rain": {
           "name": "is_rain",
@@ -1703,37 +1964,16 @@
           "notNull": true,
           "default": false
         },
-        "is_holiday": {
-          "name": "is_holiday",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "holiday_percent": {
-          "name": "holiday_percent",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "rain_moring": {
-          "name": "rain_moring",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "rain_night": {
-          "name": "rain_night",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
         "night_fee": {
           "name": "night_fee",
-          "type": "integer",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "rain_fee": {
+          "name": "rain_fee",
+          "type": "numeric(10, 2)",
           "primaryKey": false,
           "notNull": true,
           "default": 0
@@ -2308,6 +2548,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "usage_count": {
+          "name": "usage_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -2346,7 +2593,16 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "voucher_usages_order_id_voucher_id_unique": {
+          "name": "voucher_usages_order_id_voucher_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "order_id",
+            "voucher_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -2445,13 +2701,15 @@
           "name": "min_order_value",
           "type": "numeric(10, 2)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "default": 0
         },
         "max_order_value": {
           "name": "max_order_value",
           "type": "numeric(10, 2)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "default": 0
         },
         "area_id": {
           "name": "area_id",
@@ -2500,7 +2758,34 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "vouchers_on_orders_order_id_orders_id_fk": {
+          "name": "vouchers_on_orders_order_id_orders_id_fk",
+          "tableFrom": "vouchers_on_orders",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "vouchers_on_orders_voucher_id_vouchers_id_fk": {
+          "name": "vouchers_on_orders_voucher_id_vouchers_id_fk",
+          "tableFrom": "vouchers_on_orders",
+          "tableTo": "vouchers",
+          "columnsFrom": [
+            "voucher_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {
         "vouchers_on_orders_order_id_voucher_id_pk": {
           "name": "vouchers_on_orders_order_id_voucher_id_pk",

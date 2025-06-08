@@ -1,1 +1,0 @@
-ALTER TABLE "voucher_usages" ALTER COLUMN "usage_count" SET DEFAULT 1;

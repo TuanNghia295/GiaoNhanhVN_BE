@@ -2,7 +2,6 @@ import { OrderTypeEnum } from '@/database/schemas';
 import {
   EnumField,
   NumberFieldOptional,
-  StringField,
   StringFieldOptional,
 } from '@/decorators/field.decorators';
 import { VehicleType } from '@/shared/goong.service';
@@ -17,15 +16,15 @@ export class CalculateOrderReqDto {
   @EnumField(() => OrderTypeEnum)
   orderType: OrderTypeEnum;
 
-  @StringField({
+  @NumberFieldOptional({
     example: '10.782418, 106.695635',
   })
-  origins: string;
+  origins?: string;
 
-  @StringField({
+  @NumberFieldOptional({
     example: '10.782418, 106.695635',
   })
-  destinations: string;
+  destinations?: string;
 
   @NumberFieldOptional()
   deliveryRegionId?: number;

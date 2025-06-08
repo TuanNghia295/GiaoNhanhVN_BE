@@ -69,6 +69,7 @@ export class UsersService implements OnModuleInit {
   }
 
   async getPageUsers(reqDto: PageUserReqDto, payload: JwtPayloadType) {
+    console.log('reqDto', reqDto);
     const baseConfig: FindManyQueryConfig<typeof this.db.query.users> = {
       where: and(
         isNull(users.deletedAt),

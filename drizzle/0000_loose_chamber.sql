@@ -10,6 +10,17 @@ CREATE TABLE "areas" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "banks" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name_bank" varchar(255),
+	"account_number" varchar(255),
+	"account_name" varchar(255),
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"author_id" integer NOT NULL,
+	CONSTRAINT "banks_author_id_unique" UNIQUE("author_id")
+);
+--> statement-breakpoint
 CREATE TABLE "banners" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"title" varchar(255) NOT NULL,
@@ -76,6 +87,16 @@ CREATE TABLE "delivers" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "delivery_regions" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"price" numeric(15, 2) NOT NULL,
+	"area_id" integer NOT NULL,
+	"deleted_at" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "distances" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"min_distance" integer NOT NULL,
@@ -97,9 +118,19 @@ CREATE TABLE "extras" (
 --> statement-breakpoint
 CREATE TABLE "extras_to_order_details" (
 	"quantity" integer NOT NULL,
-	"extra_id" serial NOT NULL,
-	"order_detail_id" serial NOT NULL,
+	"extra_id" integer NOT NULL,
+	"order_detail_id" integer NOT NULL,
 	CONSTRAINT "extras_to_order_details_extra_id_order_detail_id_pk" PRIMARY KEY("extra_id","order_detail_id")
+);
+--> statement-breakpoint
+CREATE TABLE "fcm_tokens" (
+	"token" text NOT NULL,
+	"platform" text DEFAULT 'unknown',
+	"device_info" text,
+	"user_id" integer NOT NULL,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "fcm_tokens_user_id_token_pk" PRIMARY KEY("user_id","token")
 );
 --> statement-breakpoint
 CREATE TABLE "locations" (
@@ -175,6 +206,7 @@ CREATE TABLE "orders" (
 	"code" varchar(50) NOT NULL,
 	"status" varchar(20) DEFAULT 'PENDING' NOT NULL,
 	"is_holiday" boolean DEFAULT false NOT NULL,
+	"is_night" boolean DEFAULT false NOT NULL,
 	"is_rain" boolean DEFAULT false NOT NULL,
 	"distance" numeric(15, 2) DEFAULT 0 NOT NULL,
 	"total_delivery" numeric(15, 2) DEFAULT 0 NOT NULL,
@@ -271,15 +303,14 @@ CREATE TABLE "sessions" (
 CREATE TABLE "settings" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"open_full_time" boolean DEFAULT false NOT NULL,
-	"open_time" timestamp,
-	"close_time" timestamp,
+	"start_night_time" timestamp DEFAULT '2025-06-05 02:57:15.156' NOT NULL,
+	"end_night_time" timestamp DEFAULT '2025-06-05 02:57:15.156' NOT NULL,
+	"hotline" varchar(20) DEFAULT '' NOT NULL,
+	"fanpage" text DEFAULT '' NOT NULL,
 	"is_rain" boolean DEFAULT false NOT NULL,
 	"is_night" boolean DEFAULT false NOT NULL,
-	"is_holiday" boolean DEFAULT false NOT NULL,
-	"holiday_percent" integer DEFAULT 0 NOT NULL,
-	"rain_moring" integer DEFAULT 0 NOT NULL,
-	"rain_night" integer DEFAULT 0 NOT NULL,
-	"night_fee" integer DEFAULT 0 NOT NULL,
+	"night_fee" numeric(10, 2) DEFAULT 0 NOT NULL,
+	"rain_fee" numeric(10, 2) DEFAULT 0 NOT NULL,
 	"area_id" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
@@ -370,7 +401,9 @@ CREATE TABLE "users" (
 CREATE TABLE "voucher_usages" (
 	"order_id" integer NOT NULL,
 	"voucher_id" integer NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL
+	"usage_count" integer DEFAULT 1 NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "voucher_usages_order_id_voucher_id_unique" UNIQUE("order_id","voucher_id")
 );
 --> statement-breakpoint
 CREATE TABLE "vouchers" (
@@ -388,8 +421,8 @@ CREATE TABLE "vouchers" (
 	"user_id" integer,
 	"deleted_at" timestamp,
 	"is_hidden" boolean DEFAULT false NOT NULL,
-	"min_order_value" numeric(10, 2),
-	"max_order_value" numeric(10, 2),
+	"min_order_value" numeric(10, 2) DEFAULT 0,
+	"max_order_value" numeric(10, 2) DEFAULT 0,
 	"area_id" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
@@ -413,11 +446,17 @@ CREATE TABLE "zalo" (
 --> statement-breakpoint
 ALTER TABLE "comments_to_ratings" ADD CONSTRAINT "comments_to_ratings_comment_id_comments_id_fk" FOREIGN KEY ("comment_id") REFERENCES "public"."comments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "comments_to_ratings" ADD CONSTRAINT "comments_to_ratings_rating_id_ratings_id_fk" FOREIGN KEY ("rating_id") REFERENCES "public"."ratings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "delivers" ADD CONSTRAINT "delivers_areaId_areas_fk" FOREIGN KEY ("area_id") REFERENCES "public"."areas"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "extras" ADD CONSTRAINT "extras_productId_products_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "extras_to_order_details" ADD CONSTRAINT "extras_to_order_details_extra_id_extras_id_fk" FOREIGN KEY ("extra_id") REFERENCES "public"."extras"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "extras_to_order_details" ADD CONSTRAINT "extras_to_order_details_order_detail_id_products_id_fk" FOREIGN KEY ("order_detail_id") REFERENCES "public"."products"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "managers" ADD CONSTRAINT "managers_area_id_areas_id_fk" FOREIGN KEY ("area_id") REFERENCES "public"."areas"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "extras_to_order_details" ADD CONSTRAINT "extras_to_order_details_order_detail_id_order_details_id_fk" FOREIGN KEY ("order_detail_id") REFERENCES "public"."order_details"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "managers" ADD CONSTRAINT "managers_areaId_areas_fk" FOREIGN KEY ("area_id") REFERENCES "public"."areas"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "options" ADD CONSTRAINT "products_productId_options_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "order_details" ADD CONSTRAINT "order_details_order_id_orders_pk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "stores" ADD CONSTRAINT "stores_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "stores_to_category_items" ADD CONSTRAINT "stores_to_category_items_store_id_stores_id_fk" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "stores_to_category_items" ADD CONSTRAINT "stores_to_category_items_category_item_id_category_items_id_fk" FOREIGN KEY ("category_item_id") REFERENCES "public"."category_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "voucher_usages" ADD CONSTRAINT "voucher_usages_order_id_users_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "voucher_usages" ADD CONSTRAINT "voucher_usages_voucher_id_vouchers_id_fk" FOREIGN KEY ("voucher_id") REFERENCES "public"."vouchers"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "voucher_usages" ADD CONSTRAINT "voucher_usages_voucher_id_vouchers_id_fk" FOREIGN KEY ("voucher_id") REFERENCES "public"."vouchers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "vouchers_on_orders" ADD CONSTRAINT "vouchers_on_orders_order_id_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "vouchers_on_orders" ADD CONSTRAINT "vouchers_on_orders_voucher_id_vouchers_id_fk" FOREIGN KEY ("voucher_id") REFERENCES "public"."vouchers"("id") ON DELETE no action ON UPDATE no action;

@@ -53,5 +53,6 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
 # Copy ảnh từ builder hoặc context
+RUN mkdir -p uploads && chmod -R 755 uploads
 # Start the server
 CMD ["node", "dist/main.js"]

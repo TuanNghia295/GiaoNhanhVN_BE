@@ -1,1 +1,0 @@
-ALTER TABLE "order_details" ADD CONSTRAINT "order_details_order_id_orders_pk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE cascade ON UPDATE no action;

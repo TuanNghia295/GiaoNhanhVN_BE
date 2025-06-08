@@ -1,2 +1,0 @@
-ALTER TABLE "voucher_usages" ADD COLUMN "usage_count" integer;--> statement-breakpoint
-ALTER TABLE "voucher_usages" ADD CONSTRAINT "voucher_usages_order_id_voucher_id_unique" UNIQUE("order_id","voucher_id");

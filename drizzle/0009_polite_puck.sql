@@ -1,2 +1,0 @@
-ALTER TABLE "extras" ADD CONSTRAINT "extras_productId_products_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "options" ADD CONSTRAINT "products_productId_options_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;
