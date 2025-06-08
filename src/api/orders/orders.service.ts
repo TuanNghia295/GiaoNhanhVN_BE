@@ -1377,7 +1377,7 @@ export class OrdersService {
   ) {
     const [refund] = await tx
       .select({
-        refundPoint: sql`coalesce(sum(vouchers.value), 0)`,
+        refundPoint: sql`coalesce(sum(vouchers.value), 0)`.mapWith(Number),
       })
       .from(orders)
       .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
