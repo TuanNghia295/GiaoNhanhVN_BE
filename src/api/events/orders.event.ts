@@ -23,6 +23,7 @@ export class OrdersEvent {
 
   private async notifyNewOrderByFCM(tokens: string[]) {
     const validTokens = tokens.filter((t) => !!t);
+    console.log('Valid FCM tokens:', validTokens);
     if (!validTokens.length) return;
     try {
       await this.firebase
