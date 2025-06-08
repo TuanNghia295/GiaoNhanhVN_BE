@@ -14,7 +14,6 @@ import {
   locations,
   orders,
   OrderStatusEnum,
-  reasonDeliverCancelOrders,
 } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
@@ -29,7 +28,6 @@ import {
   count,
   desc,
   eq,
-  getTableColumns,
   ilike,
   inArray,
   isNull,
@@ -307,40 +305,29 @@ export class DeliversService implements OnModuleInit {
   async getInfoById(deliverId: number) {
     const startOfDay = DateTime.now().startOf('day').toJSDate();
     const endOfDay = DateTime.now().endOf('day').toJSDate();
-    const [result] = await this.db
-      .select({
-        ...getTableColumns(delivers),
 
-        totalOrders: sql`coalesce
-        (cast(count(orders.id) filter (where orders.created_at between ${startOfDay} and ${endOfDay}) as bigint), 0)`.mapWith(
-          Number,
-        ),
-        cancelOrderCount: sql`coalesce
-        (cast(count(reason_deliver_cancel_orders.id) filter (where reason_deliver_cancel_orders.type = 'NOTTAKEN' and orders.created_at between ${startOfDay} and ${endOfDay}) as bigint), 0)`.mapWith(
-          Number,
-        ),
-        totalIncome: sql`coalesce
-        (cast(sum(orders.income_deliver) filter (where orders.status = 'DELIVERED' and orders.created_at between ${startOfDay} and ${endOfDay}) as decimal), 0)`.mapWith(
-          Number,
-        ),
+    const result = await this.db
+      .select({
+        totalOrders: count(orders.id).mapWith(Number),
+        totalIncome: sum(orders.incomeDeliver).mapWith(Number),
+        // cancelOrderCount: count(orders.id)
+        //   .filter(eq(orders.status, OrderStatusEnum.CANCELED))
+        //   .mapWith(Number),
       })
-      .from(delivers)
-      .leftJoin(orders, eq(delivers.id, orders.deliverId))
-      .leftJoin(
-        reasonDeliverCancelOrders,
-        eq(reasonDeliverCancelOrders.orderId, orders.id),
+      .from(orders)
+      .where(
+        and(
+          eq(orders.deliverId, deliverId),
+          between(orders.createdAt, startOfDay, endOfDay),
+          eq(orders.status, OrderStatusEnum.DELIVERED),
+        ),
       )
-      .where(and(isNull(delivers.deletedAt), eq(delivers.id, deliverId)))
-      .groupBy(delivers.id)
-      .orderBy(delivers.id)
-      .execute({
-        startOfDay,
-        endOfDay,
-      });
+      .then((res) => res[0]);
+
     return {
       ...result,
       orderCountInDay: result.totalOrders || 0,
-      // incomeInDay: result.totalIncome || 0,
+      incomeInDay: result.totalIncome || 0,
       // cancelOrderCount: result.cancelOrderCount || 0,
     };
   }
