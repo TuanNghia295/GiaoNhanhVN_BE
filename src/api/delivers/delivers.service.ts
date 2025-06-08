@@ -30,6 +30,7 @@ import {
   count,
   desc,
   eq,
+  getTableColumns,
   ilike,
   inArray,
   isNull,
@@ -419,7 +420,13 @@ export class DeliversService implements OnModuleInit {
 
     const [results, incomeResult] = await Promise.all([
       this.db
-        .select()
+        .select({
+          ...getTableColumns(orders),
+          subtractPoint:
+            sql`(${orders.totalDelivery} - ${orders.incomeDeliver} + ${orders.userServiceFee} + ${orders.storeServiceFee})`.mapWith(
+              Number,
+            ),
+        })
         .from(orders)
         .where(
           and(
