@@ -487,7 +487,7 @@ export class OrdersService {
     // Thu nhập của người giao hàng
     //----------------------------------------------
     const incomeDeliver = _.round(
-      (distanceFee * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) /
+      (totalDelivery * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) /
         100 -
         serviceFeeWithTypeFood?.deliverFee,
     );
