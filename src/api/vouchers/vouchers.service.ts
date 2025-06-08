@@ -343,7 +343,8 @@ export class VouchersService {
 
     const [{ userUsageCount }] = await tx
       .select({
-        userUsageCount: voucherUsages.usageCount,
+        userUsageCount: sql<number>`COALESCE
+          (${voucherUsages.usageCount}, 0)`.mapWith(Number),
       })
       .from(voucherUsages)
       .where(
