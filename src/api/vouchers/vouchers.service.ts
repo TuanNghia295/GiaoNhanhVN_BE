@@ -341,7 +341,7 @@ export class VouchersService {
         ),
       );
 
-    const [{ userUsageCount }] = await tx
+    const [row] = await tx
       .select({
         userUsageCount: sql<number>`COALESCE
           (${voucherUsages.usageCount}, 0)`.mapWith(Number),
@@ -353,6 +353,8 @@ export class VouchersService {
           eq(voucherUsages.userId, userId),
         ),
       );
+
+    const userUsageCount = row?.userUsageCount ?? 0;
     if (!voucher) {
       throw new ValidationException(
         ErrorCode.V003,
