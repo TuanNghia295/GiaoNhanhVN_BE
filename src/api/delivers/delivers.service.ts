@@ -28,7 +28,6 @@ import {
   count,
   desc,
   eq,
-  getTableColumns,
   ilike,
   inArray,
   isNull,
@@ -307,9 +306,12 @@ export class DeliversService implements OnModuleInit {
     const startOfDay = DateTime.now().startOf('day').toJSDate();
     const endOfDay = DateTime.now().endOf('day').toJSDate();
 
+    const info = await this.db.query.delivers.findFirst({
+      where: eq(delivers.id, deliverId),
+    });
+
     const result = await this.db
       .select({
-        ...getTableColumns(delivers),
         totalOrders: count(orders.id).mapWith(Number),
         totalIncome: sum(orders.incomeDeliver).mapWith(Number),
         // cancelOrderCount: count(orders.id)
@@ -327,7 +329,7 @@ export class DeliversService implements OnModuleInit {
       .then((res) => res[0]);
 
     return {
-      ...result,
+      ...info,
       orderCountInDay: result.totalOrders || 0,
       incomeInDay: result.totalIncome || 0,
       // cancelOrderCount: result.cancelOrderCount || 0,
