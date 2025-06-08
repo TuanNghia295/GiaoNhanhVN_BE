@@ -662,46 +662,14 @@ export class OrdersService {
           ),
         );
 
-      const [totalProduct, totalVoucherStore, totalVoucherApp] =
-        await Promise.all([
-          tx
-            .select({
-              total: sum(orderDetails.total).mapWith(Number),
-            })
-            .from(orderDetails)
-            .where(eq(orderDetails.orderId, order.id))
-            .groupBy(orderDetails.orderId)
-            .then((res) => res[0]?.total ?? 0),
-          tx
-            .select({
-              total: sum(vouchers.value).mapWith(Number),
-            })
-            .from(vouchersOnOrders)
-            .innerJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
-            .where(
-              and(
-                eq(vouchersOnOrders.orderId, order.id),
-                eq(vouchers.type, VouchersTypeEnum.STORE),
-              ),
-            )
-            .then((res) => res[0]?.total ?? 0),
-          tx
-            .select({
-              total: sum(vouchers.value).mapWith(Number),
-            })
-            .from(vouchersOnOrders)
-            .innerJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
-            .where(
-              and(
-                eq(vouchersOnOrders.orderId, order.id),
-                inArray(vouchers.type, [
-                  VouchersTypeEnum.ADMIN,
-                  VouchersTypeEnum.MANAGEMENT,
-                ]),
-              ),
-            )
-            .then((res) => res[0]?.total ?? 0),
-        ]);
+      const totalProduct = await tx
+        .select({
+          total: sum(orderDetails.total).mapWith(Number),
+        })
+        .from(orderDetails)
+        .where(eq(orderDetails.orderId, order.id))
+        .groupBy(orderDetails.orderId)
+        .then((res) => res[0]?.total ?? 0);
 
       //-------------------------------------------------
       // Kiểm tra voucher app
@@ -728,6 +696,38 @@ export class OrdersService {
         );
         await this.applyCoupon(order.id, reqDto.voucherStoreId, payload, tx);
       }
+
+      const [totalVoucherStore, totalVoucherApp] = await Promise.all([
+        tx
+          .select({
+            total: sum(vouchers.value).mapWith(Number),
+          })
+          .from(vouchersOnOrders)
+          .innerJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
+          .where(
+            and(
+              eq(vouchersOnOrders.orderId, order.id),
+              eq(vouchers.type, VouchersTypeEnum.STORE),
+            ),
+          )
+          .then((res) => res[0]?.total ?? 0),
+        tx
+          .select({
+            total: sum(vouchers.value).mapWith(Number),
+          })
+          .from(vouchersOnOrders)
+          .innerJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
+          .where(
+            and(
+              eq(vouchersOnOrders.orderId, order.id),
+              inArray(vouchers.type, [
+                VouchersTypeEnum.ADMIN,
+                VouchersTypeEnum.MANAGEMENT,
+              ]),
+            ),
+          )
+          .then((res) => res[0]?.total ?? 0),
+      ]);
 
       console.group('🏷️ Voucher Totals');
       console.log('🛒 Total Product     :', totalProduct);
