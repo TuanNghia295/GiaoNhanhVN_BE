@@ -14,6 +14,7 @@ import {
   locations,
   orders,
   OrderStatusEnum,
+  ratings,
 } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
@@ -24,6 +25,7 @@ import { plainToInstance } from 'class-transformer';
 import {
   and,
   asc,
+  avg,
   between,
   count,
   desc,
@@ -328,8 +330,18 @@ export class DeliversService implements OnModuleInit {
       )
       .then((res) => res[0]);
 
+    // lấy ra rating
+    const rating = await this.db
+      .select({
+        rating: avg(ratings.deliverRate).mapWith(Number),
+      })
+      .from(ratings)
+      .where(eq(ratings.deliverId, deliverId))
+      .then((res) => res[0]?.rating || 0);
+
     return {
       ...info,
+      rating: rating || 0,
       orderCountInDay: result.totalOrders || 0,
       incomeInDay: result.totalIncome || 0,
       // cancelOrderCount: result.cancelOrderCount || 0,
