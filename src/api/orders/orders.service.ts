@@ -976,9 +976,6 @@ export class OrdersService {
               ...(reqDto.status && reqDto.status.length > 0
                 ? [inArray(orders.status, reqDto.status)]
                 : []),
-              // ...(reqDto.type && reqDto.type.length > 0
-              //   ? [inArray(orders.type, reqDto.type)]
-              //   : []),
             ),
           )
           .groupBy(orders.status)
@@ -993,7 +990,6 @@ export class OrdersService {
       totalOrdersDelivered: totalsOrders[OrderStatusEnum.DELIVERED] ?? 0,
       totalOrdersCancelled: totalsOrders[OrderStatusEnum.CANCELED] ?? 0,
     };
-    console.log('mappedEntities', mappedEntities);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
     return new OrdersOffsetPaginatedResDto(

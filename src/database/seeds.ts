@@ -4,7 +4,7 @@ import { eq, isNull } from 'drizzle-orm';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schema from './schemas';
-import { managers, RoleEnum, settings } from './schemas';
+import { CommentTypeEnum, managers, RoleEnum, settings } from './schemas';
 
 config({ path: `.env.${process.env.NODE_ENV}` });
 const pool = new Pool({
@@ -35,6 +35,52 @@ async function main() {
     await db.insert(settings).values({
       areaId: null,
     });
+  }
+
+  const listComments = await db.$count(schema.comments);
+  if (listComments === 0) {
+    await db.insert(schema.comments).values([
+      {
+        comment: 'Món ăn ngon',
+        type: CommentTypeEnum.STORE,
+      },
+      {
+        comment: 'Shop làm nhanh',
+        type: CommentTypeEnum.STORE,
+      },
+      {
+        comment: 'Đóng gói không kỹ',
+        type: CommentTypeEnum.STORE,
+      },
+      {
+        comment: 'Shop làm lâu',
+        type: CommentTypeEnum.STORE,
+      },
+      {
+        comment: 'Giao nhanh',
+        type: CommentTypeEnum.DELIVER,
+      },
+      {
+        comment: 'Nhiệt tình',
+        type: CommentTypeEnum.DELIVER,
+      },
+      {
+        comment: 'Thân thiện',
+        type: CommentTypeEnum.DELIVER,
+      },
+      {
+        comment: 'Nóng tính',
+        type: CommentTypeEnum.DELIVER,
+      },
+      {
+        comment: 'Khó chịu',
+        type: CommentTypeEnum.DELIVER,
+      },
+      {
+        comment: 'Giao chậm',
+        type: CommentTypeEnum.DELIVER,
+      },
+    ]);
   }
 
   await db.transaction(async (tx) => {

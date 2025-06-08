@@ -85,6 +85,9 @@ export class OrderResDto extends AbstractResDto {
   @Expose()
   addressFrom: string;
 
+  @BooleanField()
+  isRated: boolean;
+
   @StringField()
   @Expose()
   addressTo: string;
