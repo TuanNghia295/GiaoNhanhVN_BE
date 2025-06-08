@@ -96,11 +96,29 @@ export class OrdersEvent {
           .to(String(updatedOrder.deliverId))
           .emit('order-canceled-by-admin', updatedOrder);
         break;
-      case RoleEnum.USER:
+      case RoleEnum.USER: {
+        //-----------------------------------------------
+        // Lấy tất cả các deliver actived = true và ở trong khu vực
+        //-----------------------------------------------
+        const activeDrivers = await this.deliversService.selectFcmTokenByAreaId(
+          updatedOrder.areaId,
+        );
+        const driverIds = activeDrivers.map((driver) => String(driver.id));
+        if (driverIds.length > 0) {
+          // Emit socket to all drivers in the area
+          this.deliverGateway.server
+            .to(driverIds)
+            .emit('refresh-order', updatedOrder);
+        }
+
+        //---------------------------------------------------
+        // Cập nhật trạng thái đơn hàng cho user
+        //---------------------------------------------------
         this.userGateway.server
           .to(String(updatedOrder.userId))
           .emit('order-cancel-by-user', updatedOrder);
         break;
+      }
     }
   }
 }
