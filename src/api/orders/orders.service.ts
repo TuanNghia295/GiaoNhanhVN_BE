@@ -414,19 +414,13 @@ export class OrdersService {
     const deliveryRegion = await this.db.query.deliveryRegions.findFirst({
       where: eq(deliveryRegions.id, reqDto.deliveryRegionId),
     });
-    const distanceFee = deliveryRegion.price;
+    const totalDelivery = deliveryRegion.price;
 
-    //--------------------------------------------------------------
-    // Tính phí dịch vụ môi trường
-    //--------------------------------------------------------------
-    const envFee = await this.calculateEnvironmentFee(setting);
-
-    const totalDelivery = _.round(distanceFee + envFee);
     //----------------------------------------------
     // Thu nhập của người giao hàng
     //----------------------------------------------
     const incomeDeliver = _.round(
-      (distanceFee * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) /
+      (totalDelivery * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) /
         100 -
         serviceFeeWithTypeFood?.deliverFee,
     );
