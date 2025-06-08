@@ -325,6 +325,7 @@ export class OrdersService {
         reqDto,
         setting,
         distance,
+        serviceFeeWithTypeFood,
       );
     }
 
@@ -451,11 +452,12 @@ export class OrdersService {
     reqDto: CalculateOrderReqDto,
     setting: Setting,
     distanceRate: number,
+    serviceFeeWithTypeFood: TServiceFee,
   ) {
     const serviceFeeWithType = await this.db.query.serviceFees.findFirst({
       where: and(
         eq(serviceFees.settingId, setting.id),
-        eq(serviceFees.type, OrderTypeEnum.FOOD), // bất kỳ loại nào
+        eq(serviceFees.type, reqDto.orderType), // bất kỳ loại nào
       ),
       with: {
         distance: {
@@ -485,12 +487,13 @@ export class OrdersService {
     // Thu nhập của người giao hàng
     //----------------------------------------------
     const incomeDeliver = _.round(
-      (distanceFee * (100 - (serviceFeeWithType?.deliverFeePct ?? 0))) / 100 -
-        serviceFeeWithType?.deliverFee,
+      (distanceFee * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) /
+        100 -
+        serviceFeeWithTypeFood?.deliverFee,
     );
 
     // phí dịch vụ người dùng
-    const userServiceFee = _.round(serviceFeeWithType.userServiceFee);
+    const userServiceFee = _.round(serviceFeeWithTypeFood.userServiceFee);
 
     const sessionId = uuidv4();
 
@@ -1373,7 +1376,8 @@ export class OrdersService {
   ) {
     const [refund] = await tx
       .select({
-        refundPoint: sql`coalesce(sum(vouchers.value), 0)`.mapWith(Number),
+        refundPoint: sql`coalesce
+          (sum(vouchers.value), 0)`.mapWith(Number),
       })
       .from(orders)
       .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
