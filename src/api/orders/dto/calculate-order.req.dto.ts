@@ -16,12 +16,12 @@ export class CalculateOrderReqDto {
   @EnumField(() => OrderTypeEnum)
   orderType: OrderTypeEnum;
 
-  @NumberFieldOptional({
+  @StringFieldOptional({
     example: '10.782418, 106.695635',
   })
   origins?: string;
 
-  @NumberFieldOptional({
+  @StringFieldOptional({
     example: '10.782418, 106.695635',
   })
   destinations?: string;
