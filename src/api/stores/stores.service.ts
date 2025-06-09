@@ -324,7 +324,7 @@ export class StoresService implements OnModuleInit {
   async searchStore(reqDto: SearchPageStoresReqDto) {
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
 
-    const escapedQuery = reqDto.q.replace(/[%_]/g, '\\$&');
+    const escapedQuery = reqDto.q?.replace(/[%_]/g, '\\$&');
 
     const qb = this.db
       .select({
