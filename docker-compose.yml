@@ -10,10 +10,13 @@ services:
     env_file:
       - .env
     volumes:
-      - ./uploads:/app/uploads
+      - giao-nhanh-uploads:/app/uploads
     networks:
       - giao-nhanh-network
 
 networks:
   giao-nhanh-network:
     driver: bridge
+
+volumes:
+  giao-nhanh-uploads:
