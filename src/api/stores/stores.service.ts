@@ -9,12 +9,7 @@ import { UpdateStoreReqDto } from '@/api/stores/dto/update-store.req.dto';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
-import {
-  DRIZZLE,
-  queryWithCount,
-  Transaction,
-  withPagination,
-} from '@/database/global';
+import { DRIZZLE, Transaction, withPagination } from '@/database/global';
 import {
   orders,
   OrderStatusEnum,
@@ -248,6 +243,14 @@ export class StoresService implements OnModuleInit {
   }
 
   async getPageStoresByManager(reqDto: PageStoreManagerReqDto) {
+    const whereClause = and(
+      or(
+        ilike(users.phone, `%${reqDto.q ?? ''}%`),
+        ilike(stores.name, `%${reqDto.q ?? ''}%`),
+      ),
+      ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
+    );
+
     const qb = this.db
       .select({
         ...getTableColumns(stores),
@@ -255,20 +258,20 @@ export class StoresService implements OnModuleInit {
       })
       .from(stores)
       .leftJoin(users, eq(users.id, stores.userId))
-      .where(
-        and(
-          or(
-            ilike(users.phone, `%${reqDto.q ?? ''}%`),
-            ilike(stores.name, `%${reqDto.q ?? ''}%`),
-          ),
-          ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
-        ),
-      )
+      .where(whereClause)
       .orderBy(desc(stores.createdAt))
       .$dynamic();
 
     await withPagination(qb, reqDto.limit, reqDto.offset);
-    const [entities, totalCount] = await queryWithCount(qb);
+    const [entities, { totalCount }] = await Promise.all([
+      qb,
+      this.db
+        .select({ totalCount: count().mapWith(Number) })
+        .from(stores)
+        .leftJoin(users, eq(users.id, stores.userId))
+        .where(whereClause)
+        .then((res) => res[0]),
+    ]);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
     console.log('meta', meta);
@@ -327,33 +330,34 @@ export class StoresService implements OnModuleInit {
       .select({
         ...getTableColumns(stores), // Ensure these columns are included in GROUP BY
         products: sql`
-      (
-        SELECT json_agg(
-          jsonb_build_object(
-            'id', p.id,
-            'name', p.name,
-            'price', p.price,
-            'image', p.image
+          (SELECT json_agg(
+                    jsonb_build_object(
+                      'id', p.id,
+                      'name', p.name,
+                      'price', p.price,
+                      'image', p.image
+                    )
+                  )
+           FROM products p
+           WHERE p.store_id = ${stores.id}
+             AND p.is_locked = false
+             AND p.deleted_at IS NULL
+             AND p.name ILIKE ${'%' + escapedQuery + '%'})
+        `.as('products'),
+        rating: sql`avg
+          (${ratings.storeRate})`.as('rating'),
+        distance: sql
+          .raw(
+            `
+          6371 * acos(
+            cos(radians(${latitude})) *
+            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+            sin(radians(${latitude})) *
+            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
           )
-        )
-        FROM products p
-        WHERE
-          p.store_id = stores.id AND
-          p.is_locked = false AND
-          p.deleted_at IS NULL AND
-          p.name ILIKE ${'%' + escapedQuery + '%'}
-      )
-    `.as('products'),
-        rating: sql`avg(${ratings.storeRate})`.as('rating'),
-        distance: sql`
-      6371 * acos(
-        cos(radians(${latitude})) *
-        cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-        cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
-        sin(radians(${latitude})) *
-        sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
-      )
-    `
+        `,
+          )
           .mapWith(Number)
           .as('distance'),
       })
@@ -371,7 +375,25 @@ export class StoresService implements OnModuleInit {
       .$dynamic();
 
     withPagination(qb, reqDto.limit, reqDto.offset);
-    const [entities, totalCount] = await queryWithCount(qb);
+    const [entities, { totalCount }] = await Promise.all([
+      qb,
+      this.db
+        .select({ totalCount: count().mapWith(Number) })
+        .from(stores)
+        .leftJoin(ratings, eq(ratings.storeId, stores.id))
+        .where(
+          and(
+            eq(stores.status, true),
+            eq(stores.isLocked, false),
+            not(isNull(stores.location)),
+            or(
+              ilike(stores.name, `%${escapedQuery}%`),
+              ilike(users.phone, `%${escapedQuery}%`),
+            ),
+          ),
+        )
+        .then((res) => res[0]),
+    ]);
 
     const entitiesWithDistance = entities.map((e) => ({
       ...e,
