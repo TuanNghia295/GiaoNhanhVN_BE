@@ -36,6 +36,10 @@ export class StoreResDto extends AbstractResDto {
   @Expose()
   location: string;
 
+  @StringField()
+  @Expose()
+  avatar: string;
+
   @StringFieldOptional()
   @Expose()
   distance: string;
