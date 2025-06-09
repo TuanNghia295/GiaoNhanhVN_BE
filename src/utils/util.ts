@@ -1,6 +1,6 @@
 import { OrderStatusEnum } from '@/database/schemas';
 import { existsSync, unlinkSync } from 'fs';
-import path, { join } from 'path';
+import path from 'path';
 
 export const normalizeImagePath = (imagePath: string) => {
   return path.join(imagePath).replace(/\\/g, '/').replace('uploads/', '');
@@ -56,7 +56,11 @@ export function getOrderStatusLabel(status: OrderStatusEnum | string): string {
 }
 
 export function deleteIfExists(relativePath: string, basePath: string) {
-  const fullPath = join(basePath, relativePath.replace(/^\/+/, ''));
+  const fullPath = path.join(
+    process.cwd(),
+    basePath,
+    relativePath.replace(/^\/+/, ''),
+  );
 
   if (existsSync(fullPath)) {
     try {
