@@ -1,5 +1,6 @@
 import { OrderStatusEnum } from '@/database/schemas';
-import path from 'path';
+import { existsSync, unlinkSync } from 'fs';
+import path, { join } from 'path';
 
 export const normalizeImagePath = (imagePath: string) => {
   return path.join(imagePath).replace(/\\/g, '/').replace('uploads/', '');
@@ -52,4 +53,17 @@ export function getOrderStatusLabel(status: OrderStatusEnum | string): string {
     [OrderStatusEnum.CANCELED]: 'Đã hủy',
   };
   return statusLabels[status as OrderStatusEnum] ?? 'Không xác định';
+}
+
+export function deleteIfExists(relativePath: string, basePath: string) {
+  const fullPath = join(basePath, relativePath.replace(/^\/+/, ''));
+
+  if (existsSync(fullPath)) {
+    try {
+      unlinkSync(fullPath);
+      this.logger.log(`Deleted file: ${fullPath}`);
+    } catch (error) {
+      this.logger.error(`Failed to delete file: ${fullPath}`, error.stack);
+    }
+  }
 }

@@ -20,7 +20,11 @@ import {
 import { ratings } from '@/database/schemas/rating.schema';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
-import { formatDistance, normalizeImagePath } from '@/utils/util';
+import {
+  deleteIfExists,
+  formatDistance,
+  normalizeImagePath,
+} from '@/utils/util';
 import { HttpStatus, Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import {
@@ -579,19 +583,9 @@ export class StoresService implements OnModuleInit {
     if (!existStore) {
       throw new ValidationException(ErrorCode.S001);
     }
-    //remove old background image if exists
+    // Remove old background image if exists
     if (existStore.background) {
-      const oldImagePath = join(
-        this.basePath,
-        existStore.background.replace(/^\/+/, ''),
-      );
-      if (existsSync(oldImagePath)) {
-        try {
-          unlinkSync(oldImagePath);
-        } catch (error) {
-          console.error('Error removing old background image:', error);
-        }
-      }
+      deleteIfExists(existStore.background, this.basePath);
     }
     const fileName = await this.buildFileName('store_background');
     const fullImagePath = join(this.basePath, fileName);
