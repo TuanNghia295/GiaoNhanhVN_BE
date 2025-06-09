@@ -18,6 +18,7 @@ import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { deleteIfExists, normalizeImagePath } from '@/utils/util';
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { plainToInstance } from 'class-transformer';
 import {
   and,
@@ -44,7 +45,10 @@ export class NotificationsService implements OnModuleInit {
     }
   }
 
-  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
+  constructor(
+    private readonly emitter: EventEmitter2,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
+  ) {}
 
   private async buildFileName(prefix: string): Promise<string> {
     const uniqueId = uuidv4();
@@ -95,6 +99,13 @@ export class NotificationsService implements OnModuleInit {
           notificationId: notification.id,
         })),
       );
+
+      // Emit sự kiện thông báo mới
+      this.emitter.emit('notification.created', {
+        notificationId: notification.id,
+        userIds: userIds.map((user) => user.id).map(String),
+      });
+
       return notification;
     });
   }

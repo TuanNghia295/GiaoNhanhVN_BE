@@ -21,16 +21,7 @@ import { ValidationException } from '@/exceptions/validation.exception';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { endOfDay, startOfDay } from 'date-fns';
-import {
-  and,
-  between,
-  count,
-  eq,
-  getTableColumns,
-  or,
-  sql,
-  sum,
-} from 'drizzle-orm';
+import { and, between, count, eq, or, sql, sum } from 'drizzle-orm';
 
 export type RevenueResult = {
   status: OrderStatusEnum | null; // null cho dòng tổng
@@ -464,25 +455,28 @@ export class AnalyticsService {
 
     const result = await this.db
       .select({
-        ...getTableColumns(delivers),
-        totalOrders: count(orders.id).mapWith(Number),
-        totalOrderDelivered: sql<number>`COALESCE
-          ( COUNT(${orders.id}) FILTER (WHERE ${orders.status} = 'DELIVERED'), 0)`.as(
-          'totalOrderDelivered',
-        ),
-        totalOrderCanceled: sql<number>`COALESCE
-          ( COUNT(${orders.id}) FILTER (WHERE ${orders.status} = 'CANCELED'), 0)`.as(
-          'totalOrderCanceled',
-        ),
-        totalOrderNotTake: sql<number>`COALESCE
+        phone: delivers.phone,
+        full_name: delivers.fullName,
+        total_orders: count(orders.id).mapWith(Number),
+        total_order_delivered: sql<number>`COALESCE
+          ( COUNT(${orders.id}) FILTER (WHERE ${orders.status} = 'DELIVERED'), 0)`
+          .mapWith(Number)
+          .as('totalOrderDelivered'),
+        total_order_canceled: sql<number>`COALESCE
+          ( COUNT(${orders.id}) FILTER (WHERE ${orders.status} = 'CANCELED'), 0)`
+          .mapWith(Number)
+          .as('totalOrderCanceled'),
+        total_order_not_take: sql<number>`COALESCE
         ( COUNT(${reasonDeliverCancelOrders.id}) FILTER (
           WHERE ${reasonDeliverCancelOrders.type} = 'NOTTAKEN'
           AND ${reasonDeliverCancelOrders.deliverId} = ${delivers.id}
-          ), 0)`.as('totalOrderNotTake'),
-        totalIncome: sql<number>`COALESCE
-          ( SUM(${orders.incomeDeliver}) FILTER (WHERE ${orders.status} = 'DELIVERED'), 0)`.as(
-          'totalIncome',
-        ),
+          ), 0)`
+          .mapWith(Number)
+          .as('totalOrderNotTake'),
+        total_income: sql<number>`COALESCE
+          ( SUM(${orders.incomeDeliver}) FILTER (WHERE ${orders.status} = 'DELIVERED'), 0)`
+          .mapWith(Number)
+          .as('totalIncome'),
       })
       .from(delivers)
       .leftJoin(orders, eq(orders.deliverId, delivers.id))
@@ -502,33 +496,33 @@ export class AnalyticsService {
       )
       .groupBy(delivers.id);
 
-    const total_all_income = result.reduce(
-      (acc, cur) => acc + (cur.totalIncome || 0),
+    const total_income = result.reduce(
+      (acc, cur) => acc + (cur.total_income || 0),
       0,
     );
     const total_all_orders = result.reduce(
-      (acc, cur) => acc + (cur.totalOrders || 0),
+      (acc, cur) => acc + (cur.total_orders || 0),
       0,
     );
     const total_all_order_delivered = result.reduce(
-      (acc, cur) => acc + (cur.totalOrderDelivered || 0),
+      (acc, cur) => acc + (cur.total_order_delivered || 0),
       0,
     );
     const total_all_order_canceled = result.reduce(
-      (acc, cur) => acc + (cur.totalOrderCanceled || 0),
+      (acc, cur) => acc + (cur.total_order_canceled || 0),
       0,
     );
-    const total_all_deliver_point = result.reduce(
-      (acc, cur) => acc + (cur.totalOrderNotTake || 0),
+    const total_order_not_take = result.reduce(
+      (acc, cur) => acc + (cur.total_order_not_take || 0),
       0,
     );
     return {
       data: result,
-      total_all_income,
+      total_income,
       total_all_orders,
       total_all_order_delivered,
       total_all_order_canceled,
-      total_all_deliver_point,
+      total_order_not_take,
     };
   }
 }
