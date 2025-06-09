@@ -56,11 +56,10 @@ export function getOrderStatusLabel(status: OrderStatusEnum | string): string {
 }
 
 export function deleteIfExists(relativePath: string, basePath: string) {
-  const fullPath = path.join(
-    process.cwd(),
-    basePath,
-    relativePath.replace(/^\/+/, ''),
-  );
+  const filename = path.basename(relativePath);
+  console.log(`Deleting file: ${filename}`);
+
+  const fullPath = path.join(process.cwd(), basePath, filename);
   console.log(`Attempting to delete file: ${fullPath}`);
 
   if (existsSync(fullPath)) {
