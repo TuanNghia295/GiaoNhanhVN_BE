@@ -10,9 +10,7 @@ services:
     env_file:
       - .env
     volumes:
-    - type: bind
-      source: /home/giao-nhanh-uploads
-      target: /app/uploads
+      - ./uploads:/app/uploads
     networks:
       - giao-nhanh-network
 
