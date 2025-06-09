@@ -380,7 +380,7 @@ export class StoresService implements OnModuleInit {
       this.db
         .select({ totalCount: count().mapWith(Number) })
         .from(stores)
-        .leftJoin(ratings, eq(ratings.storeId, stores.id))
+        .leftJoin(users, eq(users.id, stores.userId))
         .where(
           and(
             eq(stores.status, true),
