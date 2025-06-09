@@ -583,6 +583,7 @@ export class StoresService implements OnModuleInit {
     if (!existStore) {
       throw new ValidationException(ErrorCode.S001);
     }
+    console.log('existStore.background', existStore.background);
     // Remove old background image if exists
     if (existStore.background) {
       deleteIfExists(existStore.background, this.basePath);
