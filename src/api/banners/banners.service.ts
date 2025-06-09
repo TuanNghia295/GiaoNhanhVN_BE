@@ -10,7 +10,7 @@ import { DRIZZLE } from '@/database/global';
 import { banners } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
-import { normalizeImagePath } from '@/utils/util';
+import { deleteIfExists, normalizeImagePath } from '@/utils/util';
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { and, asc, count, desc, eq, ilike, sql } from 'drizzle-orm';
@@ -126,13 +126,6 @@ export class BannersService implements OnModuleInit {
     if (!banner) {
       throw new ValidationException(ErrorCode.B001);
     }
-    if (banner.image) {
-      const imageName = banner.image.replace(/^.*[\\/]/, '');
-      const imagePath = join(this.basePath, imageName);
-      if (existsSync(imagePath)) {
-        unlinkSync(imagePath);
-      }
-    }
     let normalizedPath = banner.image; // Keep old image if new one isn't provided
     if (image?.buffer) {
       const fileName = await this.buildFileName('banner');
@@ -142,6 +135,13 @@ export class BannersService implements OnModuleInit {
         .jpeg({ quality: 80 })
         .toFile(fullImagePath);
       normalizedPath = normalizeImagePath(fullImagePath);
+    }
+
+    //------------------------------------------------------------
+    //- Xoá ảnh cũ nếu có
+    //-----------------------------------------------------------
+    if (banner.image && banner.image !== normalizedPath) {
+      deleteIfExists(banner.image, this.basePath);
     }
 
     const updatedBanner = await this.db

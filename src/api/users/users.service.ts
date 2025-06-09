@@ -12,12 +12,12 @@ import { DRIZZLE } from '@/database/global';
 import { areas, RoleEnum, users } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
-import { normalizeImagePath } from '@/utils/util';
+import { deleteIfExists, normalizeImagePath } from '@/utils/util';
 import { HttpStatus, Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { plainToInstance } from 'class-transformer';
 import { and, count, desc, eq, ilike, isNull, or, sql } from 'drizzle-orm';
-import { existsSync, mkdirSync, unlinkSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
@@ -207,13 +207,7 @@ export class UsersService implements OnModuleInit {
     if (!myUser) {
       throw new ValidationException(ErrorCode.B001);
     }
-    if (myUser.avatar) {
-      const imageName = myUser.avatar.replace(/^.*[\\/]/, '');
-      const imagePath = join(this.basePath, imageName);
-      if (existsSync(imagePath)) {
-        unlinkSync(imagePath);
-      }
-    }
+
     let normalizedPath = myUser.avatar; // Keep old image if new one isn't provided
     if (image?.buffer) {
       const fileName = await this.buildFileName('user');
@@ -223,6 +217,13 @@ export class UsersService implements OnModuleInit {
         .jpeg({ quality: 80 })
         .toFile(fullImagePath);
       normalizedPath = normalizeImagePath(fullImagePath);
+    }
+
+    //------------------------------------------------------------
+    //- Xoá ảnh cũ nếu có
+    //------------------------------------------------------------
+    if (myUser.avatar && myUser.avatar !== normalizedPath) {
+      deleteIfExists(myUser.avatar, this.basePath);
     }
 
     const updated = await this.db

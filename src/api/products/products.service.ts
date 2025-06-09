@@ -15,7 +15,7 @@ import { DRIZZLE } from '@/database/global';
 import { products } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
-import { normalizeImagePath } from '@/utils/util';
+import { deleteIfExists, normalizeImagePath } from '@/utils/util';
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
@@ -223,6 +223,9 @@ export class ProductsService implements OnModuleInit {
     });
     if (!existProduct) throw new ValidationException(ErrorCode.P001);
 
+    if (existProduct.image) {
+      deleteIfExists(existProduct.image, this.basePath);
+    }
     const fileName = await this.buildFileName('product');
     const fullImagePath = join(this.basePath, fileName);
     await sharp(image.buffer).jpeg({ quality: 80 }).toFile(fullImagePath);

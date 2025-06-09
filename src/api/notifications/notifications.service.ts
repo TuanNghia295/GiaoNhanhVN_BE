@@ -16,7 +16,7 @@ import {
 } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
-import { normalizeImagePath } from '@/utils/util';
+import { deleteIfExists, normalizeImagePath } from '@/utils/util';
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import {
@@ -220,6 +220,16 @@ export class NotificationsService implements OnModuleInit {
       const fullImagePath = join(this.basePath, fileName);
       await sharp(image.buffer).jpeg({ quality: 80 }).toFile(fullImagePath);
       normalizedPath = normalizeImagePath(fullImagePath);
+    }
+
+    //------------------------------------------------------------
+    //- Xoá ảnh cũ nếu có
+    //------------------------------------------------------------
+    if (
+      existingNotification.image &&
+      existingNotification.image !== normalizedPath
+    ) {
+      deleteIfExists(existingNotification.image, this.basePath);
     }
 
     return await this.db

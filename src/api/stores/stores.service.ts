@@ -42,7 +42,7 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
-import { existsSync, mkdirSync, unlinkSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { DateTime } from 'luxon';
 import { join } from 'path';
 import sharp from 'sharp';
@@ -608,18 +608,7 @@ export class StoresService implements OnModuleInit {
       throw new ValidationException(ErrorCode.S001);
     }
     if (existStore.avatar) {
-      const oldImagePath = join(
-        this.basePath,
-        existStore.avatar.replace(/^\/+/, ''),
-      );
-      console.log('oldImagePath', oldImagePath);
-      if (existsSync(oldImagePath)) {
-        try {
-          unlinkSync(oldImagePath);
-        } catch (error) {
-          console.error('Error removing old background image:', error);
-        }
-      }
+      deleteIfExists(existStore.avatar, this.basePath);
     }
     const fileName = await this.buildFileName('store_avatar');
     const fullImagePath = join(this.basePath, fileName);
