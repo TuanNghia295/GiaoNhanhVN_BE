@@ -326,14 +326,15 @@ export class StoresService implements OnModuleInit {
         products: sql
           .raw(
             `
-          json_agg
-          ( json_build_object(
-            'id', products.id,
-            'name', products.name,
-            'price', products.price,
-            'image', products.image
-            ))
-        `,
+              json_agg(
+                DISTINCT jsonb_build_object(
+                  'id', products.id,
+                  'name', products.name,
+                  'price', products.price,
+                  'image', products.image
+                )
+              )
+            `,
           )
           .as('products'),
         rating: sql`avg
