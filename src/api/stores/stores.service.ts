@@ -320,51 +320,45 @@ export class StoresService implements OnModuleInit {
 
   async searchStore(reqDto: SearchPageStoresReqDto) {
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
+
+    const escapedQuery = reqDto.q.replace(/[%_]/g, '\\$&');
+
     const qb = this.db
       .select({
-        ...getTableColumns(stores),
-        products: sql
-          .raw(
-            `
-              json_agg(
-                DISTINCT jsonb_build_object(
-                  'id', products.id,
-                  'name', products.name,
-                  'price', products.price,
-                  'image', products.image
-                )
-              )
-            `,
+        ...getTableColumns(stores), // Ensure these columns are included in GROUP BY
+        products: sql`
+      (
+        SELECT json_agg(
+          jsonb_build_object(
+            'id', p.id,
+            'name', p.name,
+            'price', p.price,
+            'image', p.image
           )
-          .as('products'),
-        rating: sql`avg
-          (${ratings.storeRate})`.as('rating'),
-        distance: sql
-          .raw(
-            `
-        6371 * acos(
-          cos(radians(${latitude})) *
-          cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-          cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
-          sin(radians(${latitude})) *
-          sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
         )
-      `,
-          )
+        FROM products p
+        WHERE
+          p.store_id = stores.id AND
+          p.is_locked = false AND
+          p.deleted_at IS NULL AND
+          p.name ILIKE ${'%' + escapedQuery + '%'}
+      )
+    `.as('products'),
+        rating: sql`avg(${ratings.storeRate})`.as('rating'),
+        distance: sql`
+      6371 * acos(
+        cos(radians(${latitude})) *
+        cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+        cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+        sin(radians(${latitude})) *
+        sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
+      )
+    `
           .mapWith(Number)
           .as('distance'),
       })
       .from(stores)
       .leftJoin(ratings, eq(ratings.storeId, stores.id))
-      .innerJoin(
-        products,
-        and(
-          eq(products.storeId, stores.id),
-          eq(products.isLocked, false),
-          isNull(products.deletedAt),
-          ilike(products.name, `%${reqDto.q}%`),
-        ),
-      )
       .where(
         and(
           eq(stores.status, true),
