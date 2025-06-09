@@ -61,6 +61,7 @@ export function deleteIfExists(relativePath: string, basePath: string) {
     basePath,
     relativePath.replace(/^\/+/, ''),
   );
+  console.log(`Attempting to delete file: ${fullPath}`);
 
   if (existsSync(fullPath)) {
     try {
