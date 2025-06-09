@@ -65,9 +65,9 @@ export function deleteIfExists(relativePath: string, basePath: string) {
   if (existsSync(fullPath)) {
     try {
       unlinkSync(fullPath);
-      this.logger.log(`Deleted file: ${fullPath}`);
+      console.log(`File deleted successfully: ${fullPath}`);
     } catch (error) {
-      this.logger.error(`Failed to delete file: ${fullPath}`, error.stack);
+      console.error(`Error deleting file ${fullPath}:`, error);
     }
   }
 }
