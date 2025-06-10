@@ -14,6 +14,7 @@ import {
   orders,
   OrderStatusEnum,
   products,
+  RoleEnum,
   stores,
   users,
 } from '@/database/schemas';
@@ -25,7 +26,13 @@ import {
   formatDistance,
   normalizeImagePath,
 } from '@/utils/util';
-import { HttpStatus, Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import {
+  HttpStatus,
+  Inject,
+  Injectable,
+  OnModuleInit,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import {
   and,
@@ -407,8 +414,9 @@ export class StoresService implements OnModuleInit {
     return new OffsetPaginatedDto(entitiesWithDistance, meta);
   }
 
-  async getStoresForList(reqDto: QueryListStore) {
-    return await this.db
+  async getStoresForList(reqDto: QueryListStore, payload: JwtPayloadType) {
+    console.log('reqDto', reqDto);
+    const qb = this.db
       .select({
         name: stores.name,
         id: stores.id,
@@ -420,19 +428,46 @@ export class StoresService implements OnModuleInit {
       })
       .from(stores)
       .leftJoin(users, eq(users.id, stores.userId))
-      .where(
-        and(
-          eq(stores.isLocked, false),
-          ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
+      .$dynamic();
+
+    switch (payload.role) {
+      case RoleEnum.ADMIN:
+        qb.where(
           and(
-            or(
-              ilike(users.phone, `%${reqDto.input ?? ''}%`),
-              ilike(stores.name, `%${reqDto.input ?? ''}%`),
-            ),
+            eq(stores.isLocked, false),
             ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
+            ...(reqDto.input
+              ? [
+                  or(
+                    ilike(users.phone, `%${reqDto.input}%`),
+                    ilike(stores.name, `%${reqDto.input}%`),
+                  ),
+                ]
+              : []),
           ),
-        ),
-      );
+        );
+        break;
+      case RoleEnum.MANAGEMENT:
+        qb.where(
+          and(
+            eq(stores.isLocked, false),
+            eq(stores.areaId, payload.areaId),
+            ...(reqDto.input
+              ? [
+                  or(
+                    ilike(users.phone, `%${reqDto.input}%`),
+                    ilike(stores.name, `%${reqDto.input}%`),
+                  ),
+                ]
+              : []),
+          ),
+        );
+        break;
+      default:
+        throw new UnauthorizedException();
+    }
+
+    return await qb;
   }
 
   async checkStoreActive(storeId: number, tx: Transaction) {

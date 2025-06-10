@@ -1407,8 +1407,9 @@ export class OrdersService {
     return this.db.query.orders.findMany({
       where: and(
         ...(areaId ? [eq(orders.areaId, areaId)] : []),
-        gte(orders.createdAt, from),
-        lte(orders.createdAt, to),
+        ...(from && to
+          ? [gte(orders.createdAt, from), lte(orders.createdAt, to)]
+          : []),
       ),
       orderBy: desc(orders.createdAt),
       with: {

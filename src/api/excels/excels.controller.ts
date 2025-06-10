@@ -105,7 +105,7 @@ export class ExcelsController {
     const buffer = await workbook.xlsx.writeBuffer();
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="admin-report-${new Date().toISOString()}.xlsx"`,
+      `attachment; filename="admin-report-${Math.floor(Date.now() / 1000)}.xlsx"`,
     );
     res.setHeader(
       'Content-Type',

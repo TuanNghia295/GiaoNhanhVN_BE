@@ -5,7 +5,8 @@ import {
 
 export class QueryListStore {
   @StringFieldOptional()
-  input: string;
+  input?: string;
+
   @NumberFieldOptional()
-  areaId: number;
+  areaId?: number;
 }

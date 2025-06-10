@@ -246,8 +246,11 @@ export class StoresController {
     type: StoreResDto,
   })
   @Get('manager/list')
-  async getStoresForList(@Query() reqDto: QueryListStore) {
-    return await this.storesService.getStoresForList(reqDto);
+  async getStoresForList(
+    @CurrentUser() payload: JwtPayloadType,
+    @Query() reqDto: QueryListStore,
+  ) {
+    return await this.storesService.getStoresForList(reqDto, payload);
   }
 
   @Get('search')
