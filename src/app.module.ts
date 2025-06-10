@@ -14,7 +14,6 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { MulterModule } from '@nestjs/platform-express';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { CacheableMemory } from 'cacheable';
@@ -87,14 +86,11 @@ import { UserAgentMiddleware } from './ua.middleware';
       inject: [ConfigService],
     }),
     ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'uploads'), // vì đang chạy trong /app/dist
+      rootPath: join(__dirname, '..', '..', 'uploads'), // vì đang chạy trong /app/dist
       serveRoot: '/api/images',
     }),
     EventEmitterModule.forRoot({
       global: true,
-    }),
-    MulterModule.register({
-      dest: join(__dirname, '..', 'uploads'), // vì đang chạy trong /app/dist
     }),
     DatabaseModule,
     HealthModule,

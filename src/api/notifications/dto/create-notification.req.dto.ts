@@ -1,6 +1,4 @@
-import { NotificationTypeEnum } from '@/database/schemas/notification.schema';
 import {
-  EnumFieldOptional,
   FileFieldOptional,
   NumberFieldOptional,
   StringField,
@@ -13,14 +11,8 @@ export class CreateNotificationReqDto {
   @StringField()
   body: string;
 
-  @EnumFieldOptional(() => NotificationTypeEnum)
-  type?: NotificationTypeEnum;
-
   @FileFieldOptional()
   image?: Express.Multer.File;
-
-  @NumberFieldOptional()
-  userId: number;
 
   @NumberFieldOptional()
   areaId?: number;

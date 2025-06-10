@@ -64,6 +64,7 @@ export class NotificationsService implements OnModuleInit {
     const fullImagePath = join(this.basePath, fileName);
     await sharp(image.buffer).jpeg({ quality: 80 }).toFile(fullImagePath);
     const normalizedPath = normalizeImagePath(fullImagePath);
+    console.log('Normalized image path:', normalizedPath);
 
     return await this.db.transaction(async (tx) => {
       const [notification] = await tx
@@ -93,12 +94,14 @@ export class NotificationsService implements OnModuleInit {
           ),
         );
 
-      await tx.insert(notificationsToUsers).values(
-        userIds.map((user) => ({
-          userId: user.id,
-          notificationId: notification.id,
-        })),
-      );
+      if (userIds.length > 0) {
+        await tx.insert(notificationsToUsers).values(
+          userIds.map((user) => ({
+            userId: user.id,
+            notificationId: notification.id,
+          })),
+        );
+      }
 
       // Emit sự kiện thông báo mới
       this.emitter.emit('notification.created', {
@@ -114,14 +117,15 @@ export class NotificationsService implements OnModuleInit {
     reqDto: PageNotificationsReqDto,
     payload: JwtPayloadType,
   ) {
+    console.log('getPageNotifications', reqDto, payload);
     const qb = this.db
-      .selectDistinct({
+      .select({
         ...getTableColumns(notifications),
         userId: notificationsToUsers.userId, // cần để xác định user nhận thông báo
         isRead: notificationsToUsers.isRead,
       })
       .from(notifications)
-      .innerJoin(
+      .leftJoin(
         notificationsToUsers,
         eq(notificationsToUsers.notificationId, notifications.id),
       )
@@ -159,7 +163,7 @@ export class NotificationsService implements OnModuleInit {
         this.db
           .select({ id: notifications.id })
           .from(notifications)
-          .innerJoin(
+          .leftJoin(
             notificationsToUsers,
             eq(notificationsToUsers.notificationId, notifications.id),
           )
@@ -176,6 +180,7 @@ export class NotificationsService implements OnModuleInit {
         .execute(),
       countQb.execute(),
     ]);
+    console.log('Entities:', entities);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
 
@@ -273,7 +278,11 @@ export class NotificationsService implements OnModuleInit {
           await tx
             .delete(notificationsToUsers)
             .where(eq(notificationsToUsers.notificationId, notificationId));
-
+          // Xoá ảnh nếu có
+          const existingNotification = await this.existById(notificationId);
+          if (existingNotification && existingNotification.image) {
+            deleteIfExists(existingNotification.image, this.basePath);
+          }
           return tx
             .delete(notifications)
             .where(eq(notifications.id, notificationId))

@@ -54,6 +54,7 @@ export class NotificationsController {
     @Body() reqDto: CreateNotificationReqDto,
     @UploadedFile() image: Express.Multer.File,
   ) {
+    console.log('reqDto', reqDto);
     return await this.notificationsService.create(payload, reqDto, image);
   }
 
