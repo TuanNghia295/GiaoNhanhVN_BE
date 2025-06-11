@@ -1,8 +1,12 @@
 import { AnalyticsService } from '@/api/analytics/analytics.service';
 import { AdminRevenueReqDto } from '@/api/analytics/dto/admin-revenue.req.dto';
+import { DeliverRevenueReqDto } from '@/api/analytics/dto/deliver-revenue.req.dto';
+import { StoreRevenueReqDto } from '@/api/analytics/dto/store-revenue.req.dto';
 import { ImportProductReqDto } from '@/api/excels/dto/import-product.req.dto';
 import { OrdersService } from '@/api/orders/orders.service';
-import { ApiPublic } from '@/decorators/http.decorators';
+import { RoleEnum } from '@/database/schemas';
+import { ApiAuth, ApiPublic } from '@/decorators/http.decorators';
+import { Roles } from '@/decorators/role.decorator';
 import {
   BadRequestException,
   Body,
@@ -59,21 +63,6 @@ export class ExcelsController {
   @ApiPublic({
     summary: 'Lấy báo cáo doanh thu của admin',
   })
-  @ApiConsumes('multipart/form-data')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: memoryStorage(),
-      fileFilter: (req, file, cb) => {
-        if (!file.originalname.match(/\.(xlsx|xls)$/)) {
-          return cb(
-            new BadRequestException('Only .xlsx or .xls files are allowed!'),
-            false,
-          );
-        }
-        cb(null, true);
-      },
-    }),
-  )
   @Get('admin-report')
   async getAdminReport(
     @Query() reqDto: AdminRevenueReqDto,
@@ -102,6 +91,67 @@ export class ExcelsController {
       workbook.addWorksheet('Đơn hàng'),
       orders,
     );
+    // Set the response headers for Excel file download
+    const buffer = await workbook.xlsx.writeBuffer();
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="admin-report-${Math.floor(Date.now() / 1000)}.xlsx"`,
+    );
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.send(buffer);
+  }
+
+  @Roles(RoleEnum.ADMIN)
+  @ApiAuth({
+    summary: 'xuất báo cáo doanh thu của cửa hàng',
+    description: 'xuất báo cáo doanh thu của cửa hàng',
+  })
+  @Get('store-report')
+  async getStoreReport(@Query() dto: StoreRevenueReqDto, @Res() res: Response) {
+    console.log('getStoreReport', dto);
+    const analyticStoreRevenue =
+      await this.analyticsService.getStoreRevenue(dto);
+
+    const workbook = new ExcelJS.Workbook();
+    await this.excelsService.createMainStoreSheet(
+      workbook.addWorksheet('Tổng hợp doanh thu'),
+      analyticStoreRevenue,
+    );
+
+    // Set the response headers for Excel file download
+    const buffer = await workbook.xlsx.writeBuffer();
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="admin-report-${Math.floor(Date.now() / 1000)}.xlsx"`,
+    );
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.send(buffer);
+  }
+
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'xuất báo cáo doanh thu của shipper',
+    description: 'xuất báo cáo doanh thu của shipper',
+  })
+  @Get('deliver-report')
+  async getDeliverReport(
+    @Query() dto: DeliverRevenueReqDto,
+    @Res() res: Response,
+  ) {
+    const analyticDeliverRevenue =
+      await this.analyticsService.getDeliverRevenue(dto);
+    const workbook = new ExcelJS.Workbook();
+    await this.excelsService.createMainDeliverSheet(
+      workbook.addWorksheet('Tổng hợp doanh thu'),
+      analyticDeliverRevenue,
+    );
+
     // Set the response headers for Excel file download
     const buffer = await workbook.xlsx.writeBuffer();
     res.setHeader(

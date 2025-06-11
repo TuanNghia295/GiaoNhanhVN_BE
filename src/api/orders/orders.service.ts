@@ -567,21 +567,20 @@ export class OrdersService {
     payload: JwtPayloadType,
     tx: Transaction,
   ) {
-    await Promise.all([
-      tx.insert(vouchersOnOrders).values({ orderId: orderId, voucherId }),
-      tx
-        .insert(voucherUsages)
-        .values({
-          userId: payload.id,
-          voucherId,
-        })
-        .onConflictDoUpdate({
-          target: [voucherUsages.userId, voucherUsages.voucherId],
-          set: {
-            usageCount: increment(voucherUsages.usageCount),
-          },
-        }),
-    ]);
+    console.log('Applying coupon:', voucherId);
+    await tx.insert(vouchersOnOrders).values({ orderId: orderId, voucherId });
+    await tx
+      .insert(voucherUsages)
+      .values({
+        userId: payload.id,
+        voucherId,
+      })
+      .onConflictDoUpdate({
+        target: [voucherUsages.userId, voucherUsages.voucherId],
+        set: {
+          usageCount: increment(voucherUsages.usageCount, 1),
+        },
+      });
   }
 
   /**

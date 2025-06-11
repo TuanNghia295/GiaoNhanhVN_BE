@@ -5,7 +5,7 @@ import {
   StringField,
 } from 'src/decorators/field.decorators';
 
-export class OrderStatusStoreRevenueResDto {
+export class StoreRevenueItemDto {
   @StringField()
   @Expose()
   status: string;
@@ -32,9 +32,9 @@ export class OrderStatusStoreRevenueResDto {
 }
 
 export class StoreRevenueResDto {
-  @ClassField(() => OrderStatusStoreRevenueResDto)
+  @ClassField(() => StoreRevenueItemDto)
   @Expose()
-  all: OrderStatusStoreRevenueResDto;
+  all: StoreRevenueItemDto;
 
   @NumberField()
   @Expose()

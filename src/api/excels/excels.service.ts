@@ -2,6 +2,8 @@ import {
   AdminRevenueResDto,
   OrderStatusRevenueResDto,
 } from '@/api/analytics/dto/admin-revenue.res.dto';
+import { DeliverRevenueResDto } from '@/api/analytics/dto/deliver-revenue.res.dto';
+import { StoreRevenueResDto } from '@/api/analytics/dto/store-revenue.res.dto';
 import { ProductsService } from '@/api/products/products.service';
 import { StoresService } from '@/api/stores/stores.service';
 import { ImportHeaderKeys, ImportHeaderLabels } from '@/constants/app.constant';
@@ -280,6 +282,133 @@ export class ExcelsService {
       },
     ];
     worksheet.addRow({ ...analyticTotalRevenue });
+
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) {
+        //----------------------------------------------------
+        // Định dạng hàng đầu tiên (tiêu đề)
+        //---------------------------------------------------
+        row.eachCell((cell) => {
+          cell.font = { bold: true, size: 12 };
+          cell.alignment = { horizontal: 'center' };
+        });
+      } else {
+        //----------------------------------------------------
+        // Format các hàng từ thứ 2 trở đi
+        //---------------------------------------------------
+        row.eachCell((cell, cellIndex) => {
+          //---------------------------------------------
+          // Định dạng các ô dữ liệu  trừ cột đầu tiên vì là tổng đơn hàng
+          //---------------------------------------------
+          if (typeof cell.value === 'number' && cellIndex > 1) {
+            cell.numFmt = '#,##0.00';
+          }
+          cell.alignment = { horizontal: 'right' };
+        });
+      }
+
+      //----------------------------------------------------
+      // Định dạng viền cho tất cả các ô trong hàng
+      //---------------------------------------------------
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' },
+        };
+      });
+    });
+  }
+
+  async createMainDeliverSheet(
+    worksheet: ExcelJS.Worksheet,
+    analyticDeliverRevenue: DeliverRevenueResDto,
+  ) {
+    console.log('analyticDeliverRevenue', analyticDeliverRevenue);
+    // Set the columns for the worksheet
+    worksheet.columns = [
+      {
+        header: 'Tổng số lượng đơn',
+        key: 'total_all_orders',
+        width: 30,
+      },
+      {
+        header: 'Tổng số lượng đơn thành công',
+        key: 'total_all_order_delivered',
+        width: 30,
+      },
+      {
+        header: 'Tổng số lượng đơn đã hủy',
+        key: 'total_all_order_canceled',
+        width: 30,
+      },
+      {
+        header: 'Tổng thu nhập của shipper',
+        key: 'total_all_income',
+        width: 30,
+      },
+      {
+        header: 'Tổng điểm hiện tại',
+        key: 'total_all_deliver_point',
+        width: 30,
+      },
+    ];
+    worksheet.addRow({ ...analyticDeliverRevenue });
+
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) {
+        //----------------------------------------------------
+        // Định dạng hàng đầu tiên (tiêu đề)
+        //---------------------------------------------------
+        row.eachCell((cell) => {
+          cell.font = { bold: true, size: 12 };
+          cell.alignment = { horizontal: 'center' };
+        });
+      }
+
+      //----------------------------------------------------
+      // Định dạng viền cho tất cả các ô trong hàng
+      //---------------------------------------------------
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' },
+        };
+      });
+    });
+  }
+
+  async createMainStoreSheet(
+    worksheet: ExcelJS.Worksheet,
+    analyticStoreRevenue: StoreRevenueResDto,
+  ) {
+    // Set the columns for the worksheet
+    worksheet.columns = [
+      {
+        header: 'Tổng số lượng đơn',
+        key: 'total_all_order',
+        width: 30,
+      },
+      {
+        header: 'Tổng phí bán hàng',
+        key: 'total_all_store_service_fee',
+        width: 30,
+      },
+      {
+        header: 'Tổng voucher shop',
+        key: 'total_all_voucher_value',
+        width: 30,
+      },
+      {
+        header: 'Tổng thu nhập của shop',
+        key: 'total_all_store_revenue',
+        width: 30,
+      },
+    ];
+    worksheet.addRow({ ...analyticStoreRevenue });
 
     worksheet.eachRow((row, rowNumber) => {
       if (rowNumber === 1) {

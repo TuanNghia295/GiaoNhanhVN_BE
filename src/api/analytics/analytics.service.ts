@@ -1,7 +1,9 @@
 import { AdminRevenueReqDto } from '@/api/analytics/dto/admin-revenue.req.dto';
 import { AdminRevenueResDto } from '@/api/analytics/dto/admin-revenue.res.dto';
 import { DeliverRevenueReqDto } from '@/api/analytics/dto/deliver-revenue.req.dto';
+import { DeliverRevenueResDto } from '@/api/analytics/dto/deliver-revenue.res.dto';
 import { StoreRevenueReqDto } from '@/api/analytics/dto/store-revenue.req.dto';
+import { StoreRevenueResDto } from '@/api/analytics/dto/store-revenue.res.dto';
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { StoresService } from '@/api/stores/stores.service';
 import { ErrorCode } from '@/constants/error-code.constant';
@@ -171,7 +173,9 @@ export class AnalyticsService {
     });
   }
 
-  async getStoreRevenue(reqDto: StoreRevenueReqDto) {
+  async getStoreRevenue(
+    reqDto: StoreRevenueReqDto,
+  ): Promise<StoreRevenueResDto> {
     const [store] = await this.db
       .select({
         id: stores.id,
@@ -181,14 +185,14 @@ export class AnalyticsService {
       .where(or(eq(users.phone, reqDto.q), eq(stores.name, reqDto.q)))
       .limit(1);
     if (!store) {
-      return {
+      return plainToInstance(StoreRevenueResDto, {
         all: [],
         total_all_order: 0,
         total_all_product_price: 0,
         total_all_store_service_fee: 0,
         total_all_voucher_value: 0,
         total_all_store_revenue: 0,
-      };
+      });
     }
     if (reqDto.from && reqDto.to) {
       reqDto.from = startOfDay(reqDto.from);
@@ -293,14 +297,14 @@ export class AnalyticsService {
       DATA_FILTERED.reduce((acc, cur) => acc + cur.total_voucher_value, 0) ?? 0;
     const total_all_store_revenue =
       DATA_FILTERED.reduce((acc, cur) => acc + cur.total_store_revenue, 0) ?? 0;
-    return {
+    return plainToInstance(StoreRevenueResDto, {
       all: formattedResult,
       total_all_order,
       total_all_product_price,
       total_all_store_service_fee,
       total_all_voucher_value,
       total_all_store_revenue,
-    };
+    });
   }
 
   async getMyStoreRevenue(reqDto: StoreRevenueReqDto, payload: JwtPayloadType) {
@@ -425,7 +429,9 @@ export class AnalyticsService {
     };
   }
 
-  async getDeliverRevenue(reqDto: DeliverRevenueReqDto) {
+  async getDeliverRevenue(
+    reqDto: DeliverRevenueReqDto,
+  ): Promise<DeliverRevenueResDto> {
     const [existDeliver] = await this.db
       .select({
         id: delivers.id,
@@ -434,14 +440,14 @@ export class AnalyticsService {
       .where(eq(delivers.phone, reqDto.phone))
       .limit(1);
     if (!existDeliver) {
-      return {
+      return plainToInstance(DeliverRevenueResDto, {
         data: [],
         total_all_income: 0,
         total_all_orders: 0,
         total_all_order_delivered: 0,
         total_all_order_canceled: 0,
         total_all_deliver_point: 0,
-      };
+      });
     }
 
     if (reqDto.from && reqDto.to) {
@@ -465,13 +471,7 @@ export class AnalyticsService {
           ( COUNT(${orders.id}) FILTER (WHERE ${orders.status} = 'CANCELED'), 0)`
           .mapWith(Number)
           .as('totalOrderCanceled'),
-        total_order_not_take: sql<number>`COALESCE
-        ( COUNT(${reasonDeliverCancelOrders.id}) FILTER (
-          WHERE ${reasonDeliverCancelOrders.type} = 'NOTTAKEN'
-          AND ${reasonDeliverCancelOrders.deliverId} = ${delivers.id}
-          ), 0)`
-          .mapWith(Number)
-          .as('totalOrderNotTake'),
+        total_deliver_point: delivers.point,
         total_income: sql<number>`COALESCE
           ( SUM(${orders.incomeDeliver}) FILTER (WHERE ${orders.status} = 'DELIVERED'), 0)`
           .mapWith(Number)
@@ -511,17 +511,17 @@ export class AnalyticsService {
       (acc, cur) => acc + (cur.total_order_canceled || 0),
       0,
     );
-    const total_order_not_take = result.reduce(
-      (acc, cur) => acc + (cur.total_order_not_take || 0),
+    const total_deliver_point = result.reduce(
+      (acc, cur) => acc + (cur.total_deliver_point || 0),
       0,
     );
-    return {
+    return plainToInstance(DeliverRevenueResDto, {
       data: result,
-      total_income,
+      total_all_income: total_income,
       total_all_orders,
       total_all_order_delivered,
       total_all_order_canceled,
-      total_order_not_take,
-    };
+      total_all_deliver_point: total_deliver_point,
+    });
   }
 }

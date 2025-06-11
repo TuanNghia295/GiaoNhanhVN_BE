@@ -6,7 +6,7 @@ import { integer, pgTable, timestamp, unique } from 'drizzle-orm/pg-core';
 export const voucherUsages = pgTable(
   'voucher_usages',
   {
-    userId: integer('order_id')
+    userId: integer('user_id')
       .references(() => users.id)
       .notNull(),
     voucherId: integer('voucher_id')
