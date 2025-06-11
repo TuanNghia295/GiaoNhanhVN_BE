@@ -241,13 +241,22 @@ export class StoreRequestsService {
         })
         .execute();
 
-      await tx
+      const [createdNotification] = await tx
         .insert(notifications)
         .values({
-          userId: storeRequest.userId,
           type: NotificationTypeEnum.SYSTEM,
           title: 'Đăng ký cửa hàng',
           body: `Yêu cầu mở shop của bạn đã được chấp nhận. Vui lòng kiểm tra lại thông tin cửa hàng`,
+        })
+        .returning({
+          id: notifications.id,
+        });
+
+      await this.db
+        .insert(notificationsToUsers)
+        .values({
+          userId: storeRequest.userId,
+          notificationId: createdNotification.id,
         })
         .execute();
 

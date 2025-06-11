@@ -21,4 +21,22 @@ export class StoreRequestsEvent {
     // Emit the event to the user gateway
     this.managerGateway.server.emit('update-store-request');
   }
+
+  @OnEvent('store-requests.approved')
+  onStoreRequestsApproved(payload: { userId: number; areaId: number }) {
+    this.logger.log(
+      `Store request approved for userId: ${payload.userId}, areaId: ${payload.areaId}`,
+    );
+    //--------------------------------------------------
+    // Refresh the store request list for all managers
+    //---------------------------------------------------
+    this.userGateway.server.emit('update-store-request');
+
+    //---------------------------------------------------
+    // Notify the user that their store request has been approved
+    //---------------------------------------------------
+    this.userGateway.server
+      .to(String(payload.userId))
+      .emit('store-require-verified');
+  }
 }
