@@ -536,30 +536,29 @@ export class OrdersService {
 
   //hàm tính phí dịch vụ môi tường
   private async calculateEnvironmentFee(setting: Setting) {
-    const now = DateTime.now();
+    const zone = 'Asia/Ho_Chi_Minh';
+    const now = DateTime.now().setZone(zone);
 
-    const startNight = DateTime.fromJSDate(setting.startNightTime).set({
-      year: now.year,
-      month: now.month,
-      day: now.day,
-    });
-    let endNight = DateTime.fromJSDate(setting.endNightTime).set({
-      year: now.year,
-      month: now.month,
-      day: now.day,
-    });
+    const startNight = DateTime.fromJSDate(setting.startNightTime)
+      .setZone(zone)
+      .set({ year: now.year, month: now.month, day: now.day });
 
-    // Nếu end < start (ví dụ 06:00 < 22:00) => end là ngày hôm sau
+    let endNight = DateTime.fromJSDate(setting.endNightTime)
+      .setZone(zone)
+      .set({ year: now.year, month: now.month, day: now.day });
+
     if (endNight <= startNight) {
       endNight = endNight.plus({ days: 1 });
     }
-    // Kiểm tra xem thời gian hiện tại có nằm trong khoảng ban đêm không
+
     const isNight = now >= startNight && now <= endNight;
-    const nightFeePercent = setting.isNight && isNight ? setting.nightFee : 0;
+    console.log('isNight:', isNight);
+    console.log('startNight:', setting.isNight);
+    const nightFee = setting.isNight && isNight ? setting.nightFee : 0;
 
-    const rainFeePercent = setting.isRain ? setting.rainFee : 0;
+    const rainFee = setting.isRain ? setting.rainFee : 0;
 
-    return _.round(nightFeePercent + rainFeePercent);
+    return _.round(nightFee + rainFee);
   }
 
   private async applyCoupon(
