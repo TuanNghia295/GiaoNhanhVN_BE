@@ -125,10 +125,7 @@ export class AnalyticsService {
     );
     const total_all: RevenueResult = {
       status: null, // Dòng tổng không có trạng thái
-      total_order: DATA_FILTERED.reduce(
-        (acc, cur) => acc + Number(cur.total_order),
-        0,
-      ),
+      total_order: DATA_FILTERED.reduce((acc, cur) => acc + cur.total_order, 0),
       total_product_price: DATA_FILTERED.reduce(
         (acc, cur) => acc + cur.total_product_price,
         0,
@@ -158,6 +155,8 @@ export class AnalyticsService {
         0,
       ),
     };
+
+    console.log('total_all', total_all);
 
     return plainToInstance(AdminRevenueResDto, {
       all: result,

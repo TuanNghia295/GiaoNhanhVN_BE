@@ -82,6 +82,7 @@ export class ExcelsController {
     // Dữ liệu mẫu
     const analyticTotalRevenue =
       await this.analyticsService.getAdminRevenue(reqDto);
+    console.log('analyticTotalRevenue', analyticTotalRevenue);
 
     const workbook = new ExcelJS.Workbook();
     await this.excelsService.createMainSheet(

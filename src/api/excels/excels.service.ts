@@ -171,6 +171,16 @@ export class ExcelsService {
         width: 30,
       },
       {
+        header: 'Phí dịch vụ',
+        key: 'total_user_service_fee',
+        width: 30,
+      },
+      {
+        header: 'Số tiền hàng',
+        key: 'total_product_price',
+        width: 30,
+      },
+      {
         header: 'Tổng phí bán hàng',
         key: 'total_store_service_fee',
         width: 30,
