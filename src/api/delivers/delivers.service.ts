@@ -465,7 +465,7 @@ export class DeliversService implements OnModuleInit {
               OrderStatusEnum.CANCELED,
             ]),
             ...(reqDto.from && reqDto.to
-              ? [between(orders.createdAt, reqDto.from, reqDto.to)]
+              ? [between(orders.updatedAt, reqDto.from, reqDto.to)]
               : []),
           ),
         )
