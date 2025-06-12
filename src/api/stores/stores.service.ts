@@ -342,9 +342,11 @@ export class StoresService implements OnModuleInit {
   async searchStore(reqDto: SearchPageStoresReqDto) {
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
 
+    const escapedQuery = reqDto.q?.replace(/[%_]/g, '\\$&');
+
     const productFilter = reqDto.q
       ? sql`AND p.name ILIKE
-      ${'%' + reqDto.q + '%'}`
+      ${'%' + escapedQuery + '%'}`
       : sql``;
 
     const qb = this.db
@@ -389,6 +391,26 @@ export class StoresService implements OnModuleInit {
           eq(stores.status, true),
           eq(stores.isLocked, false),
           not(isNull(stores.location)),
+          ...(escapedQuery
+            ? [
+                or(
+                  ilike(stores.name, `%${escapedQuery}%`),
+                  exists(
+                    this.db
+                      .select()
+                      .from(products)
+                      .where(
+                        and(
+                          eq(products.storeId, stores.id),
+                          eq(products.isLocked, false),
+                          isNull(products.deletedAt),
+                          ilike(products.name, `%${escapedQuery}%`),
+                        ),
+                      ),
+                  ),
+                ),
+              ]
+            : []),
         ),
       )
       .groupBy(stores.id)
@@ -416,6 +438,27 @@ export class StoresService implements OnModuleInit {
         .leftJoin(users, eq(users.id, stores.userId))
         .where(
           and(
+            // ⬇️ Chỉ thêm filter này nếu có từ khóa tìm kiếm
+            ...(escapedQuery
+              ? [
+                  or(
+                    ilike(stores.name, `%${escapedQuery}%`),
+                    exists(
+                      this.db
+                        .select()
+                        .from(products)
+                        .where(
+                          and(
+                            eq(products.storeId, stores.id),
+                            eq(products.isLocked, false),
+                            isNull(products.deletedAt),
+                            ilike(products.name, `%${escapedQuery}%`),
+                          ),
+                        ),
+                    ),
+                  ),
+                ]
+              : []),
             eq(stores.status, true),
             eq(stores.isLocked, false),
             not(isNull(stores.location)),
