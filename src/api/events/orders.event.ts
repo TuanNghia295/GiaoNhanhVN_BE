@@ -52,21 +52,19 @@ export class OrdersEvent {
     );
     const store = await this.storesService.selectFcmTokenById(order.storeId);
 
-    if (activeDrivers.length > 0) {
-      this.logger.log(
-        `Found ${activeDrivers.length} drivers in area ${order.areaId}`,
-      );
+    this.logger.log(
+      `Found ${activeDrivers.length} drivers in area ${order.areaId}`,
+    );
 
-      const fcmTokens = [
-        ...activeDrivers.map((driver) => driver.fcmToken),
-        ...(store?.fcmToken ? [store.fcmToken] : []), // Thêm fcmToken của cửa hàng nếu có
-      ];
-      await this.notifyNewOrderByFCM(fcmTokens);
-      this.logger.log(`FCM sent to ${fcmTokens.length} drivers`);
-      // Emit socket to all drivers in the area
-      const driverIds = activeDrivers.map((driver) => String(driver.id));
-      await this.emitSocketToDrivers(driverIds, order);
-    }
+    const fcmTokens = [
+      ...activeDrivers.map((driver) => driver.fcmToken),
+      ...(store?.fcmToken ? [store.fcmToken] : []), // Thêm fcmToken của cửa hàng nếu có
+    ];
+    await this.notifyNewOrderByFCM(fcmTokens);
+    this.logger.log(`FCM sent to ${fcmTokens.length} drivers`);
+    // Emit socket to all drivers in the area
+    const driverIds = activeDrivers.map((driver) => String(driver.id));
+    await this.emitSocketToDrivers(driverIds, order);
   }
 
   @OnEvent('order.updated_status')
