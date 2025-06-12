@@ -392,7 +392,17 @@ export class StoresService implements OnModuleInit {
         ),
       )
       .groupBy(stores.id)
-      .having(sql`distance < 15`)
+      .having(
+        sql.raw(`
+          6371 * acos(
+            cos(radians(${latitude})) *
+            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+            sin(radians(${latitude})) *
+            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
+          ) < 15
+        `),
+      )
       .orderBy(sql`distance ASC`)
       .$dynamic();
 
