@@ -436,8 +436,6 @@ export class DeliversService implements OnModuleInit {
       reqDto.to = DateTime.fromJSDate(reqDto.to).endOf('day').toJSDate();
     }
 
-    console.log('sssssssssssssssssssssssssssss', reqDto);
-
     const [results, incomeResult] = await Promise.all([
       this.db
         .select({
@@ -481,7 +479,7 @@ export class DeliversService implements OnModuleInit {
             eq(orders.deliverId, deliverId),
             eq(orders.status, OrderStatusEnum.DELIVERED),
             ...(reqDto.from && reqDto.to
-              ? [between(orders.createdAt, reqDto.from, reqDto.to)]
+              ? [between(orders.updatedAt, reqDto.from, reqDto.to)]
               : []),
           ),
         ),
