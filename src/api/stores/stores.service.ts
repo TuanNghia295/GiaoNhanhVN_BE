@@ -253,13 +253,20 @@ export class StoresService implements OnModuleInit {
     return new OffsetPaginatedDto(entitiesWithDistance, meta);
   }
 
-  async getPageStoresByManager(reqDto: PageStoreManagerReqDto) {
+  async getPageStoresByManager(
+    reqDto: PageStoreManagerReqDto,
+    payload: JwtPayloadType,
+  ) {
     const whereClause = and(
       or(
         ilike(users.phone, `%${reqDto.q ?? ''}%`),
         ilike(stores.name, `%${reqDto.q ?? ''}%`),
       ),
       ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
+      // Quản lý khu vực chỉ xem được các cửa hàng trong khu vực của mình
+      ...(payload.role === RoleEnum.MANAGEMENT
+        ? [eq(stores.areaId, payload.areaId)]
+        : []),
     );
 
     const qb = this.db

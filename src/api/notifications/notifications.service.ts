@@ -119,10 +119,8 @@ export class NotificationsService implements OnModuleInit {
   ) {
     console.log('getPageNotifications', reqDto, payload);
     const qb = this.db
-      .select({
+      .selectDistinct({
         ...getTableColumns(notifications),
-        userId: notificationsToUsers.userId, // cần để xác định user nhận thông báo
-        isRead: notificationsToUsers.isRead,
       })
       .from(notifications)
       .leftJoin(

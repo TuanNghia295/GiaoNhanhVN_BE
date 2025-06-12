@@ -66,8 +66,11 @@ export class StoresController {
     isPaginated: true,
   })
   @Get('manager')
-  async getPageStoresByManager(@Query() reqDto: PageStoreManagerReqDto) {
-    return await this.storesService.getPageStoresByManager(reqDto);
+  async getPageStoresByManager(
+    @CurrentUser() payload: JwtPayloadType,
+    @Query() reqDto: PageStoreManagerReqDto,
+  ) {
+    return await this.storesService.getPageStoresByManager(reqDto, payload);
   }
 
   @Roles(RoleEnum.STORE)
