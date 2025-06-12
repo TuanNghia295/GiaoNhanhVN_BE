@@ -180,7 +180,7 @@ export class StoresService implements OnModuleInit {
             cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
             sin(radians(${latitude})) *
             sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
-          ) < 15000
+          ) < 15
         `), // 15km radius
       )
       .$dynamic();

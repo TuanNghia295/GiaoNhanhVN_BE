@@ -75,6 +75,14 @@ export class DeliversService implements OnModuleInit {
           ? [eq(delivers.areaId, payload.areaId)]
           : []),
         ...(reqDto.areaId ? [eq(delivers.areaId, reqDto.areaId)] : []),
+        ...(reqDto.q
+          ? [
+              or(
+                ilike(delivers.phone, `%${reqDto.q}%`),
+                ilike(delivers.fullName, `%${reqDto.q}%`),
+              ),
+            ]
+          : []),
         isNull(delivers.deletedAt),
       ),
       with: {
