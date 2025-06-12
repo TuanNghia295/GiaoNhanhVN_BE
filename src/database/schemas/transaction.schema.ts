@@ -35,7 +35,7 @@ export const transactions = pgTable('transactions', {
   id: serial().primaryKey().notNull(),
   type: varchar('type', { length: 50 }).notNull(),
   amount: decimal('amount', {
-    precision: 10,
+    precision: 15,
     scale: 2,
     mode: 'number',
   }).notNull(),

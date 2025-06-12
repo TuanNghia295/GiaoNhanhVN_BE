@@ -6,7 +6,7 @@ import { integer, pgTable } from 'drizzle-orm/pg-core';
 export const commentsToRatings = pgTable(
   'comments_to_ratings',
   {
-    // id: integer(),
+    id: integer(),
     commentId: integer('comment_id')
       .notNull()
       .references(() => comments.id),

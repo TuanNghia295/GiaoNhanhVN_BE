@@ -15,6 +15,7 @@ export const banks = pgTable('banks', {
   accountNumber: varchar('account_number', { length: 255 }),
   accountName: varchar('account_name', { length: 255 }),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  areaId: integer('area_id'),
   updatedAt: timestamp('updated_at')
     .notNull()
     .defaultNow()

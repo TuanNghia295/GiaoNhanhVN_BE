@@ -7,6 +7,7 @@ import { relations } from 'drizzle-orm';
 import {
   boolean,
   integer,
+  numeric,
   pgTable,
   primaryKey,
   serial,
@@ -22,7 +23,11 @@ export const stores = pgTable('stores', {
   location: varchar({ length: 255 }),
   avatar: varchar({ length: 255 }),
   background: varchar({ length: 255 }),
-  // rating: decimal('rating', { precision: 2, scale: 1 }).default('0.0'),
+
+  rating: numeric('rating', { precision: 2, scale: 1, mode: 'number' }).default(
+    0,
+  ),
+  bestSeller: varchar('best_seller', { length: 255 }),
   // locationMap: geometry('location_map', {
   //   type: 'point',
   //   mode: 'xy',

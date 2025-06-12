@@ -17,8 +17,8 @@ export const settings = pgTable('settings', {
   openFullTime: boolean('open_full_time').notNull().default(false),
   startNightTime: timestamp('start_night_time').notNull().default(new Date()),
   endNightTime: timestamp('end_night_time').notNull().default(new Date()),
-  hotline: varchar('hotline', { length: 20 }).notNull().default(''),
-  fanpage: text('fanpage').notNull().default(''),
+  hotline: varchar('hotline', { length: 20 }).default(''),
+  fanpage: text('fanpage').default(''),
   isRain: boolean('is_rain').notNull().default(false),
   isNight: boolean('is_night').notNull().default(false),
   nightFee: numeric('night_fee', { precision: 10, scale: 2, mode: 'number' })

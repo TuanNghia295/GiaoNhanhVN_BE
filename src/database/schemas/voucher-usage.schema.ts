@@ -13,7 +13,9 @@ export const voucherUsages = pgTable(
       .references(() => vouchers.id)
       .notNull(),
     usageCount: integer('usage_count').default(1).notNull(),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    id: integer(),
+    updatedAt: timestamp('updated_at'),
+    createdAt: timestamp('created_at'),
   },
   (table) => [unique().on(table.userId, table.voucherId)],
 );

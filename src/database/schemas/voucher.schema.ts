@@ -37,7 +37,7 @@ export const vouchers = pgTable('vouchers', {
   endDate: timestamp('end_date').notNull(),
   maxUses: integer('max_uses').notNull(),
   usePerUser: integer('use_per_user').notNull(),
-  // usedCount: integer('used_count').default(0).notNull(),
+  usedCount: integer('used_count').default(0).notNull(),
   status: varchar('status', { length: 50 })
     .notNull()
     .$type<VouchersStatusEnum>()
@@ -78,6 +78,9 @@ export const vouchersOnOrders = pgTable(
     voucherId: integer('voucher_id')
       .references(() => vouchers.id)
       .notNull(),
+    id: integer(),
+    createdAt: timestamp('created_at'),
+    updatedAt: timestamp('updated_at'),
   },
   (t) => [primaryKey({ columns: [t.orderId, t.voucherId] })],
 );

@@ -342,11 +342,14 @@ export class StoresService implements OnModuleInit {
   async searchStore(reqDto: SearchPageStoresReqDto) {
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
 
-    const escapedQuery = reqDto.q?.replace(/[%_]/g, '\\$&');
+    const productFilter = reqDto.q
+      ? sql`AND p.name ILIKE
+      ${'%' + reqDto.q + '%'}`
+      : sql``;
 
     const qb = this.db
       .select({
-        ...getTableColumns(stores), // Ensure these columns are included in GROUP BY
+        ...getTableColumns(stores),
         products: sql`
           (SELECT json_agg(
                     jsonb_build_object(
@@ -360,7 +363,7 @@ export class StoresService implements OnModuleInit {
            WHERE p.store_id = ${stores.id}
              AND p.is_locked = false
              AND p.deleted_at IS NULL
-             AND p.name ILIKE ${'%' + escapedQuery + '%'})
+             ${productFilter})
         `.as('products'),
         rating: sql`avg
           (${ratings.storeRate})`.as('rating'),
@@ -389,21 +392,12 @@ export class StoresService implements OnModuleInit {
         ),
       )
       .groupBy(stores.id)
-      .having(
-        sql.raw(`
-          6371 * acos(
-            cos(radians(${latitude})) *
-            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
-            sin(radians(${latitude})) *
-            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
-          ) < 15
-        `), // 15km radius
-      )
-      .orderBy(sql`distance asc`)
+      .having(sql`distance < 15`)
+      .orderBy(sql`distance ASC`)
       .$dynamic();
 
     withPagination(qb, reqDto.limit, reqDto.offset);
+
     const [entities, { totalCount }] = await Promise.all([
       qb,
       this.db
@@ -415,10 +409,23 @@ export class StoresService implements OnModuleInit {
             eq(stores.status, true),
             eq(stores.isLocked, false),
             not(isNull(stores.location)),
-            or(
-              ilike(stores.name, `%${escapedQuery}%`),
-              ilike(users.phone, `%${escapedQuery}%`),
-            ),
+            ...(reqDto.q
+              ? [
+                  or(
+                    ilike(stores.name, `%${reqDto.q}%`),
+                    ilike(users.phone, `%${reqDto.q}%`),
+                  ),
+                ]
+              : []),
+            sql.raw(`
+          6371 * acos(
+            cos(radians(${latitude})) *
+            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+            sin(radians(${latitude})) *
+            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
+          ) < 15
+        `),
           ),
         )
         .then((res) => res[0]),
