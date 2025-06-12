@@ -3,11 +3,11 @@ import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { CreateLocationReqDto } from '@/api/locations/dto/create-location.req.dto';
 import { LocationResDto } from '@/api/locations/dto/location.res.dto';
 import { DRIZZLE } from '@/database/global';
-import { locations } from '@/database/schemas';
+import { areas, locations } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, or } from 'drizzle-orm';
 
 @Injectable()
 export class LocationsService {
@@ -18,11 +18,16 @@ export class LocationsService {
 
   async create(payload: JwtPayloadType, reqDto: CreateLocationReqDto) {
     console.log('create location', reqDto);
-    // const provinceName = reqDto.province?.replace(/'/g, '').trim();
-    // const existArea = await this.areasService.existByName(provinceName);
-    // if (!existArea) {
-    //   throw new ValidationException(ErrorCode.AR001);
-    // }
+    const area = await this.db.query.areas.findFirst({
+      where: or(
+        eq(areas.name, reqDto.province),
+        eq(areas.parent, reqDto.parent),
+      ),
+      columns: {
+        id: true,
+        name: true,
+      },
+    });
 
     const [existLocation] = await this.db
       .select()
@@ -36,18 +41,27 @@ export class LocationsService {
       .execute();
 
     if (existLocation) {
-      return plainToInstance(LocationResDto, existLocation);
+      const [updatedLocation] = await this.db
+        .update(locations)
+        .set({
+          ...reqDto,
+          ...(area ? { areaId: area.id } : {}),
+        })
+        .where(eq(locations.id, existLocation.id))
+        .returning();
+      return updatedLocation;
     }
 
-    const [newLocation] = await this.db
+    const [createdLocation] = await this.db
       .insert(locations)
       .values({
         ...reqDto,
+        ...(area ? { areaId: area.id } : {}),
         userId: payload.id,
       })
       .returning();
 
-    return plainToInstance(LocationResDto, newLocation);
+    return createdLocation;
   }
 
   async getLocationsByUserId(userId: number) {

@@ -115,9 +115,7 @@ export class ManagersService {
     });
   }
 
-  async getPageManagers(
-    reqDto: PageManagerReqDto,
-  ): Promise<OffsetPaginatedDto<ManagerResDto>> {
+  async getPageManagers(reqDto: PageManagerReqDto) {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.managers> = {
       where: and(
         eq(managers.role, RoleEnum.MANAGEMENT),
@@ -144,10 +142,7 @@ export class ManagersService {
     ]);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
-    return new OffsetPaginatedDto(
-      entities.map((e) => plainToInstance(ManagerResDto, e)),
-      meta,
-    );
+    return new OffsetPaginatedDto(entities, meta);
   }
 
   async existById(managerId: number) {

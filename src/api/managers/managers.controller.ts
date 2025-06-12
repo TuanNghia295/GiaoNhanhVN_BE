@@ -5,7 +5,6 @@ import { CreateManagerReqDto } from '@/api/managers/dto/create-manager.req.dto';
 import { LoginManagerReqDto } from '@/api/managers/dto/login-manager.req.dto';
 import { ManagerResDto } from '@/api/managers/dto/manager.res.dto';
 import { PageManagerReqDto } from '@/api/managers/dto/page-manager.req.dto';
-import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { RoleEnum } from '@/database/schemas';
 import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth, ApiPublic } from '@/decorators/http.decorators';
@@ -58,9 +57,7 @@ export class ManagersController {
     isPaginated: true,
   })
   @Get()
-  async getPageManagers(
-    @Query() reqDto: PageManagerReqDto,
-  ): Promise<OffsetPaginatedDto<ManagerResDto>> {
+  async getPageManagers(@Query() reqDto: PageManagerReqDto) {
     return await this.managersService.getPageManagers(reqDto);
   }
 }

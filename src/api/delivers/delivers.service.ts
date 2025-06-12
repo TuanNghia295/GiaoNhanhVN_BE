@@ -436,6 +436,8 @@ export class DeliversService implements OnModuleInit {
       reqDto.to = DateTime.fromJSDate(reqDto.to).endOf('day').toJSDate();
     }
 
+    console.log('sssssssssssssssssssssssssssss', reqDto);
+
     const [results, incomeResult] = await Promise.all([
       this.db
         .select({

@@ -9,4 +9,7 @@ export class CreateLocationReqDto {
 
   @StringField()
   province!: string;
+
+  @StringField()
+  parent!: string;
 }
