@@ -100,8 +100,11 @@ export class DeliversController {
     isPaginated: true,
   })
   @Get()
-  async getPageDelivers(@Query() reqDto: PageDeliverReqDto) {
-    return this.deliversService.getPageDelivers(reqDto);
+  async getPageDelivers(
+    @CurrentUser() payload: JwtPayloadType,
+    @Query() reqDto: PageDeliverReqDto,
+  ) {
+    return this.deliversService.getPageDelivers(reqDto, payload);
   }
 
   @Roles(RoleEnum.MANAGEMENT)

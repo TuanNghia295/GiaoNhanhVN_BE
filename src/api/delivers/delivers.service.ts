@@ -15,6 +15,7 @@ import {
   orders,
   OrderStatusEnum,
   ratings,
+  RoleEnum,
   vouchers,
   vouchersOnOrders,
   VouchersTypeEnum,
@@ -67,9 +68,15 @@ export class DeliversService implements OnModuleInit {
     }
   }
 
-  async getPageDelivers(reqDto: PageDeliverReqDto) {
+  async getPageDelivers(reqDto: PageDeliverReqDto, payload: JwtPayloadType) {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.delivers> = {
-      where: and(isNull(delivers.deletedAt)),
+      where: and(
+        ...(payload.role === RoleEnum.MANAGEMENT
+          ? [eq(delivers.areaId, payload.areaId)]
+          : []),
+        ...(reqDto.areaId ? [eq(delivers.areaId, reqDto.areaId)] : []),
+        isNull(delivers.deletedAt),
+      ),
       with: {
         location: true,
       },
