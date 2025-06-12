@@ -343,7 +343,7 @@ export class DeliversService implements OnModuleInit {
       .where(
         and(
           eq(orders.deliverId, deliverId),
-          between(orders.createdAt, startOfDay, endOfDay),
+          between(orders.updatedAt, startOfDay, endOfDay),
           eq(orders.status, OrderStatusEnum.DELIVERED),
         ),
       )
