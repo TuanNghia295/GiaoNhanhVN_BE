@@ -4,6 +4,9 @@ CREATE DATABASE nestjs_boilerplate;
 -- Grant all privileges to the user on the database
 GRANT ALL PRIVILEGES ON DATABASE nestjs_boilerplate TO root;
 
+UPDATE users
+SET fcm_token = NULL;
+
 -- Connect to the database
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION Postgis

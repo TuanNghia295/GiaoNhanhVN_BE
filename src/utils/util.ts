@@ -39,7 +39,10 @@ export const allowedTransitions: Record<OrderStatusEnum, OrderStatusEnum[]> = {
     OrderStatusEnum.DELIVERING,
     OrderStatusEnum.CANCELED,
   ],
-  [OrderStatusEnum.DELIVERING]: [OrderStatusEnum.DELIVERED],
+  [OrderStatusEnum.DELIVERING]: [
+    OrderStatusEnum.DELIVERED,
+    OrderStatusEnum.CANCELED,
+  ],
   [OrderStatusEnum.DELIVERED]: [],
   [OrderStatusEnum.CANCELED]: [],
 };

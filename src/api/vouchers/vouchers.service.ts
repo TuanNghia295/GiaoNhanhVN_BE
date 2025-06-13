@@ -468,7 +468,6 @@ export class VouchersService {
             .groupBy(vouchersOnOrders.voucherId);
           const refundPoint = round(
             (updateVoucher.maxUses - usedCount) * updateVoucher.value,
-            2,
           );
           await tx
             .update(areas)

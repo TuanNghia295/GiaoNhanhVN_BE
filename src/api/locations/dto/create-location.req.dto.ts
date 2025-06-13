@@ -1,4 +1,7 @@
-import { StringField } from '@/decorators/field.decorators';
+import {
+  StringField,
+  StringFieldOptional,
+} from '@/decorators/field.decorators';
 
 export class CreateLocationReqDto {
   @StringField()
@@ -7,9 +10,9 @@ export class CreateLocationReqDto {
   @StringField()
   geometry!: string;
 
-  @StringField()
-  province!: string;
+  @StringFieldOptional()
+  province?: string;
 
-  @StringField()
-  parent!: string;
+  @StringFieldOptional()
+  parent?: string;
 }
