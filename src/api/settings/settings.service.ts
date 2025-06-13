@@ -1,9 +1,11 @@
 import { ServiceFeeResDto } from '@/api/settings/dto/service.fee.res.dto';
 import { SettingResDto } from '@/api/settings/dto/setting.res.dto';
 import { UpdateServiceFeeReqDto } from '@/api/settings/dto/update-service.fee.req.dto';
+import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
 import { distances, serviceFees, settings } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
+import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { and, asc, eq, isNull } from 'drizzle-orm';
@@ -96,7 +98,20 @@ export class SettingsService {
     });
   }
 
-  async isSystemEnabled() {
-    const [setting] = await this.db.select().from(settings).limit(1).execute();
+  async checkAreaActive(areaId: number) {
+    const setting = await this.db.query.settings.findFirst({
+      where: eq(settings.areaId, areaId),
+      columns: {
+        id: true,
+        openFullTime: true,
+      },
+    });
+    if (!setting) {
+      throw new ValidationException(ErrorCode.ST001);
+    }
+    console.log('setting', setting);
+    if (!setting.openFullTime) {
+      throw new ValidationException(ErrorCode.ST003);
+    }
   }
 }

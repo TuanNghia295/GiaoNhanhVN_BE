@@ -136,7 +136,7 @@ export enum ErrorCode {
 
   // Setting
   ST001 = 'setting.error.not_found',
-
+  ST003 = 'setting.error.area_not_active',
   // ServiceFee
   SF001 = 'service_fee.error.not_found',
   // Notification

@@ -7,6 +7,7 @@ import { OrderResDto } from '@/api/orders/dto/order.res.dto';
 import { PageMyOrderReqDto } from '@/api/orders/dto/page-my-order.req.dto';
 import { PageOrderReqDto } from '@/api/orders/dto/query-order.req.dto';
 import { UpdateStatusOrderReqDto } from '@/api/orders/dto/update-status-order.req.dto';
+import { SettingsService } from '@/api/settings/settings.service';
 import { StoresService } from '@/api/stores/stores.service';
 import { UsersService } from '@/api/users/users.service';
 import { VouchersService } from '@/api/vouchers/vouchers.service';
@@ -107,6 +108,7 @@ export class OrdersService {
     private readonly storesService: StoresService,
     private readonly emitter: EventEmitter2,
     private readonly vouchersService: VouchersService,
+    private readonly settingsService: SettingsService,
     private readonly goongService: GoongService,
     @Inject(forwardRef(() => DeliversService))
     private readonly deliversService: DeliversService,
@@ -279,6 +281,11 @@ export class OrdersService {
     if (!area) {
       throw new ValidationException(ErrorCode.AR001, HttpStatus.NOT_FOUND);
     }
+
+    //---------------------------------------------------------
+    // Kiểm tra setting khu vực đã đóng hay chưa
+    //---------------------------------------------------------
+    await this.settingsService.checkAreaActive(area.id);
 
     if (reqDto.origins && reqDto.destinations) {
       const response = await this.goongService.getDistanceMatrix({
