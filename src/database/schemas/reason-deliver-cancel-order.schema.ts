@@ -11,7 +11,6 @@ import {
 
 export enum CanceledReasonEnum {
   CANCELED = 'CANCELED',
-  NOTTAKEN = 'NOTTAKEN',
 }
 
 export const reasonDeliverCancelOrders = pgTable(

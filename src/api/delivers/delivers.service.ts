@@ -509,6 +509,7 @@ export class DeliversService implements OnModuleInit {
             ]
           : []),
       ),
+      limit: 20,
       orderBy: desc(delivers.createdAt),
     });
   }

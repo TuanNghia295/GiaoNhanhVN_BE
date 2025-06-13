@@ -2,9 +2,11 @@ import { AnalyticsService } from '@/api/analytics/analytics.service';
 import { AdminRevenueReqDto } from '@/api/analytics/dto/admin-revenue.req.dto';
 import { DeliverRevenueReqDto } from '@/api/analytics/dto/deliver-revenue.req.dto';
 import { StoreRevenueReqDto } from '@/api/analytics/dto/store-revenue.req.dto';
+import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { ImportProductReqDto } from '@/api/excels/dto/import-product.req.dto';
 import { OrdersService } from '@/api/orders/orders.service';
 import { RoleEnum } from '@/database/schemas';
+import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth, ApiPublic } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
 import {
@@ -65,12 +67,15 @@ export class ExcelsController {
   })
   @Get('admin-report')
   async getAdminReport(
+    @CurrentUser() payload: JwtPayloadType,
     @Query() reqDto: AdminRevenueReqDto,
     @Res() res: Response,
   ) {
     // Dữ liệu mẫu
-    const analyticTotalRevenue =
-      await this.analyticsService.getAdminRevenue(reqDto);
+    const analyticTotalRevenue = await this.analyticsService.getAdminRevenue(
+      reqDto,
+      payload,
+    );
     console.log('analyticTotalRevenue', analyticTotalRevenue);
 
     const workbook = new ExcelJS.Workbook();
@@ -110,10 +115,15 @@ export class ExcelsController {
     description: 'xuất báo cáo doanh thu của cửa hàng',
   })
   @Get('store-report')
-  async getStoreReport(@Query() dto: StoreRevenueReqDto, @Res() res: Response) {
-    console.log('getStoreReport', dto);
-    const analyticStoreRevenue =
-      await this.analyticsService.getStoreRevenue(dto);
+  async getStoreReport(
+    @CurrentUser() payload: JwtPayloadType,
+    @Query() reqDto: StoreRevenueReqDto,
+    @Res() res: Response,
+  ) {
+    const analyticStoreRevenue = await this.analyticsService.getStoreRevenue(
+      reqDto,
+      payload,
+    );
 
     const workbook = new ExcelJS.Workbook();
     await this.excelsService.createMainStoreSheet(
@@ -141,11 +151,12 @@ export class ExcelsController {
   })
   @Get('deliver-report')
   async getDeliverReport(
-    @Query() dto: DeliverRevenueReqDto,
+    @Query() reqDto: DeliverRevenueReqDto,
+    @CurrentUser() payload: JwtPayloadType,
     @Res() res: Response,
   ) {
     const analyticDeliverRevenue =
-      await this.analyticsService.getDeliverRevenue(dto);
+      await this.analyticsService.getDeliverRevenue(reqDto, payload);
     const workbook = new ExcelJS.Workbook();
     await this.excelsService.createMainDeliverSheet(
       workbook.addWorksheet('Tổng hợp doanh thu'),

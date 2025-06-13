@@ -22,8 +22,11 @@ export class AnalyticsController {
     type: AdminRevenueResDto,
   })
   @Get('admin')
-  async getAdminRevenue(@Query() reqDto: AdminRevenueReqDto) {
-    return this.analyticsService.getAdminRevenue(reqDto);
+  async getAdminRevenue(
+    @CurrentUser() payload: JwtPayloadType,
+    @Query() reqDto: AdminRevenueReqDto,
+  ) {
+    return this.analyticsService.getAdminRevenue(reqDto, payload);
   }
 
   @Roles(RoleEnum.MANAGEMENT)
@@ -32,8 +35,11 @@ export class AnalyticsController {
     type: StoreRevenueResDto,
   })
   @Get('store')
-  async getStoreRevenue(@Query() reqDto: StoreRevenueReqDto) {
-    return this.analyticsService.getStoreRevenue(reqDto);
+  async getStoreRevenue(
+    @CurrentUser() payload: JwtPayloadType,
+    @Query() reqDto: StoreRevenueReqDto,
+  ) {
+    return this.analyticsService.getStoreRevenue(reqDto, payload);
   }
 
   @Roles(RoleEnum.MANAGEMENT)
@@ -42,8 +48,11 @@ export class AnalyticsController {
     type: DeliverRevenueResDto,
   })
   @Get('deliver')
-  async getDeliverRevenue(@Query() reqDto: DeliverRevenueReqDto) {
-    return this.analyticsService.getDeliverRevenue(reqDto);
+  async getDeliverRevenue(
+    @CurrentUser() payload: JwtPayloadType,
+    @Query() reqDto: DeliverRevenueReqDto,
+  ) {
+    return this.analyticsService.getDeliverRevenue(reqDto, payload);
   }
 
   @Roles(RoleEnum.STORE)

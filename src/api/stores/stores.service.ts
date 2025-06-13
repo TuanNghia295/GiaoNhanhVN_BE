@@ -545,6 +545,7 @@ export class StoresService implements OnModuleInit {
         throw new UnauthorizedException();
     }
 
+    qb.limit(20);
     return await qb;
   }
 

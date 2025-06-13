@@ -13,6 +13,7 @@ import {
   orders,
   OrderStatusEnum,
   reasonDeliverCancelOrders,
+  RoleEnum,
   stores,
   users,
   vouchers,
@@ -44,7 +45,7 @@ export class AnalyticsService {
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
   ) {}
 
-  async getAdminRevenue(reqDto: AdminRevenueReqDto) {
+  async getAdminRevenue(reqDto: AdminRevenueReqDto, payload: JwtPayloadType) {
     const statuses: OrderStatusEnum[] = Object.values(OrderStatusEnum);
     const results = await this.db
       .select({
@@ -71,6 +72,9 @@ export class AnalyticsService {
       .leftJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
       .where(
         and(
+          ...(payload.role === RoleEnum.MANAGEMENT
+            ? [eq(orders.areaId, payload.areaId)]
+            : []),
           ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
           ...(reqDto.from && reqDto.to
             ? [
@@ -175,33 +179,8 @@ export class AnalyticsService {
 
   async getStoreRevenue(
     reqDto: StoreRevenueReqDto,
+    payload: JwtPayloadType,
   ): Promise<StoreRevenueResDto> {
-    const [store] = await this.db
-      .select({
-        id: stores.id,
-      })
-      .from(stores)
-      .leftJoin(users, eq(stores.userId, users.id))
-      .where(or(eq(users.phone, reqDto.q), eq(stores.name, reqDto.q)))
-      .limit(1);
-    if (!store) {
-      return plainToInstance(StoreRevenueResDto, {
-        all: [],
-        total_all_order: 0,
-        total_all_product_price: 0,
-        total_all_store_service_fee: 0,
-        total_all_voucher_value: 0,
-        total_all_store_revenue: 0,
-      });
-    }
-    if (reqDto.from && reqDto.to) {
-      reqDto.from = startOfDay(reqDto.from);
-      reqDto.to = endOfDay(reqDto.to);
-    } else {
-      reqDto.from = startOfDay(new Date());
-      reqDto.to = endOfDay(new Date());
-    }
-
     const statuses: OrderStatusEnum[] = Object.values(OrderStatusEnum);
 
     const result = await this.db
@@ -230,17 +209,27 @@ export class AnalyticsService {
       })
       .from(orders)
       .leftJoin(stores, eq(orders.storeId, stores.id))
+      .leftJoin(users, eq(users.id, stores.userId))
       .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.orderId, orders.id))
       .leftJoin(vouchers, eq(vouchers.id, vouchersOnOrders.voucherId))
       .groupBy(orders.status)
       .where(
         and(
-          eq(stores.id, store.id),
-          between(
-            orders.createdAt,
-            startOfDay(reqDto.from),
-            endOfDay(reqDto.to),
-          ),
+          ...(payload.role === RoleEnum.MANAGEMENT
+            ? [eq(stores.areaId, payload.areaId)]
+            : []),
+          ...(reqDto.q
+            ? [or(eq(users.phone, reqDto.q), eq(stores.name, reqDto.q))]
+            : []),
+          ...(reqDto.from && reqDto.to
+            ? [
+                between(
+                  orders.createdAt,
+                  startOfDay(reqDto.from),
+                  endOfDay(reqDto.to),
+                ),
+              ]
+            : []),
         ),
       );
     const orderFilterMap = new Map(result.map((item) => [item.status, item]));
@@ -431,33 +420,8 @@ export class AnalyticsService {
 
   async getDeliverRevenue(
     reqDto: DeliverRevenueReqDto,
+    payload: JwtPayloadType,
   ): Promise<DeliverRevenueResDto> {
-    const [existDeliver] = await this.db
-      .select({
-        id: delivers.id,
-      })
-      .from(delivers)
-      .where(eq(delivers.phone, reqDto.phone))
-      .limit(1);
-    if (!existDeliver) {
-      return plainToInstance(DeliverRevenueResDto, {
-        data: [],
-        total_all_income: 0,
-        total_all_orders: 0,
-        total_all_order_delivered: 0,
-        total_all_order_canceled: 0,
-        total_all_deliver_point: 0,
-      });
-    }
-
-    if (reqDto.from && reqDto.to) {
-      reqDto.from = startOfDay(reqDto.from);
-      reqDto.to = endOfDay(reqDto.to);
-    } else {
-      reqDto.from = startOfDay(new Date());
-      reqDto.to = endOfDay(new Date());
-    }
-
     const result = await this.db
       .select({
         phone: delivers.phone,
@@ -485,12 +449,19 @@ export class AnalyticsService {
       )
       .where(
         and(
-          eq(delivers.id, existDeliver.id),
-          between(
-            orders.createdAt,
-            startOfDay(reqDto.from),
-            endOfDay(reqDto.to),
-          ),
+          ...(payload.role === RoleEnum.MANAGEMENT
+            ? [eq(delivers.areaId, payload.areaId)]
+            : []),
+          ...(reqDto.phone ? [eq(delivers.phone, reqDto.phone)] : []),
+          ...(reqDto.from && reqDto.to
+            ? [
+                between(
+                  orders.createdAt,
+                  startOfDay(reqDto.from),
+                  endOfDay(reqDto.to),
+                ),
+              ]
+            : []),
         ),
       )
       .groupBy(delivers.id);
@@ -515,6 +486,7 @@ export class AnalyticsService {
       (acc, cur) => acc + (cur.total_deliver_point || 0),
       0,
     );
+    console.log('total_all_order_delivered', total_all_order_delivered);
     return plainToInstance(DeliverRevenueResDto, {
       data: result,
       total_all_income: total_income,
