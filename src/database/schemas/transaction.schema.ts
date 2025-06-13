@@ -1,4 +1,5 @@
 import { areas } from '@/database/schemas/area.schema';
+import { bankRecords } from '@/database/schemas/bank-record.schema';
 import { delivers } from '@/database/schemas/deliver.schema';
 import { managers } from '@/database/schemas/manager.schema';
 import { relations } from 'drizzle-orm';
@@ -68,6 +69,10 @@ export const transactionsRelations = relations(transactions, ({ one }) => ({
   deliver: one(delivers, {
     fields: [transactions.deliverId],
     references: [delivers.id],
+  }),
+  bank: one(bankRecords, {
+    fields: [transactions.id],
+    references: [bankRecords.transactionId],
   }),
 }));
 

@@ -7,6 +7,7 @@ import { relations } from 'drizzle-orm';
 import {
   boolean,
   decimal,
+  index,
   integer,
   pgTable,
   primaryKey,
@@ -16,28 +17,32 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 
-export const products = pgTable('products', {
-  id: serial().primaryKey().notNull(),
-  name: varchar('name'),
-  nameNormalized: varchar('name_normalized'),
-  price: decimal('price', {
-    precision: 15,
-    scale: 2,
-    mode: 'number',
-  }).notNull(),
-  image: text('image'),
-  description: text('description'),
-  isLocked: boolean('is_locked').default(false),
-  categoryItemId: integer('category_item_id'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at')
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
-  deletedAt: timestamp('deleted_at'),
-  storeId: integer('store_id'),
-  storeMenuId: integer('store_menu_id'),
-});
+export const products = pgTable(
+  'products',
+  {
+    id: serial().primaryKey().notNull(),
+    name: varchar('name'),
+    nameNormalized: varchar('name_normalized'),
+    price: decimal('price', {
+      precision: 15,
+      scale: 2,
+      mode: 'number',
+    }).notNull(),
+    image: text('image'),
+    description: text('description'),
+    isLocked: boolean('is_locked').default(false),
+    categoryItemId: integer('category_item_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at')
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+    deletedAt: timestamp('deleted_at'),
+    storeId: integer('store_id'),
+    storeMenuId: integer('store_menu_id'),
+  },
+  (table) => [index('products_name_idx').on(table.name)],
+);
 
 export const productsRelations = relations(products, ({ one, many }) => ({
   store: one(stores, {

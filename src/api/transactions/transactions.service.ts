@@ -256,6 +256,7 @@ export class TransactionsService {
       with: {
         manager: true,
         deliver: true,
+        bank: true,
       },
     };
 
