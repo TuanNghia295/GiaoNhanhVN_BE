@@ -41,7 +41,10 @@ export const products = pgTable(
     storeId: integer('store_id'),
     storeMenuId: integer('store_menu_id'),
   },
-  (table) => [index('products_name_idx').on(table.name)],
+  (table) => [
+    index('products_name_idx').on(table.name),
+    index('products_store_id_idx').on(table.storeId),
+  ],
 );
 
 export const productsRelations = relations(products, ({ one, many }) => ({

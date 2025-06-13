@@ -176,6 +176,13 @@
       "when": 1749781293819,
       "tag": "0024_careless_the_hand",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1749822155059,
+      "tag": "0025_closed_prism",
+      "breakpoints": true
     }
   ]
 }

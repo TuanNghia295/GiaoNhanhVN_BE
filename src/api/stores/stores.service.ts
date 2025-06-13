@@ -341,7 +341,6 @@ export class StoresService implements OnModuleInit {
 
   async searchStore(reqDto: SearchPageStoresReqDto) {
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
-
     const escapedQuery = reqDto.q?.replace(/[%_]/g, '\\$&');
 
     const productFilter = reqDto.q
@@ -394,10 +393,11 @@ export class StoresService implements OnModuleInit {
           ...(escapedQuery
             ? [
                 or(
+                  // Sử dụng full-text search nếu có thể
                   ilike(stores.name, `%${escapedQuery}%`),
                   exists(
                     this.db
-                      .select()
+                      .select({ id: products.id })
                       .from(products)
                       .where(
                         and(
@@ -406,7 +406,8 @@ export class StoresService implements OnModuleInit {
                           isNull(products.deletedAt),
                           ilike(products.name, `%${escapedQuery}%`),
                         ),
-                      ),
+                      )
+                      .limit(1),
                   ),
                 ),
               ]
@@ -425,62 +426,15 @@ export class StoresService implements OnModuleInit {
           ) < 15
         `),
       )
-      .orderBy(sql`distance ASC`)
       .$dynamic();
 
     withPagination(qb, reqDto.limit, reqDto.offset);
 
     const [entities, { totalCount }] = await Promise.all([
-      qb,
+      qb.orderBy(sql`distance asc`),
       this.db
         .select({ totalCount: count().mapWith(Number) })
-        .from(stores)
-        .leftJoin(users, eq(users.id, stores.userId))
-        .where(
-          and(
-            // ⬇️ Chỉ thêm filter này nếu có từ khóa tìm kiếm
-            ...(escapedQuery
-              ? [
-                  or(
-                    ilike(stores.name, `%${escapedQuery}%`),
-                    exists(
-                      this.db
-                        .select()
-                        .from(products)
-                        .where(
-                          and(
-                            eq(products.storeId, stores.id),
-                            eq(products.isLocked, false),
-                            isNull(products.deletedAt),
-                            ilike(products.name, `%${escapedQuery}%`),
-                          ),
-                        ),
-                    ),
-                  ),
-                ]
-              : []),
-            eq(stores.status, true),
-            eq(stores.isLocked, false),
-            not(isNull(stores.location)),
-            ...(reqDto.q
-              ? [
-                  or(
-                    ilike(stores.name, `%${reqDto.q}%`),
-                    ilike(users.phone, `%${reqDto.q}%`),
-                  ),
-                ]
-              : []),
-            sql.raw(`
-          6371 * acos(
-            cos(radians(${latitude})) *
-            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
-            sin(radians(${latitude})) *
-            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
-          ) < 15
-        `),
-          ),
-        )
+        .from(sql`(${qb})`)
         .then((res) => res[0]),
     ]);
 
