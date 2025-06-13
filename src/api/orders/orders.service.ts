@@ -433,7 +433,7 @@ export class OrdersService {
     );
 
     // phí dịch vụ người dùng
-    const FIXED_USER_SERVICE_FEE = 3000; // Phí dịch vụ người dùng cố định
+    const FIXED_USER_SERVICE_FEE = 2000; // Phí dịch vụ người dùng cố định
 
     const sessionId = uuidv4();
 
