@@ -10,6 +10,7 @@ import { DRIZZLE } from '@/database/global';
 import {
   notifications,
   notificationsToUsers,
+  NotificationType,
   NotificationTypeEnum,
   RoleEnum,
   users,
@@ -17,7 +18,7 @@ import {
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { deleteIfExists, normalizeImagePath } from '@/utils/util';
-import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { plainToInstance } from 'class-transformer';
 import {
@@ -29,10 +30,13 @@ import {
   isNull,
   SQL,
 } from 'drizzle-orm';
+import admin from 'firebase-admin';
 import { existsSync, mkdirSync } from 'fs';
+import _ from 'lodash';
 import { join } from 'path';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
+import { FIREBASE_ADMIN } from '../../firebase/firebase.module';
 
 @Injectable()
 export class NotificationsService implements OnModuleInit {
@@ -48,7 +52,11 @@ export class NotificationsService implements OnModuleInit {
   constructor(
     private readonly emitter: EventEmitter2,
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
+    @Inject(FIREBASE_ADMIN)
+    private readonly admin: admin.app.App,
   ) {}
+
+  private readonly logger = new Logger(NotificationsService.name);
 
   private async buildFileName(prefix: string): Promise<string> {
     const uniqueId = uuidv4();
@@ -80,6 +88,7 @@ export class NotificationsService implements OnModuleInit {
       const userIds = await tx
         .select({
           id: users.id,
+          fcmToken: users.fcmToken,
         })
         .from(users)
         .where(
@@ -103,6 +112,17 @@ export class NotificationsService implements OnModuleInit {
         );
       }
 
+      const chunkSize = 500;
+      // Chia nhỏ mảng userIds thành các mảng nhỏ hơn
+      const userIdChunks = _.chunk(userIds, chunkSize);
+      // Gửi thông báo đến tất cả người dùng
+      for (const chunk of userIdChunks) {
+        const tokens = chunk.map((user) => user.fcmToken).filter(Boolean);
+        if (tokens.length > 0) {
+          await this.notifyUsers(tokens, notification);
+        }
+      }
+
       // Emit sự kiện thông báo mới
       this.emitter.emit('notification.created', {
         notificationId: notification.id,
@@ -111,6 +131,47 @@ export class NotificationsService implements OnModuleInit {
 
       return notification;
     });
+  }
+
+  private async notifyUsers(
+    tokens: string[] = [],
+    notification: NotificationType,
+  ) {
+    if (tokens.length === 0) return;
+    try {
+      await this.admin.messaging().sendEachForMulticast({
+        tokens: tokens,
+        notification: {
+          title: notification.title,
+          body: notification.body,
+        },
+        data: {
+          title: notification.title,
+          body: notification.body,
+          sound: 'default',
+        },
+        android: {
+          notification: {
+            title: notification.title,
+            body: notification.body,
+            sound: 'default',
+          },
+        },
+        apns: {
+          payload: {
+            aps: {
+              alert: {
+                title: notification.title,
+                body: notification.body,
+              },
+              sound: 'default',
+            },
+          },
+        },
+      });
+    } catch (error) {
+      this.logger.error('Error sending FCM notification', error);
+    }
   }
 
   async getPageNotifications(

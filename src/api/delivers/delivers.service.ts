@@ -131,7 +131,10 @@ export class DeliversService implements OnModuleInit {
       return [];
     }
     return this.db.query.orders.findMany({
-      where: and(eq(orders.status, OrderStatusEnum.PENDING)),
+      where: and(
+        eq(orders.status, OrderStatusEnum.PENDING),
+        eq(orders.areaId, payload.areaId),
+      ),
       orderBy: desc(orders.createdAt),
       limit: 10,
       with: {

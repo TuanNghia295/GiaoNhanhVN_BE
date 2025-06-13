@@ -189,15 +189,25 @@ async function main() {
       `ALTER SEQUENCE service_fees_id_seq RESTART WITH ${Math.max(...serviceFeeList.map((a) => a.id)) + 1}`,
     ),
   );
-  // const distanceList = await db
-  //   .select()
-  //   .from(schema.distances)
-  //   .orderBy(desc(schema.distances.id));
-  // await db.execute(
-  //   sql.raw(
-  //     `ALTER SEQUENCE distances_id_seq RESTART WITH ${Math.max(...distanceList.map((a) => a.id)) + 1}`,
-  //   ),
-  // );
+  const distanceList = await db
+    .select()
+    .from(schema.distances)
+    .orderBy(desc(schema.distances.id));
+  await db.execute(
+    sql.raw(
+      `ALTER SEQUENCE distances_id_seq RESTART WITH ${Math.max(...distanceList.map((a) => a.id)) + 1}`,
+    ),
+  );
+
+  const bankRecordsList = await db
+    .select()
+    .from(schema.bankRecords)
+    .orderBy(desc(schema.bankRecords.id));
+  await db.execute(
+    sql.raw(
+      `ALTER SEQUENCE bank_records_id_seq RESTART WITH ${Math.max(...bankRecordsList.map((a) => a.id)) + 1}`,
+    ),
+  );
 }
 
 main()

@@ -312,6 +312,7 @@ export class TransactionsService {
       .leftJoin(delivers, eq(transactions.deliverId, delivers.id))
       .leftJoin(managers, eq(transactions.managerId, managers.id))
       .leftJoin(bankRecords, eq(transactions.id, bankRecords.transactionId))
+      .orderBy(desc(transactions.createdAt))
       .$dynamic();
 
     withPagination(qb, reqDto.limit, reqDto.offset);

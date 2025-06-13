@@ -25,8 +25,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { plainToInstance } from 'class-transformer';
-import { eq } from 'drizzle-orm';
+import { eq, or } from 'drizzle-orm';
+import admin from 'firebase-admin';
 import ms from 'ms';
+import { FIREBASE_ADMIN } from '../../firebase/firebase.module';
 
 type Token = Branded<
   {
@@ -43,6 +45,8 @@ export class AuthService {
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly configService: ConfigService<AllConfigType>,
     private readonly jwtService: JwtService,
+    @Inject(FIREBASE_ADMIN)
+    private readonly admin: admin.app.App,
   ) {}
 
   // async signIn(reqDto: LoginManagerReqDto): Promise<LoginResDto> {
@@ -192,6 +196,62 @@ export class AuthService {
     // }
 
     return payload;
+  }
+
+  async verifyFirebaseIdToken(idToken: string) {
+    const decodedToken = await this.admin.auth().verifyIdToken(idToken);
+
+    // Tìm user theo phone hoặc email
+    let user = await this.db.query.users.findFirst({
+      where: or(
+        eq(users.phone, decodedToken.phone_number),
+        eq(users.email, decodedToken.email),
+      ),
+      columns: {
+        id: true,
+        phone: true,
+        role: true,
+        areaId: true,
+        isLocked: true,
+      },
+    });
+
+    // Nếu chưa tồn tại thì tạo user mới
+    if (!user) {
+      const [newUser] = await this.db
+        .insert(users)
+        .values({
+          phone: decodedToken.phone_number,
+          email: decodedToken.email,
+          role: RoleEnum.USER,
+        })
+        .returning({
+          id: users.id,
+          phone: users.phone,
+          role: users.role,
+          areaId: users.areaId,
+          isLocked: users.isLocked,
+        });
+
+      user = newUser;
+    }
+
+    // Kiểm tra nếu user là chủ cửa hàng
+    const baseRole = (await this.existStoreByUserId(user.id))
+      ? RoleEnum.STORE
+      : user.role;
+
+    // Tạo token đăng nhập
+    const tokens = await this.createToken({
+      id: user.id,
+      role: baseRole,
+    });
+
+    return plainToInstance(LoginResDto, {
+      ...tokens,
+      role: baseRole,
+      userId: user.id,
+    });
   }
 
   async loginUser(reqDto: LoginReqDto) {

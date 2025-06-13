@@ -31,6 +31,8 @@ export const notifications = pgTable('notifications', {
     .$onUpdate(() => new Date()),
 });
 
+export type NotificationType = typeof notifications.$inferSelect;
+
 export const notificationsRelations = relations(
   notifications,
   ({ one, many }) => ({

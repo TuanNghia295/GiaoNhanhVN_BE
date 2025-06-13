@@ -12,6 +12,7 @@ import {
   pgTable,
   primaryKey,
   serial,
+  text,
   timestamp,
   varchar,
 } from 'drizzle-orm/pg-core';
@@ -21,8 +22,8 @@ export const stores = pgTable(
   {
     id: serial('id').primaryKey().notNull(),
     name: varchar({ length: 100 }),
-    description: varchar({ length: 255 }),
-    address: varchar({ length: 255 }),
+    description: text(),
+    address: text(),
     location: varchar({ length: 255 }),
     avatar: varchar({ length: 255 }),
     background: varchar({ length: 255 }),
@@ -32,7 +33,7 @@ export const stores = pgTable(
       scale: 1,
       mode: 'number',
     }).default(0),
-    bestSeller: varchar('best_seller', { length: 255 }),
+    bestSeller: integer('best_seller'),
     // locationMap: geometry('location_map', {
     //   type: 'point',
     //   mode: 'xy',

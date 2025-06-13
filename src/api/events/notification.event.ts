@@ -16,6 +16,7 @@ export class NotificationEvent {
     notificationId: number;
     userIds: string[];
   }) {
+    // Send a push notification using Firebase Cloud Messaging
     this.logger.log(`Handling notification creation for ID: ${notificationId}`);
     console.log('userIds', userIds);
     if (userIds.length > 0) {

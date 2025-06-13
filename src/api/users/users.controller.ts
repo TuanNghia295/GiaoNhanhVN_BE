@@ -42,6 +42,15 @@ export class UsersController {
     return await this.authService.loginUser(reqDto);
   }
 
+  @ApiPublic({
+    type: LoginResDto,
+    summary: 'Đăng nhập [USER]',
+  })
+  @Post('login/firebase')
+  async loginFirebase(@Body('idToken') idToken: string) {
+    return this.authService.verifyFirebaseIdToken(idToken);
+  }
+
   @Roles(RoleEnum.MANAGEMENT)
   @ApiAuth({
     summary: 'Tạo mới người dùng (ADMIN, MANAGEMENT)',

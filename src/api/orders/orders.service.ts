@@ -825,6 +825,7 @@ export class OrdersService {
           ? orderDetail.vouchers.map((v) => v.voucher)
           : [],
       };
+      await this.cache.del(reqDto.sessionId);
       return plainToInstance(OrderResDto, mappedOrderDetail);
     });
   }
