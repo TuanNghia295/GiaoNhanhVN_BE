@@ -494,7 +494,7 @@ export class OrdersService {
     );
 
     // phí dịch vụ người dùng
-    const userServiceFee = _.round(serviceFeeWithTypeFood.userServiceFee);
+    const userServiceFee = _.round(serviceFeeWithType.userServiceFee);
 
     const sessionId = uuidv4();
 
