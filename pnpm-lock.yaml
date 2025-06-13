@@ -87,11 +87,11 @@ importers:
         specifier: ^16.5.0
         version: 16.5.0
       drizzle-orm:
-        specifier: ^0.44.0
-        version: 0.44.0(@opentelemetry/api@1.9.0)(@types/pg@8.15.2)(pg@8.16.0)
+        specifier: ^0.44.2
+        version: 0.44.2(@opentelemetry/api@1.9.0)(@types/pg@8.15.2)(pg@8.16.0)
       drizzle-seed:
         specifier: ^0.3.1
-        version: 0.3.1(drizzle-orm@0.44.0(@opentelemetry/api@1.9.0)(@types/pg@8.15.2)(pg@8.16.0))
+        version: 0.3.1(drizzle-orm@0.44.2(@opentelemetry/api@1.9.0)(@types/pg@8.15.2)(pg@8.16.0))
       eslint:
         specifier: ^9.27.0
         version: 9.27.0(jiti@2.4.2)
@@ -2572,8 +2572,8 @@ packages:
     resolution: {integrity: sha512-PUjYKWtzOzPtdtQlTHQG3qfv4Y0XT8+Eas6UbxCmxTj7qgMf+39dDujf1BP1I+qqZtw9uzwTh8jYtkMuCq+B0Q==}
     hasBin: true
 
-  drizzle-orm@0.44.0:
-    resolution: {integrity: sha512-/8wYepe887Gp1eCVILKitNegclGLPUMdK4oDDyDftKJOeHoCylY+XM++chMJloy9oKTceWOALiQMl2aAuFuPTw==}
+  drizzle-orm@0.44.2:
+    resolution: {integrity: sha512-zGAqBzWWkVSFjZpwPOrmCrgO++1kZ5H/rZ4qTGeGOe18iXGVJWf3WPfHOVwFIbmi8kHjfJstC6rJomzGx8g/dQ==}
     peerDependencies:
       '@aws-sdk/client-rds-data': '>=3'
       '@cloudflare/workers-types': '>=4'
@@ -7551,17 +7551,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.44.0(@opentelemetry/api@1.9.0)(@types/pg@8.15.2)(pg@8.16.0):
+  drizzle-orm@0.44.2(@opentelemetry/api@1.9.0)(@types/pg@8.15.2)(pg@8.16.0):
     optionalDependencies:
       '@opentelemetry/api': 1.9.0
       '@types/pg': 8.15.2
       pg: 8.16.0
 
-  drizzle-seed@0.3.1(drizzle-orm@0.44.0(@opentelemetry/api@1.9.0)(@types/pg@8.15.2)(pg@8.16.0)):
+  drizzle-seed@0.3.1(drizzle-orm@0.44.2(@opentelemetry/api@1.9.0)(@types/pg@8.15.2)(pg@8.16.0)):
     dependencies:
       pure-rand: 6.1.0
     optionalDependencies:
-      drizzle-orm: 0.44.0(@opentelemetry/api@1.9.0)(@types/pg@8.15.2)(pg@8.16.0)
+      drizzle-orm: 0.44.2(@opentelemetry/api@1.9.0)(@types/pg@8.15.2)(pg@8.16.0)
 
   dunder-proto@1.0.1:
     dependencies:

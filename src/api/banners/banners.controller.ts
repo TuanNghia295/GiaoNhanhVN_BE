@@ -116,6 +116,7 @@ export class BannersController {
     @Param('areaId', ParseIntPipe) areaId: number,
     @Param('type') type: string,
   ) {
+    console.log('getBannersWithType', areaId, type);
     return await this.bannersService.getBannersWithTypeAreaId(areaId, type);
   }
 }

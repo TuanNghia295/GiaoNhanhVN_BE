@@ -15,21 +15,13 @@ import {
   RoleEnum,
   users,
 } from '@/database/schemas';
-import { DrizzleDB } from '@/database/types/drizzle';
+import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { deleteIfExists, normalizeImagePath } from '@/utils/util';
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { plainToInstance } from 'class-transformer';
-import {
-  and,
-  count,
-  desc,
-  eq,
-  getTableColumns,
-  isNull,
-  SQL,
-} from 'drizzle-orm';
+import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
 import admin from 'firebase-admin';
 import { existsSync, mkdirSync } from 'fs';
 import _ from 'lodash';
@@ -178,79 +170,52 @@ export class NotificationsService implements OnModuleInit {
     reqDto: PageNotificationsReqDto,
     payload: JwtPayloadType,
   ) {
-    console.log('getPageNotifications', reqDto, payload);
-    const qb = this.db
-      .selectDistinct({
-        ...getTableColumns(notifications),
-      })
-      .from(notifications)
-      .leftJoin(
-        notificationsToUsers,
-        eq(notificationsToUsers.notificationId, notifications.id),
-      )
-      .$dynamic();
-
-    let whereClause: SQL;
+    const baseConfig: FindManyQueryConfig<typeof this.db.query.notifications> =
+      {
+        with: {
+          area: true,
+        },
+      };
 
     switch (payload.role) {
-      case RoleEnum.USER:
-      case RoleEnum.STORE:
-        whereClause = eq(notificationsToUsers.userId, Number(payload.id));
-        break;
-
       case RoleEnum.MANAGEMENT:
-        whereClause = and(
+        baseConfig.where = and(
           eq(notifications.type, NotificationTypeEnum.ADMIN),
           eq(notifications.areaId, payload.areaId),
         );
         break;
 
       case RoleEnum.ADMIN:
-        whereClause = and(
+        baseConfig.where = and(
           eq(notifications.type, NotificationTypeEnum.ADMIN),
           ...(reqDto.areaId ? [eq(notifications.areaId, reqDto.areaId)] : []),
         );
         break;
-
       default:
+        break;
     }
 
-    // Count query - tránh đếm toàn bộ bảng
-    const countQb = this.db
-      .select({ totalCount: count() })
-      .from(
-        this.db
-          .select({ id: notifications.id })
-          .from(notifications)
-          .leftJoin(
-            notificationsToUsers,
-            eq(notificationsToUsers.notificationId, notifications.id),
-          )
-          .where(whereClause)
-          .as('base_count'),
-      );
+    const qCount = this.db.query.notifications.findMany({
+      ...baseConfig,
+      columns: { id: true },
+    });
 
     const [entities, [{ totalCount }]] = await Promise.all([
-      qb
-        .where(whereClause)
-        .orderBy(desc(notifications.createdAt))
-        .limit(reqDto.limit)
-        .offset(reqDto.offset)
-        .execute(),
-      countQb.execute(),
+      this.db.query.notifications.findMany({
+        ...baseConfig,
+        orderBy: desc(notifications.createdAt),
+        limit: reqDto.limit,
+        offset: reqDto.offset,
+      }),
+      this.db.select({ totalCount: count() }).from(sql`${qCount}`),
     ]);
-    console.log('Entities:', entities);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
-
-    return new OffsetPaginatedDto(
-      entities.map((e) => plainToInstance(NotificationResDto, e)),
-      meta,
-    );
+    return new OffsetPaginatedDto(entities, meta);
   }
 
   async getMyNotifications(payload: JwtPayloadType) {
-    return await this.db
+    return this.db
       .select()
       .from(notifications)
       .leftJoin(
