@@ -300,10 +300,7 @@ export class TransactionsService {
     ]);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
-    return new OffsetPaginatedDto(
-      entities.map((e) => plainToInstance(TransactionResDto, e)),
-      meta,
-    );
+    return new OffsetPaginatedDto(entities, meta);
   }
 
   async create(reqDto: CreateTransactionReqDto, payload: JwtPayloadType) {
