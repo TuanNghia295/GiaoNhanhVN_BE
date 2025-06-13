@@ -70,10 +70,7 @@ export const transactionsRelations = relations(transactions, ({ one }) => ({
     fields: [transactions.deliverId],
     references: [delivers.id],
   }),
-  bank: one(bankRecords, {
-    fields: [transactions.id],
-    references: [bankRecords.transactionId],
-  }),
+  bank: one(bankRecords),
 }));
 
 export type TransactionType = typeof transactions.$inferSelect;

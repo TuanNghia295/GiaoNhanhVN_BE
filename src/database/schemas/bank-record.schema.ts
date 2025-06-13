@@ -1,3 +1,5 @@
+import { transactions } from '@/database/schemas/transaction.schema';
+import { relations } from 'drizzle-orm';
 import {
   integer,
   pgTable,
@@ -18,3 +20,10 @@ export const bankRecords = pgTable('bank_records', {
     .defaultNow()
     .$onUpdate(() => new Date()),
 });
+
+export const bankRecordsRelations = relations(bankRecords, ({ one }) => ({
+  transaction: one(transactions, {
+    fields: [bankRecords.transactionId],
+    references: [transactions.id],
+  }),
+}));

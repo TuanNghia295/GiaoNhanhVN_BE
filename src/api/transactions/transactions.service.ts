@@ -10,10 +10,13 @@ import { TransactionResDto } from '@/api/transactions/dto/transaction.res.dto';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { DRIZZLE, Transaction } from '@/database/global';
+import { DRIZZLE, Transaction, withPagination } from '@/database/global';
 import {
   areas,
+  bankRecords,
+  banks,
   delivers,
+  managers,
   RoleEnum,
   TransactionMethodEnum,
   transactions,
@@ -25,7 +28,19 @@ import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { and, count, desc, eq, isNotNull, not, sql } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  ilike,
+  isNotNull,
+  not,
+  or,
+  SQL,
+  sql,
+} from 'drizzle-orm';
 
 @Injectable()
 export class TransactionsService {
@@ -252,25 +267,27 @@ export class TransactionsService {
     reqDto: PagingTransaction,
     payload: JwtPayloadType,
   ) {
-    const baseConfig: FindManyQueryConfig<typeof this.db.query.transactions> = {
-      with: {
-        manager: true,
-        deliver: true,
-        bank: true,
-      },
-    };
-
+    let whereClause: SQL;
     switch (payload.role) {
       case RoleEnum.ADMIN:
         // lấy ra yêu cầu nạp/rút của khu vực
-        baseConfig.where = and(
+        whereClause = and(
           eq(transactions.method, TransactionMethodEnum.REQUEST),
+          or(
+            ilike(delivers.phone, `%${reqDto.q ?? ''}%`),
+            ilike(managers.phone, `%${reqDto.q ?? ''}%`),
+          ),
           isNotNull(transactions.managerId),
         );
+
         break;
       case RoleEnum.MANAGEMENT:
         // chỉ lấy ra yêu cầu nạp/rút shipper của khu vực mình
-        baseConfig.where = and(
+        whereClause = and(
+          or(
+            ilike(delivers.phone, `%${reqDto.q ?? ''}%`),
+            ilike(managers.phone, `%${reqDto.q ?? ''}%`),
+          ),
           eq(transactions.method, TransactionMethodEnum.REQUEST),
           eq(transactions.areaId, payload.areaId),
           isNotNull(transactions.deliverId),
@@ -278,26 +295,37 @@ export class TransactionsService {
         break;
       case RoleEnum.DELIVER:
         // chỉ lấy ra yêu cầu nạp/rút của mình
-        baseConfig.where = and(
+        whereClause = and(
           eq(transactions.method, TransactionMethodEnum.REQUEST),
           eq(transactions.deliverId, payload.id),
         );
     }
 
-    const qCount = this.db.query.transactions.findMany({
-      ...baseConfig,
-      columns: { id: true },
-    });
+    const qb = this.db
+      .select({
+        ...getTableColumns(transactions),
+        deliver: delivers,
+        manager: managers,
+        bank: bankRecords,
+      })
+      .from(transactions)
+      .leftJoin(delivers, eq(transactions.deliverId, delivers.id))
+      .leftJoin(managers, eq(transactions.managerId, managers.id))
+      .leftJoin(bankRecords, eq(transactions.id, bankRecords.transactionId))
+      .$dynamic();
+
+    withPagination(qb, reqDto.limit, reqDto.offset);
 
     const [entities, [{ totalCount }]] = await Promise.all([
-      this.db.query.transactions.findMany({
-        ...baseConfig,
-        orderBy: desc(transactions.createdAt),
-        limit: reqDto.limit,
-        offset: reqDto.offset,
-      }),
-      this.db.select({ totalCount: count() }).from(sql`${qCount}`),
+      qb.where(whereClause),
+      this.db
+        .select({ totalCount: count() })
+        .from(transactions)
+        .leftJoin(delivers, eq(transactions.deliverId, delivers.id))
+        .leftJoin(managers, eq(transactions.managerId, managers.id))
+        .where(whereClause),
     ]);
+    console.log('entities', entities, totalCount);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
     return new OffsetPaginatedDto(entities, meta);
@@ -322,6 +350,29 @@ export class TransactionsService {
           }),
         })
         .returning();
+
+      switch (payload.role) {
+        case RoleEnum.DELIVER: {
+          if (createdTransaction.type === TransactionTypeEnum.WITHDRAW) {
+            const bankInfo = await this.db.query.banks.findFirst({
+              where: eq(banks.authorId, payload.id),
+            });
+            if (!bankInfo) {
+              throw new ValidationException(ErrorCode.B001);
+            }
+            await tx
+              .insert(bankRecords)
+              .values({
+                transactionId: createdTransaction.id,
+                nameBank: bankInfo.nameBank,
+                accountName: bankInfo.accountName,
+                accountNumber: bankInfo.accountNumber,
+              })
+              .returning();
+          }
+          break;
+        }
+      }
 
       return plainToInstance(TransactionResDto, createdTransaction);
     });
