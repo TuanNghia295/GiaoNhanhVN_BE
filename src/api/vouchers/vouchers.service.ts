@@ -439,13 +439,15 @@ export class VouchersService {
       if (!voucher) {
         throw new ValidationException(ErrorCode.V001, HttpStatus.BAD_REQUEST);
       }
-      const [updateVoucher] = await this.db
+      const [updateVoucher] = await tx
         .update(vouchers)
         .set({
           deletedAt: new Date(),
         })
         .where(eq(vouchers.id, voucherId))
         .returning();
+
+      console.log('updateVoucher', updateVoucher);
 
       switch (updateVoucher.type) {
         case VouchersTypeEnum.MANAGEMENT: {
@@ -459,16 +461,21 @@ export class VouchersService {
               HttpStatus.BAD_REQUEST,
             );
           }
-          const [{ usedCount }] = await tx
+          const result = await tx
             .select({
-              usedCount: count(vouchersOnOrders.voucherId).mapWith(Number),
+              usedCount: sql<number>`COALESCE
+                (${count(vouchersOnOrders.voucherId)}, 0)`.mapWith(Number),
             })
             .from(vouchersOnOrders)
             .where(eq(vouchersOnOrders.voucherId, updateVoucher.id))
             .groupBy(vouchersOnOrders.voucherId);
+
+          const usedCount = result[0]?.usedCount ?? 0;
+          console.log('usedCount', usedCount);
           const refundPoint = round(
             (updateVoucher.maxUses - usedCount) * updateVoucher.value,
           );
+          console.log('refundPoint', refundPoint);
           await tx
             .update(areas)
             .set({
