@@ -343,10 +343,19 @@ export class StoresService implements OnModuleInit {
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
     const escapedQuery = reqDto.q?.replace(/[%_]/g, '\\$&');
 
-    const productFilter = reqDto.q
-      ? sql`AND p.name ILIKE
-      ${'%' + escapedQuery + '%'}`
-      : sql``;
+    const distanceCalculation = sql
+      .raw(
+        `
+      6371 * acos(
+        cos(radians(${latitude})) *
+        cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+        cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+        sin(radians(${latitude})) *
+        sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
+      )
+    `,
+      )
+      .mapWith(Number);
 
     const qb = this.db
       .select({
@@ -360,28 +369,17 @@ export class StoresService implements OnModuleInit {
                       'image', p.image
                     )
                   )
-           FROM products p
-           WHERE p.store_id = ${stores.id}
-             AND p.is_locked = false
-             AND p.deleted_at IS NULL
-             ${productFilter})
-        `.as('products'),
-        rating: sql`avg
-          (${ratings.storeRate})`.as('rating'),
-        distance: sql
-          .raw(
-            `
-          6371 * acos(
-            cos(radians(${latitude})) *
-            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
-            sin(radians(${latitude})) *
-            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
-          )
-        `,
-          )
-          .mapWith(Number)
-          .as('distance'),
+           FROM (SELECT id, name, price, image
+                 FROM products p
+                 WHERE p.store_id = ${stores.id}
+                   AND p.is_locked = false
+                   AND p.deleted_at IS NULL
+                   AND p.name ILIKE '%' || ${escapedQuery} || '%'
+                 LIMIT 5 -- Thêm giới hạn 5 sản phẩm ở đây
+                ) p)`.mapWith((val) => val ?? []),
+        rating: sql`COALESCE
+          (avg(${ratings.storeRate}), 0)`.as('rating'),
+        distance: distanceCalculation.as('distance'),
       })
       .from(stores)
       .leftJoin(ratings, eq(ratings.storeId, stores.id))
@@ -415,27 +413,46 @@ export class StoresService implements OnModuleInit {
         ),
       )
       .groupBy(stores.id)
-      .having(
-        sql.raw(`
-          6371 * acos(
-            cos(radians(${latitude})) *
-            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
-            sin(radians(${latitude})) *
-            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
-          ) < 15
-        `),
-      )
+      .having(sql`${distanceCalculation} < 15`)
+      .orderBy(sql`distance ASC`)
       .$dynamic();
 
     withPagination(qb, reqDto.limit, reqDto.offset);
 
-    const [entities, { totalCount }] = await Promise.all([
-      qb.orderBy(sql`distance asc`),
+    const [entities, [{ totalCount }]] = await Promise.all([
+      qb,
       this.db
         .select({ totalCount: count().mapWith(Number) })
-        .from(sql`(${qb})`)
-        .then((res) => res[0]),
+        .from(stores)
+        .leftJoin(ratings, eq(ratings.storeId, stores.id))
+        .where(
+          and(
+            eq(stores.status, true),
+            eq(stores.isLocked, false),
+            not(isNull(stores.location)),
+            ...(escapedQuery
+              ? [
+                  or(
+                    ilike(stores.name, `%${escapedQuery}%`),
+                    exists(
+                      this.db
+                        .select({ id: products.id })
+                        .from(products)
+                        .where(
+                          and(
+                            eq(products.storeId, stores.id),
+                            eq(products.isLocked, false),
+                            isNull(products.deletedAt),
+                            ilike(products.name, `%${escapedQuery}%`),
+                          ),
+                        )
+                        .limit(1),
+                    ),
+                  ),
+                ]
+              : []),
+          ),
+        ),
     ]);
 
     const entitiesWithDistance = entities.map((e) => ({
