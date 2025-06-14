@@ -57,12 +57,12 @@ export class StoreRequestsService {
             or(
               ilike(users.fullName, `%${reqDto.q}%`),
               ilike(users.phone, `%${reqDto.q}%`),
+              ilike(users.email, `%${reqDto.q}%`),
             ),
           ]
         : []),
-      // ilike(users.phone, `%${reqDto.q ?? ''}%`),
       ...(reqDto.areaId ? [eq(storeRequests.areaId, reqDto.areaId)] : []),
-      ...(payload.role === RoleEnum.MANAGEMENT && payload.areaId
+      ...(payload.role === RoleEnum.MANAGEMENT
         ? [eq(storeRequests.areaId, payload.areaId)]
         : []),
     );

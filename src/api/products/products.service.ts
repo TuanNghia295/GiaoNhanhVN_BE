@@ -121,6 +121,8 @@ export class ProductsService implements OnModuleInit {
     );
     if (!existCategoryItem) throw new ValidationException(ErrorCode.CI001);
 
+    console.log('reqDto', reqDto);
+
     return this.db.transaction(async (tx) => {
       const product = await tx
         .insert(products)
