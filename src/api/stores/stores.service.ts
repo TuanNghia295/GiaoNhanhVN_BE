@@ -170,18 +170,18 @@ export class StoresService implements OnModuleInit {
           eq(stores.isLocked, false),
           isNotNull(stores.location),
           ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
-        ),
-      )
-      .having(
-        sql.raw(`
+          sql.raw(
+            `
           6371 * acos(
             cos(radians(${latitude})) *
             cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
             cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
             sin(radians(${latitude})) *
             sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
-          ) < 15
-        `), // 15km radius
+          ) < ${15}
+        `,
+          ),
+        ),
       )
       .$dynamic();
 
