@@ -444,8 +444,13 @@ export class DeliversService implements OnModuleInit {
         .select({
           ...getTableColumns(orders),
           subtractPoint: sql`
-            ( COALESCE(SUM(${vouchers.value}), 0) -
-              (${orders.totalDelivery} - ${orders.incomeDeliver} + ${orders.userServiceFee} + ${orders.storeServiceFee}))
+            CASE
+                WHEN ${orders.status} = ${OrderStatusEnum.DELIVERED} THEN 0
+            ELSE (
+            COALESCE(SUM(${vouchers.value}), 0) -
+            (${orders.totalDelivery} - ${orders.incomeDeliver} + ${orders.userServiceFee} + ${orders.storeServiceFee})
+            )
+            END
           `.mapWith(Number),
         })
         .from(orders)
