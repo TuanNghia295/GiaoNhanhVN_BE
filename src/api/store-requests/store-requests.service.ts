@@ -27,16 +27,7 @@ import { buildMulticastMessage } from '@/utils/firebase.util';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { plainToInstance } from 'class-transformer';
-import {
-  and,
-  count,
-  desc,
-  eq,
-  getTableColumns,
-  ilike,
-  or,
-  sql,
-} from 'drizzle-orm';
+import { and, count, desc, eq, getTableColumns, ilike, or } from 'drizzle-orm';
 import admin from 'firebase-admin';
 import { FIREBASE_ADMIN } from '../../firebase/firebase.module';
 
@@ -84,12 +75,10 @@ export class StoreRequestsService {
     await withPagination(qb, reqDto.limit, reqDto.offset);
 
     const [entities, { totalCount }] = await Promise.all([
-      qb
-        .where(whereClause)
-        .orderBy(
-          sql.raw("CASE WHEN status = 'PENDING' THEN 0 ELSE 1 END"),
-          desc(storeRequests.createdAt),
-        ),
+      qb.where(whereClause).orderBy(
+        // sql.raw("CASE WHEN status = 'PENDING' THEN 0 ELSE 1 END"),
+        desc(storeRequests.createdAt),
+      ),
       this.db
         .select({
           totalCount: count(),

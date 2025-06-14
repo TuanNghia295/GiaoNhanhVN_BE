@@ -170,18 +170,26 @@ export class ProductsService implements OnModuleInit {
       //---------------------------------------------------
       // Check if the store menu exists
       //---------------------------------------------------
-      const existStoreMenu = await this.storeMenusService.existById(
-        reqDto.storeMenuId,
-      );
-      if (!existStoreMenu) throw new ValidationException(ErrorCode.SM001);
-
+      if (reqDto.storeId) {
+        const existStore = await this.storesService.existById(reqDto.storeId);
+        if (!existStore) throw new ValidationException(ErrorCode.S001);
+      }
       //---------------------------------------------------
       // Check if the category item exists
       //---------------------------------------------------
-      const existCategoryItem = await this.categoryItemsService.existById(
-        reqDto.categoryItemId,
-      );
-      if (!existCategoryItem) throw new ValidationException(ErrorCode.CI001);
+      if (reqDto.categoryItemId) {
+        const existCategoryItem = await this.categoryItemsService.existById(
+          reqDto.categoryItemId,
+        );
+        if (!existCategoryItem) throw new ValidationException(ErrorCode.CI001);
+      }
+      if (reqDto.storeId) {
+        //---------------------------------------------------
+        // Check if the store exists
+        //---------------------------------------------------
+        const existStore = await this.storesService.existById(reqDto.storeId);
+        if (!existStore) throw new ValidationException(ErrorCode.S001);
+      }
 
       const [updateProduct] = await tx
         .update(products)
