@@ -1313,13 +1313,33 @@ export class OrdersService {
       throw new ValidationException(ErrorCode.OD003);
     }
 
+    const [refund] = await tx
+      .select({
+        refundPoint: sql`coalesce
+          (sum(vouchers.value), 0)`.mapWith(Number),
+      })
+      .from(orders)
+      .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
+      .leftJoin(
+        vouchers,
+        and(
+          eq(vouchers.id, vouchersOnOrders.voucherId),
+          inArray(vouchers.type, [
+            VouchersTypeEnum.ADMIN,
+            VouchersTypeEnum.MANAGEMENT,
+          ]),
+        ),
+      )
+      .where(eq(orders.id, existOrder.id))
+      .groupBy(orders.id);
     // Số điểm sẽ được cộng lại cho người giao hàng
     const subtractPoint = _.round(
       Math.max(
         existOrder.totalDelivery -
           (existOrder.incomeDeliver || 0) +
           (existOrder.userServiceFee || 0) +
-          (existOrder.storeServiceFee || 0),
+          (existOrder.storeServiceFee || 0) +
+          refund.refundPoint,
         0,
       ),
     );
