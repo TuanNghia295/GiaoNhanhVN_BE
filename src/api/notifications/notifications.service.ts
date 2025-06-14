@@ -9,6 +9,7 @@ import { Order } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
 import {
+  areas,
   notifications,
   notificationsToUsers,
   NotificationType,
@@ -200,8 +201,10 @@ export class NotificationsService implements OnModuleInit {
     const qb = this.db
       .selectDistinct({
         ...getTableColumns(notifications),
+        area: areas,
       })
       .from(notifications)
+      .leftJoin(areas, eq(areas.id, notifications.areaId))
       .leftJoin(
         notificationsToUsers,
         eq(notificationsToUsers.notificationId, notifications.id),

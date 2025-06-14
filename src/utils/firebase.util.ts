@@ -7,6 +7,7 @@ import admin from 'firebase-admin';
 export function buildMulticastMessage(
   tokens: string[],
   templateKey: NotificationTemplateKey,
+  customData?: Record<string, string>, // thêm optional custom data
 ): admin.messaging.MulticastMessage {
   const template = NOTIFICATION_TEMPLATES[templateKey];
 
@@ -19,7 +20,8 @@ export function buildMulticastMessage(
     data: {
       title: template.title,
       body: template.body,
-      sound: template.sound.ios, // default cho iOS
+      sound: template.sound.ios,
+      ...customData, // merge custom fields vào đây
     },
     android: {
       notification: {

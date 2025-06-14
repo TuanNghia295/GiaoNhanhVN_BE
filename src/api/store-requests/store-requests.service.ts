@@ -23,7 +23,8 @@ import {
 } from '@/database/schemas/notification.schema';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
-import { Inject, Injectable } from '@nestjs/common';
+import { buildMulticastMessage } from '@/utils/firebase.util';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { plainToInstance } from 'class-transformer';
 import {
@@ -36,6 +37,8 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
+import admin from 'firebase-admin';
+import { FIREBASE_ADMIN } from '../../firebase/firebase.module';
 
 @Injectable()
 export class StoreRequestsService {
@@ -44,8 +47,11 @@ export class StoreRequestsService {
     private readonly storesService: StoresService,
     private readonly emitter: EventEmitter2,
     private readonly notificationsService: NotificationsService,
+    @Inject(FIREBASE_ADMIN) private readonly admin: admin.app.App,
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
   ) {}
+
+  private readonly logger = new Logger(StoreRequestsService.name);
 
   async getPageStoreRequests(
     reqDto: PageStoreRequestReqDto,
@@ -209,6 +215,24 @@ export class StoreRequestsService {
     });
   }
 
+  private async notifyAcceptedStoreRequest(
+    tokens: string[],
+    type: 'REJECT_STORE_REQUEST' | 'ACCEPT_STORE_REQUEST',
+  ) {
+    const validTokens = tokens.filter((t) => !!t);
+    console.log('Valid FCM tokens:', validTokens);
+    if (validTokens.length === 0) return;
+    try {
+      await this.admin.messaging().sendEachForMulticast(
+        buildMulticastMessage(validTokens, type, {
+          status: type === 'ACCEPT_STORE_REQUEST' ? 'approved' : 'rejected',
+        }),
+      );
+    } catch (error) {
+      this.logger.error('Error sending FCM notification', error);
+    }
+  }
+
   async approve(storeRequestId: number) {
     return this.db.transaction(async (tx) => {
       const storeRequest = await this.existStoreRequestById(storeRequestId);
@@ -260,6 +284,19 @@ export class StoreRequestsService {
         })
         .execute();
 
+      const fcmToken = await this.db
+        .select({ fcmToken: users.fcmToken })
+        .from(users)
+        .where(eq(users.id, storeRequest.id))
+        .execute();
+
+      console.log('FCM Tokens:', fcmToken);
+      // gửi thông báo đến người dùng
+      await this.notifyAcceptedStoreRequest(
+        fcmToken.map((t) => t.fcmToken),
+        'ACCEPT_STORE_REQUEST',
+      );
+
       /// socket
       await this.emitter.emitAsync('store-requests.approved', {
         userId: storeRequest.userId,
@@ -297,6 +334,18 @@ export class StoreRequestsService {
           body: `Yêu cầu mở shop của bạn đã bị từ chối. Vui lòng liên hệ hotline`,
         })
         .execute();
+
+      const fcmToken = await this.db
+        .select({ fcmToken: users.fcmToken })
+        .from(users)
+        .where(eq(users.id, storeRequest.id))
+        .execute();
+
+      // gửi thông báo đến người dùng
+      await this.notifyAcceptedStoreRequest(
+        fcmToken.map((t) => t.fcmToken),
+        'REJECT_STORE_REQUEST',
+      );
 
       return plainToInstance(StoreRequestResDto, storeRequest);
     });

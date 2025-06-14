@@ -13,7 +13,9 @@ export type NotificationTemplateKey =
   | 'NEW_ORDER'
   | 'OTHER_TEMPLATE'
   | 'LOCK_ACCOUNT'
-  | 'CANCEL_ORDER'; // thêm key khác nếu cần
+  | 'CANCEL_ORDER'
+  | 'ACCEPT_STORE_REQUEST'
+  | 'REJECT_STORE_REQUEST';
 
 export const NOTIFICATION_TEMPLATES: Record<
   NotificationTemplateKey,
@@ -49,6 +51,22 @@ export const NOTIFICATION_TEMPLATES: Record<
     sound: {
       android: 'default.mp3',
       ios: 'default.caf',
+    },
+  },
+  ACCEPT_STORE_REQUEST: {
+    title: 'Yêu cầu đã được chấp nhận',
+    body: 'Yêu cầu của bạn đã được chấp nhận, vui lòng kiểm tra lại',
+    sound: {
+      android: 'alert.mp3',
+      ios: 'alert.caf',
+    },
+  },
+  REJECT_STORE_REQUEST: {
+    title: 'Yêu cầu đã bị từ chối',
+    body: 'Yêu cầu của bạn đã bị từ chối, vui lòng kiểm tra lại',
+    sound: {
+      android: 'alert.mp3',
+      ios: 'alert.caf',
     },
   },
 };
