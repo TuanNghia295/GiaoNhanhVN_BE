@@ -7,7 +7,7 @@ import { areas, locations } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { and, desc, eq, or } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 
 @Injectable()
 export class LocationsService {
@@ -19,7 +19,7 @@ export class LocationsService {
   async create(payload: JwtPayloadType, reqDto: CreateLocationReqDto) {
     console.log('create location', reqDto);
     const area = await this.db.query.areas.findFirst({
-      where: or(
+      where: and(
         eq(areas.name, reqDto.province),
         eq(areas.parent, reqDto.parent),
       ),
@@ -28,6 +28,7 @@ export class LocationsService {
         name: true,
       },
     });
+    console.log('area', area);
 
     const [existLocation] = await this.db
       .select()
@@ -44,7 +45,7 @@ export class LocationsService {
       const [updatedLocation] = await this.db
         .update(locations)
         .set({
-          ...reqDto,
+          // ...reqDto,
           ...(area ? { areaId: area.id } : {}),
         })
         .where(eq(locations.id, existLocation.id))
