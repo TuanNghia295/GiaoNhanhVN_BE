@@ -5,6 +5,7 @@ import { PageNotificationsReqDto } from '@/api/notifications/dto/page-notificati
 import { UpdateNotificationReqDto } from '@/api/notifications/dto/update-notification.req.dto';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
+import { Order } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
 import {
@@ -15,13 +16,22 @@ import {
   RoleEnum,
   users,
 } from '@/database/schemas';
-import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
+import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { deleteIfExists, normalizeImagePath } from '@/utils/util';
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { plainToInstance } from 'class-transformer';
-import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  getTableColumns,
+  isNull,
+} from 'drizzle-orm';
 import admin from 'firebase-admin';
 import { existsSync, mkdirSync } from 'fs';
 import _ from 'lodash';
@@ -170,45 +180,55 @@ export class NotificationsService implements OnModuleInit {
     reqDto: PageNotificationsReqDto,
     payload: JwtPayloadType,
   ) {
-    const baseConfig: FindManyQueryConfig<typeof this.db.query.notifications> =
-      {
-        with: {
-          area: true,
-        },
-      };
+    const whereClause = and(
+      ...(payload.role === RoleEnum.MANAGEMENT
+        ? [
+            eq(notifications.areaId, payload.areaId),
+            eq(notifications.type, NotificationTypeEnum.ADMIN),
+          ]
+        : []),
+      ...(payload.role === RoleEnum.ADMIN
+        ? [
+            ...(reqDto.areaId ? [eq(notifications.areaId, reqDto.areaId)] : []),
+            eq(notifications.type, NotificationTypeEnum.ADMIN),
+          ]
+        : []),
+      ...(payload.role === RoleEnum.USER || payload.role === RoleEnum.STORE
+        ? [eq(notificationsToUsers.userId, payload.id)]
+        : []),
+    );
+    const qb = this.db
+      .selectDistinct({
+        ...getTableColumns(notifications),
+      })
+      .from(notifications)
+      .leftJoin(
+        notificationsToUsers,
+        eq(notificationsToUsers.notificationId, notifications.id),
+      )
+      .where(whereClause)
+      .$dynamic();
 
-    switch (payload.role) {
-      case RoleEnum.MANAGEMENT:
-        baseConfig.where = and(
-          eq(notifications.type, NotificationTypeEnum.ADMIN),
-          eq(notifications.areaId, payload.areaId),
-        );
-        break;
-
-      case RoleEnum.ADMIN:
-        baseConfig.where = and(
-          eq(notifications.type, NotificationTypeEnum.ADMIN),
-          ...(reqDto.areaId ? [eq(notifications.areaId, reqDto.areaId)] : []),
-        );
-        break;
-      default:
-        break;
-    }
-
-    const qCount = this.db.query.notifications.findMany({
-      ...baseConfig,
-      columns: { id: true },
-    });
-
+    const qbCount = this.db
+      .select({ totalCount: countDistinct(notifications.id) })
+      .from(notifications)
+      .leftJoin(
+        notificationsToUsers,
+        eq(notificationsToUsers.notificationId, notifications.id),
+      )
+      .where(whereClause);
     const [entities, [{ totalCount }]] = await Promise.all([
-      this.db.query.notifications.findMany({
-        ...baseConfig,
-        orderBy: desc(notifications.createdAt),
-        limit: reqDto.limit,
-        offset: reqDto.offset,
-      }),
-      this.db.select({ totalCount: count() }).from(sql`${qCount}`),
+      qb
+        .orderBy(
+          reqDto.order === Order.DESC
+            ? desc(notifications.createdAt)
+            : asc(notifications.createdAt),
+        )
+        .limit(reqDto.limit)
+        .offset(reqDto.offset),
+      qbCount,
     ]);
+    console.log('Entities:', entities, 'Total Count:', totalCount);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
     return new OffsetPaginatedDto(entities, meta);
