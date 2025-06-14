@@ -276,7 +276,7 @@ export class StoreRequestsService {
           id: notifications.id,
         });
 
-      await this.db
+      await tx
         .insert(notificationsToUsers)
         .values({
           userId: storeRequest.userId,
@@ -284,10 +284,10 @@ export class StoreRequestsService {
         })
         .execute();
 
-      const fcmToken = await this.db
+      const fcmToken = await tx
         .select({ fcmToken: users.fcmToken })
         .from(users)
-        .where(eq(users.id, storeRequest.id))
+        .where(eq(users.id, storeRequest.userId))
         .execute();
 
       console.log('FCM Tokens:', fcmToken);
@@ -335,10 +335,10 @@ export class StoreRequestsService {
         })
         .execute();
 
-      const fcmToken = await this.db
+      const fcmToken = await tx
         .select({ fcmToken: users.fcmToken })
         .from(users)
-        .where(eq(users.id, storeRequest.id))
+        .where(eq(users.id, storeRequest.userId))
         .execute();
 
       // gửi thông báo đến người dùng
