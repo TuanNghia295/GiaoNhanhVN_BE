@@ -1,8 +1,10 @@
+import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { BannerResDto } from '@/api/banners/dto/banner.res.dto';
 import { CreateBannerReqDto } from '@/api/banners/dto/create-banner.req.dto';
 import { PageBannerReqDto } from '@/api/banners/dto/page-banner-req.dto';
 import { UploadBannerReqDto } from '@/api/banners/dto/upload-banner.req.dto';
 import { RoleEnum } from '@/database/schemas';
+import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth, ApiPublic } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
 import {
@@ -33,8 +35,11 @@ export class BannersController {
     type: BannerResDto,
   })
   @Get('list')
-  async getPageBanners(@Query() reqDto: PageBannerReqDto) {
-    return await this.bannersService.getPageBanners(reqDto);
+  async getPageBanners(
+    @CurrentUser() payload: JwtPayloadType,
+    @Query() reqDto: PageBannerReqDto,
+  ) {
+    return await this.bannersService.getPageBanners(reqDto, payload);
   }
 
   @Roles(RoleEnum.MANAGEMENT)

@@ -7,17 +7,18 @@ import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto
 import { Order } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
-import { banners } from '@/database/schemas';
+import { banners, RoleEnum } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { deleteIfExists, normalizeImagePath } from '@/utils/util';
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { and, asc, count, desc, eq, ilike, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, sql } from 'drizzle-orm';
 import { existsSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
+import { JwtPayloadType } from '../auth/types/jwt-payload.type';
 
 @Injectable()
 export class BannersService implements OnModuleInit {
@@ -32,12 +33,15 @@ export class BannersService implements OnModuleInit {
     }
   }
 
-  async getPageBanners(reqDto: PageBannerReqDto) {
+  async getPageBanners(reqDto: PageBannerReqDto, payload: JwtPayloadType) {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.banners> = {
       where: and(
+        ...(payload.role === RoleEnum.MANAGEMENT
+          ? [eq(banners.areaId, payload.areaId)]
+          : []),
         ...(reqDto.type ? [eq(banners.type, reqDto.type)] : []),
         ...(reqDto.areaId ? [eq(banners.areaId, reqDto.areaId)] : []),
-        ilike(banners.title, `%${reqDto.q ?? ''}%`),
+        // ilike(banners.title, `%${reqDto.q ?? ''}%`),
       ),
     };
 
