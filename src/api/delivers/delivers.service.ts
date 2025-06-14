@@ -445,7 +445,7 @@ export class DeliversService implements OnModuleInit {
           ...getTableColumns(orders),
           subtractPoint: sql`
             CASE
-                WHEN ${orders.status} = ${OrderStatusEnum.DELIVERED} THEN 0
+                WHEN ${orders.status} = ${OrderStatusEnum.CANCELED} THEN 0
             ELSE (
             COALESCE(SUM(${vouchers.value}), 0) -
             (${orders.totalDelivery} - ${orders.incomeDeliver} + ${orders.userServiceFee} + ${orders.storeServiceFee})
