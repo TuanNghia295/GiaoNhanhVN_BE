@@ -34,7 +34,7 @@ export class LocationsService {
       .from(locations)
       .where(
         and(
-          eq(locations.geometry, reqDto.geometry),
+          eq(locations.address, reqDto.address),
           eq(locations.userId, payload.id),
         ),
       )
