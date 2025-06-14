@@ -32,8 +32,8 @@ export class StoreMenusService {
         products: {
           with: {
             categoryItem: true,
-            extras: true,
-            options: true,
+            // extras: true,
+            // options: true,
           },
           // lấy ra sản phẩm chưa soft delete
           where: and(
