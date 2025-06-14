@@ -21,7 +21,7 @@ import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { getOrderStatusLabel } from '@/utils/util';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import * as ExcelJS from 'exceljs';
 import * as XLSX from 'xlsx';
 
@@ -62,21 +62,6 @@ export class ExcelsService {
       // Tạo mới sản phẩm
       //--------------------------------------------------
       await this.db.transaction(async (tx) => {
-        const [existStoreMenu] = await this.db
-          .select({
-            id: storeMenus.id,
-          })
-          .from(storeMenus)
-          .where(
-            and(
-              eq(storeMenus.storeId, existStore.storeId),
-              eq(storeMenus.name, row.menuName),
-            ),
-          );
-        if (!existStoreMenu) {
-          throw new ValidationException(ErrorCode.SM001);
-        }
-
         const [categoryItem] = await this.db
           .select({
             id: categoryItems.id,
@@ -87,6 +72,13 @@ export class ExcelsService {
           throw new ValidationException(ErrorCode.CI001);
         }
 
+        // Check if store menu exists, if not create it
+        const storeMenu = await this.createSoreMenuIfNotExist(
+          tx,
+          existStore.storeId,
+          row.menuName,
+        );
+
         console.log('Creating product:', row);
         const [createdProduct] = await tx
           .insert(products)
@@ -95,7 +87,7 @@ export class ExcelsService {
             price: +row.basePrice || 0,
             storeId: existStore.storeId,
             description: row.description,
-            storeMenuId: existStoreMenu.id,
+            storeMenuId: storeMenu.id,
             categoryItemId: categoryItem.id,
           })
           .returning();
@@ -131,6 +123,41 @@ export class ExcelsService {
       });
     }
     return result;
+  }
+
+  private async createSoreMenuIfNotExist(
+    tx: DrizzleDB,
+    storeId: number,
+    menuName: string,
+  ) {
+    let [existStoreMenu] = await tx
+      .select({
+        id: storeMenus.id,
+      })
+      .from(storeMenus)
+      .where(
+        and(
+          isNull(storeMenus.deletedAt),
+          eq(storeMenus.storeId, storeId),
+          eq(storeMenus.name, menuName),
+        ),
+      );
+
+    if (!existStoreMenu) {
+      console.log(
+        `Creating new store menu: ${menuName} for storeId: ${storeId}`,
+      );
+      [existStoreMenu] = await tx
+        .insert(storeMenus)
+        .values({
+          storeId: storeId,
+          name: menuName,
+          // add other required fields here
+        })
+        .returning({ id: storeMenus.id });
+    }
+    console.log('Exist store menu:', existStoreMenu);
+    return existStoreMenu;
   }
 
   async parseExcelBufferToData(buffer: Buffer): Promise<ParsedProductRow[]> {

@@ -228,7 +228,6 @@ export class NotificationsService implements OnModuleInit {
         .offset(reqDto.offset),
       qbCount,
     ]);
-    console.log('Entities:', entities, 'Total Count:', totalCount);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
     return new OffsetPaginatedDto(entities, meta);
