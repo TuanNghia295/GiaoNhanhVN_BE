@@ -57,7 +57,7 @@ export class AnalyticsService {
         total_store_service_fee: sum(orders.storeServiceFee).mapWith(Number),
         total_deliver_service_fee: sql<number>`SUM
           (${orders.totalDelivery} - ${orders.incomeDeliver})`.mapWith(Number),
-        total_voucher_value: sum(orders.totalVoucher).mapWith(Number),
+        total_voucher_value: sum(vouchers.value).mapWith(Number),
         total_app_revenue: sql<number>`SUM
         ( (${orders.totalProduct} - ${orders.payforShop}) + ${orders.userServiceFee} +
           (${orders.totalDelivery} - ${orders.incomeDeliver}) -
