@@ -86,6 +86,7 @@ export class DeliversService implements OnModuleInit {
         isNull(delivers.deletedAt),
       ),
       with: {
+        area: true,
         location: true,
       },
     };
@@ -110,10 +111,7 @@ export class DeliversService implements OnModuleInit {
     ]);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
-    return new OffsetPaginatedDto(
-      entities.map((e) => plainToInstance(DeliverResDto, e)),
-      meta,
-    );
+    return new OffsetPaginatedDto(entities, meta);
   }
 
   private async checkActiveDeliver(deliverId: number) {
@@ -135,7 +133,7 @@ export class DeliversService implements OnModuleInit {
         eq(orders.status, OrderStatusEnum.PENDING),
         eq(orders.areaId, payload.areaId),
       ),
-      orderBy: desc(orders.createdAt),
+      orderBy: asc(orders.createdAt),
       limit: 10,
       with: {
         user: true,
@@ -445,10 +443,32 @@ export class DeliversService implements OnModuleInit {
           ...getTableColumns(orders),
           subtractPoint: sql`
             CASE
-                WHEN ${orders.status} = ${OrderStatusEnum.CANCELED} THEN 0
-            ELSE (
-            COALESCE(SUM(${vouchers.value}), 0) -
-            (${orders.totalDelivery} - ${orders.incomeDeliver} + ${orders.userServiceFee} + ${orders.storeServiceFee})
+                WHEN
+            ${orders.status}
+            =
+            ${OrderStatusEnum.CANCELED}
+            THEN
+            0
+            ELSE
+            (
+            COALESCE
+            (
+            SUM
+            (
+            ${vouchers.value}
+            ),
+            0
+            )
+            -
+            (
+            ${orders.totalDelivery}
+            -
+            ${orders.incomeDeliver}
+            +
+            ${orders.userServiceFee}
+            +
+            ${orders.storeServiceFee}
+            )
             )
             END
           `.mapWith(Number),

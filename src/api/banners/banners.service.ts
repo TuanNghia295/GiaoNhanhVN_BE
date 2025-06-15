@@ -14,7 +14,7 @@ import { deleteIfExists, normalizeImagePath } from '@/utils/util';
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { and, asc, count, desc, eq, sql } from 'drizzle-orm';
-import { existsSync, mkdirSync, unlinkSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
@@ -43,6 +43,9 @@ export class BannersService implements OnModuleInit {
         ...(reqDto.areaId ? [eq(banners.areaId, reqDto.areaId)] : []),
         // ilike(banners.title, `%${reqDto.q ?? ''}%`),
       ),
+      with: {
+        area: true, // Assuming you want to include area details
+      },
     };
 
     const qCount = this.db.query.banners.findMany({
@@ -113,10 +116,11 @@ export class BannersService implements OnModuleInit {
     if (!banner) {
       throw new ValidationException(ErrorCode.B001);
     }
-    const imageName = banner.image?.replace(/^.*[\\/]/, '');
-    const imagePath = join(this.basePath, imageName);
-    if (existsSync(imagePath)) {
-      unlinkSync(imagePath);
+    //------------------------------------------------------------
+    //- Xoá ảnh cũ nếu có
+    //-----------------------------------------------------------
+    if (banner.image) {
+      deleteIfExists(banner.image, this.basePath);
     }
     await this.db.delete(banners).where(eq(banners.id, bannerId));
   }

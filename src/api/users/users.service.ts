@@ -84,6 +84,9 @@ export class UsersService implements OnModuleInit {
           ilike(users.fullName, `%${reqDto.q ?? ''}%`),
         ),
       ),
+      with: {
+        area: true,
+      },
     };
 
     const qCount = this.db.query.users.findMany({
@@ -106,10 +109,7 @@ export class UsersService implements OnModuleInit {
     ]);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
-    return new OffsetPaginatedDto(
-      entities.map((e) => plainToInstance(UserResDto, e)),
-      meta,
-    );
+    return new OffsetPaginatedDto(entities, meta);
   }
 
   async existsById(userId: number) {

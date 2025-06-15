@@ -3,6 +3,7 @@ import { managers } from '@/database/schemas/manager.schema';
 import { notifications } from '@/database/schemas/notification.schema';
 import { orders } from '@/database/schemas/order.schema';
 import { storeRequests } from '@/database/schemas/store-request.schema';
+import { users } from '@/database/schemas/user.schema';
 import { relations } from 'drizzle-orm';
 import {
   decimal,
@@ -35,6 +36,7 @@ export const areasRelations = relations(areas, ({ many }) => ({
   storeRequest: many(storeRequests),
   notifications: many(notifications),
   orders: many(orders),
+  users: many(users),
 }));
 
 export type Area = typeof areas.$inferSelect;

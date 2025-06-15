@@ -1,3 +1,4 @@
+import { areas } from '@/database/schemas/area.schema';
 import { fcmTokens } from '@/database/schemas/fcmToken.schema';
 import { notificationsToUsers } from '@/database/schemas/notification.schema';
 import { orders } from '@/database/schemas/order.schema';
@@ -56,11 +57,15 @@ export const users = pgTable('users', {
 /*******************************************************************
  * Relations Users with Sessions - One to Many
  *******************************************************************/
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many, one }) => ({
   storeRequests: many(storeRequests),
   orders: many(orders),
   notifications: many(notificationsToUsers),
   fcmTokens: many(fcmTokens),
+  area: one(areas, {
+    fields: [users.areaId],
+    references: [areas.id],
+  }),
 }));
 
 export type User = typeof users.$inferSelect;

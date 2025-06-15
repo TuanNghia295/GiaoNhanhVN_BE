@@ -11,6 +11,7 @@ import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE, Transaction, withPagination } from '@/database/global';
 import {
+  areas,
   orders,
   OrderStatusEnum,
   products,
@@ -273,8 +274,10 @@ export class StoresService implements OnModuleInit {
       .select({
         ...getTableColumns(stores),
         user: users,
+        area: areas,
       })
       .from(stores)
+      .leftJoin(areas, eq(areas.id, stores.areaId))
       .leftJoin(users, eq(users.id, stores.userId))
       .where(whereClause)
       .orderBy(desc(stores.createdAt))
@@ -293,10 +296,7 @@ export class StoresService implements OnModuleInit {
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
     console.log('meta', meta);
-    return new OffsetPaginatedDto(
-      entities.map((e) => plainToInstance(StoreResDto, e)),
-      meta,
-    );
+    return new OffsetPaginatedDto(entities, meta);
   }
 
   async lock(reqDto: LockStoreReqDto) {
@@ -517,7 +517,7 @@ export class StoresService implements OnModuleInit {
     }
 
     qb.limit(20);
-    return await qb;
+    return qb;
   }
 
   async checkStoreActive(storeId: number, tx: Transaction) {
