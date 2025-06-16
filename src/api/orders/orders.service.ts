@@ -910,8 +910,14 @@ export class OrdersService {
   }
 
   async getPageByUserId(userId: number, reqDto: PageMyOrderReqDto) {
-    console.log('reqDto', reqDto);
-    const { status, startDate, endDate } = reqDto;
+    if (reqDto.startDate && reqDto.endDate) {
+      reqDto.startDate = DateTime.fromJSDate(new Date(reqDto.startDate))
+        .startOf('day')
+        .toJSDate();
+      reqDto.endDate = DateTime.fromJSDate(new Date(reqDto.endDate))
+        .endOf('day')
+        .toJSDate();
+    }
     const baseConfig: FindManyQueryConfig<typeof this.db.query.orders> = {
       with: {
         store: true,
@@ -938,12 +944,9 @@ export class OrdersService {
 
     baseConfig.where = and(
       eq(orders.userId, userId),
-      ...(status ? [eq(orders.status, status)] : []),
-      ...(startDate && endDate
-        ? [
-            gte(orders.createdAt, new Date(startDate)),
-            lte(orders.createdAt, new Date(endDate)),
-          ]
+      ...(reqDto.status ? [eq(orders.status, reqDto.status)] : []),
+      ...(reqDto.startDate && reqDto.endDate
+        ? [between(orders.createdAt, reqDto.startDate, reqDto.endDate)]
         : []),
     );
 
@@ -978,12 +981,9 @@ export class OrdersService {
           .where(
             and(
               eq(orders.userId, userId),
-              ...(status ? [eq(orders.status, status)] : []),
-              ...(startDate && endDate
-                ? [
-                    gte(orders.createdAt, new Date(startDate)),
-                    lte(orders.createdAt, new Date(endDate)),
-                  ]
+              ...(reqDto.status ? [eq(orders.status, reqDto.status)] : []),
+              ...(reqDto.startDate && reqDto.endDate
+                ? [between(orders.createdAt, reqDto.startDate, reqDto.endDate)]
                 : []),
             ),
           )
