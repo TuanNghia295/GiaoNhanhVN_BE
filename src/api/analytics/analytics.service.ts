@@ -24,7 +24,7 @@ import { ValidationException } from '@/exceptions/validation.exception';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { endOfDay, startOfDay } from 'date-fns';
-import { and, between, count, eq, or, sql, sum } from 'drizzle-orm';
+import { and, between, count, eq, isNull, or, sql, sum } from 'drizzle-orm';
 
 export type RevenueResult = {
   status: OrderStatusEnum | null; // null cho dòng tổng
@@ -449,6 +449,7 @@ export class AnalyticsService {
       )
       .where(
         and(
+          isNull(delivers.deletedAt),
           ...(payload.role === RoleEnum.MANAGEMENT
             ? [eq(delivers.areaId, payload.areaId)]
             : []),
