@@ -330,6 +330,9 @@ export class DeliversService implements OnModuleInit {
     const info = await this.db.query.delivers.findFirst({
       where: and(eq(delivers.id, deliverId), isNull(delivers.deletedAt)),
     });
+    if (!info) {
+      throw new ValidationException(ErrorCode.D001);
+    }
 
     const result = await this.db
       .select({
@@ -409,7 +412,7 @@ export class DeliversService implements OnModuleInit {
         and(
           eq(delivers.id, deliverId),
           eq(delivers.activated, true),
-          // isNull(delivers.deletedAt),
+          isNull(delivers.deletedAt),
         ),
       )
       .then((res) => res[0]);
