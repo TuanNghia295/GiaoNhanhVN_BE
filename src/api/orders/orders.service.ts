@@ -911,6 +911,7 @@ export class OrdersService {
 
   async getPageByUserId(userId: number, reqDto: PageMyOrderReqDto) {
     console.log('reqDto', reqDto);
+    const { status, startDate, endDate } = reqDto;
     const baseConfig: FindManyQueryConfig<typeof this.db.query.orders> = {
       with: {
         store: true,
@@ -937,11 +938,12 @@ export class OrdersService {
 
     baseConfig.where = and(
       eq(orders.userId, userId),
-      ...(reqDto.status && reqDto.status.length > 0
-        ? [inArray(orders.status, reqDto.status)]
-        : []),
-      ...(reqDto.type && reqDto.type.length > 0
-        ? [inArray(orders.type, reqDto.type)]
+      ...(status ? [eq(orders.status, status)] : []),
+      ...(startDate && endDate
+        ? [
+            gte(orders.createdAt, new Date(startDate)),
+            lte(orders.createdAt, new Date(endDate)),
+          ]
         : []),
     );
 
@@ -976,8 +978,12 @@ export class OrdersService {
           .where(
             and(
               eq(orders.userId, userId),
-              ...(reqDto.status && reqDto.status.length > 0
-                ? [inArray(orders.status, reqDto.status)]
+              ...(status ? [eq(orders.status, status)] : []),
+              ...(startDate && endDate
+                ? [
+                    gte(orders.createdAt, new Date(startDate)),
+                    lte(orders.createdAt, new Date(endDate)),
+                  ]
                 : []),
             ),
           )
