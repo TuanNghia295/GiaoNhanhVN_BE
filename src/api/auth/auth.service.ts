@@ -25,7 +25,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { plainToInstance } from 'class-transformer';
-import { eq, or } from 'drizzle-orm';
+import { and, eq, isNull, or } from 'drizzle-orm';
 import admin from 'firebase-admin';
 import ms from 'ms';
 import { FIREBASE_ADMIN } from '../../firebase/firebase.module';
@@ -368,7 +368,7 @@ export class AuthService {
   async loginDeliver(reqDto: LoginReqDto) {
     const { phone, password } = reqDto;
     const deliver = await this.db.query.delivers.findFirst({
-      where: eq(delivers.phone, phone),
+      where: and(eq(delivers.phone, phone), isNull(delivers.deletedAt)),
       columns: {
         phone: true,
         role: true,

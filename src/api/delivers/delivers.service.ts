@@ -328,7 +328,7 @@ export class DeliversService implements OnModuleInit {
     const endOfDay = DateTime.now().endOf('day').toJSDate();
 
     const info = await this.db.query.delivers.findFirst({
-      where: eq(delivers.id, deliverId),
+      where: and(eq(delivers.id, deliverId), isNull(delivers.deletedAt)),
     });
 
     const result = await this.db
