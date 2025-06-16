@@ -134,7 +134,6 @@ export class DeliversService implements OnModuleInit {
         eq(orders.areaId, payload.areaId),
       ),
       orderBy: asc(orders.createdAt),
-      limit: 10,
       with: {
         user: true,
         store: true,

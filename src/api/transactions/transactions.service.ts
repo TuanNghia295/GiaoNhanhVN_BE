@@ -339,13 +339,14 @@ export class TransactionsService {
         .values({
           ...reqDto,
           status: TransactionStatus.PENDING,
-          role: RoleEnum.DELIVER,
           method: TransactionMethodEnum.REQUEST,
           ...(payload.role === RoleEnum.MANAGEMENT && {
+            role: RoleEnum.MANAGEMENT,
             areaId: payload.areaId,
             managerId: payload.id,
           }),
           ...(payload.role === RoleEnum.DELIVER && {
+            role: RoleEnum.DELIVER,
             deliverId: payload.id,
             areaId: payload.areaId,
           }),
