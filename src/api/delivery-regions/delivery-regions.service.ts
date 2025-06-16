@@ -7,7 +7,7 @@ import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto
 import { Order } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
-import { deliveryRegions } from '@/database/schemas';
+import { deliveryRegions, RoleEnum } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable } from '@nestjs/common';
@@ -72,7 +72,10 @@ export class DeliveryRegionsService {
     return updatedRegion;
   }
 
-  async getPageDeliveryRegions(reqDto: PageDeliveryRegionReqDto) {
+  async getPageDeliveryRegions(
+    reqDto: PageDeliveryRegionReqDto,
+    payload: JwtPayloadType,
+  ) {
     const baseConfig: FindManyQueryConfig<
       typeof this.db.query.deliveryRegions
     > = {
@@ -80,6 +83,9 @@ export class DeliveryRegionsService {
         eq(deliveryRegions.areaId, reqDto.areaId),
         isNull(deliveryRegions.deletedAt),
         ...(reqDto.q ? [ilike(deliveryRegions.name, `%${reqDto.q}%`)] : []),
+        ...(payload.role === RoleEnum.MANAGEMENT
+          ? [eq(deliveryRegions.areaId, payload.areaId)]
+          : []),
       ),
 
       limit: reqDto.limit,

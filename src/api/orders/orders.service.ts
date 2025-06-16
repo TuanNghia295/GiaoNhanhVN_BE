@@ -123,7 +123,11 @@ export class OrdersService {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.orders> = {
       with: {
         store: true,
-        vouchers: true,
+        vouchers: {
+          with: {
+            voucher: true,
+          },
+        },
         user: true,
         reasonDeliverCancelOrder: true,
         deliver: true,

@@ -61,12 +61,12 @@ export class DeliveryRegionsController {
     description: 'Lấy danh sách khu vực shop đặt đơn',
   })
   @Get()
-  async getPageAreas(
+  async getDeliveryRegions(
     @CurrentUser() payload: JwtPayloadType, // Ensure you have a decorator to get the current user
     @Query() reqDto: PageDeliveryRegionReqDto,
   ) {
     // Logic to get all areas
-    return this.deliveryRegionsService.getPageDeliveryRegions(reqDto);
+    return this.deliveryRegionsService.getPageDeliveryRegions(reqDto, payload);
   }
 
   @Get(':deliveryRegionId')
