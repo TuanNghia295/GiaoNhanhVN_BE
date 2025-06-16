@@ -726,6 +726,11 @@ export class StoresService implements OnModuleInit {
     if (!store) {
       throw new ValidationException(ErrorCode.S001);
     }
+
+    if (!store.isLocked) {
+      // Kiểm tra xem cửa hàng có bị khoá hay không
+      throw new ValidationException(ErrorCode.S005);
+    }
     return plainToInstance(StoreResDto, store);
   }
 

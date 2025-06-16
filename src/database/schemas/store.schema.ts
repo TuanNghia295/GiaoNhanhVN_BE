@@ -27,7 +27,6 @@ export const stores = pgTable(
     location: varchar({ length: 255 }),
     avatar: varchar({ length: 255 }),
     background: varchar({ length: 255 }),
-
     rating: numeric('rating', {
       precision: 2,
       scale: 1,
@@ -45,6 +44,7 @@ export const stores = pgTable(
     closeSecondTime: timestamp('close_second_time'),
     isLocked: boolean('is_locked').notNull().default(false),
     status: boolean('status').notNull().default(true),
+    isRecommended: boolean('is_recommended').notNull().default(false),
     areaId: integer('area_id'),
     userId: integer('user_id')
       .notNull()
