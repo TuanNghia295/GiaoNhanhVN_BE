@@ -224,9 +224,16 @@ export class OrdersService {
     };
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
+    // 👉 Clean mapping: flatten vouchers array
+    const mappedEntities = entities.map((entity) => ({
+      ...entity,
+      vouchers: Array.isArray(entity.vouchers)
+        ? entity.vouchers.map((v) => v.voucher)
+        : [],
+    }));
 
     return new OrdersOffsetPaginatedResDto(
-      entities.map((order) => plainToInstance(OrderResDto, order)),
+      mappedEntities.map((order) => plainToInstance(OrderResDto, order)),
       meta,
       totalOrdersForPaginated,
     );
@@ -742,8 +749,7 @@ export class OrdersService {
           ? _.round(
               Math.max(
                 totalProduct * ((serviceFeeWithType.pricePct ?? 0) / 100) +
-                  (serviceFeeWithType.price ?? 0) -
-                  totalVoucherStore,
+                  (serviceFeeWithType.price ?? 0),
                 0,
               ),
             )
