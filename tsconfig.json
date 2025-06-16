@@ -22,6 +22,7 @@
     "noFallthroughCasesInSwitch": false,
     "esModuleInterop": true,
     "importHelpers": true,
+
     "paths": {
       "@/api/*": ["src/api/*"],
       "@/background/*": ["src/background/*"],
@@ -40,6 +41,13 @@
       "@/cache/*": ["src/cache/*"],
       "@/shared/*": ["src/shared/*"],
       "@/utils/*": ["src/utils/*"]
-    }
+    },
+
+    "inlineSources": true,
+
+    // Set `sourceRoot` to  "/" to strip the build path prefix
+    // from generated source code references.
+    // This improves issue grouping in Sentry.
+    "sourceRoot": "/"
   }
 }

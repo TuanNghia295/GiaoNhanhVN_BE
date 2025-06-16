@@ -13,9 +13,11 @@ import { createKeyv } from '@keyv/redis';
 import { CacheModule } from '@nestjs/cache-manager';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_FILTER } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { CacheableMemory } from 'cacheable';
 import 'dotenv/config';
 import { Keyv } from 'keyv';
@@ -57,6 +59,7 @@ import { UserAgentMiddleware } from './ua.middleware';
 
 @Module({
   imports: [
+    SentryModule.forRoot(),
     ConfigModule.forRoot({
       envFilePath: ['.env', `.env.${process.env.NODE_ENV}`],
       load: [
@@ -129,7 +132,13 @@ import { UserAgentMiddleware } from './ua.middleware';
     DeliveryRegionsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_FILTER,
+      useClass: SentryGlobalFilter,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

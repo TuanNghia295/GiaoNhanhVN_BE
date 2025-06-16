@@ -22,6 +22,12 @@ export class AppController {
   }
 
   @ApiPublic()
+  @Get('/debug-sentry')
+  getError() {
+    throw new Error('My first Sentry error!');
+  }
+
+  @ApiPublic()
   @Get('redis')
   async getRedis() {
     await this.cache.set(

@@ -14,6 +14,7 @@ import {
   ValidationError,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as Sentry from '@sentry/node';
 import { STATUS_CODES } from 'http';
 
 @Catch()
@@ -26,7 +27,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   catch(exception: any, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
-
+    Sentry.captureException(exception);
     this.debug = this.configService.getOrThrow('app.debug', {
       infer: true,
     });
