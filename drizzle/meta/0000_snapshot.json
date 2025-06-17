@@ -1,5 +1,5 @@
 {
-  "id": "039166a5-8a6d-4271-8c96-88deef2985d6",
+  "id": "fe08b45d-1b42-4c71-8e70-4920505db613",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -74,6 +74,63 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.bank_records": {
+      "name": "bank_records",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name_bank": {
+          "name": "name_bank",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "account_number": {
+          "name": "account_number",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "account_name": {
+          "name": "account_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.banks": {
       "name": "banks",
       "schema": "",
@@ -108,6 +165,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "area_id": {
+          "name": "area_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         },
         "updated_at": {
           "name": "updated_at",
@@ -353,6 +416,12 @@
       "name": "comments_to_ratings",
       "schema": "",
       "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "comment_id": {
           "name": "comment_id",
           "type": "integer",
@@ -1631,7 +1700,38 @@
           "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "products_name_idx": {
+          "name": "products_name_idx",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "products_store_id_idx": {
+          "name": "products_store_id_idx",
+          "columns": [
+            {
+              "expression": "store_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -1927,27 +2027,27 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "'2025-06-05 02:57:15.156'"
+          "default": "'2025-06-17 16:06:24.319'"
         },
         "end_night_time": {
           "name": "end_night_time",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "'2025-06-05 02:57:15.156'"
+          "default": "'2025-06-17 16:06:24.319'"
         },
         "hotline": {
           "name": "hotline",
           "type": "varchar(20)",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "default": "''"
         },
         "fanpage": {
           "name": "fanpage",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "default": "''"
         },
         "is_rain": {
@@ -2050,7 +2150,38 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "store_menus_name_idx": {
+          "name": "store_menus_name_idx",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "store_menus_store_id_idx": {
+          "name": "store_menus_store_id_idx",
+          "columns": [
+            {
+              "expression": "store_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -2128,13 +2259,13 @@
         },
         "description": {
           "name": "description",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
         "address": {
           "name": "address",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -2153,6 +2284,19 @@
         "background": {
           "name": "background",
           "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rating": {
+          "name": "rating",
+          "type": "numeric(2, 1)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "best_seller": {
+          "name": "best_seller",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -2194,6 +2338,13 @@
           "notNull": true,
           "default": true
         },
+        "is_recommended": {
+          "name": "is_recommended",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "area_id": {
           "name": "area_id",
           "type": "integer",
@@ -2221,7 +2372,68 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "stores_name_idx": {
+          "name": "stores_name_idx",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "stores_location_idx": {
+          "name": "stores_location_idx",
+          "columns": [
+            {
+              "expression": "location",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "stores_user_id_idx": {
+          "name": "stores_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "stores_area_id_idx": {
+          "name": "stores_area_id_idx",
+          "columns": [
+            {
+              "expression": "area_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "stores_user_id_users_id_fk": {
           "name": "stores_user_id_users_id_fk",
@@ -2321,7 +2533,7 @@
         },
         "amount": {
           "name": "amount",
-          "type": "numeric(10, 2)",
+          "type": "numeric(15, 2)",
           "primaryKey": false,
           "notNull": true
         },
@@ -2536,8 +2748,8 @@
       "name": "voucher_usages",
       "schema": "",
       "columns": {
-        "order_id": {
-          "name": "order_id",
+        "user_id": {
+          "name": "user_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
@@ -2555,22 +2767,33 @@
           "notNull": true,
           "default": 1
         },
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": false
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "voucher_usages_order_id_users_id_fk": {
-          "name": "voucher_usages_order_id_users_id_fk",
+        "voucher_usages_user_id_users_id_fk": {
+          "name": "voucher_usages_user_id_users_id_fk",
           "tableFrom": "voucher_usages",
           "tableTo": "users",
           "columnsFrom": [
-            "order_id"
+            "user_id"
           ],
           "columnsTo": [
             "id"
@@ -2594,11 +2817,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "voucher_usages_order_id_voucher_id_unique": {
-          "name": "voucher_usages_order_id_voucher_id_unique",
+        "voucher_usages_user_id_voucher_id_unique": {
+          "name": "voucher_usages_user_id_voucher_id_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "order_id",
+            "user_id",
             "voucher_id"
           ]
         }
@@ -2658,6 +2881,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "used_count": {
+          "name": "used_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "status": {
           "name": "status",
@@ -2755,6 +2985,24 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},

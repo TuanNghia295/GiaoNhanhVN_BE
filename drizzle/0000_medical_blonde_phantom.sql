@@ -10,12 +10,23 @@ CREATE TABLE "areas" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "bank_records" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name_bank" varchar(255),
+	"account_number" varchar(255),
+	"account_name" varchar(255),
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"transaction_id" integer,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "banks" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name_bank" varchar(255),
 	"account_number" varchar(255),
 	"account_name" varchar(255),
 	"created_at" timestamp DEFAULT now() NOT NULL,
+	"area_id" integer,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	"author_id" integer NOT NULL,
 	CONSTRAINT "banks_author_id_unique" UNIQUE("author_id")
@@ -59,6 +70,7 @@ CREATE TABLE "comments" (
 );
 --> statement-breakpoint
 CREATE TABLE "comments_to_ratings" (
+	"id" integer,
 	"comment_id" integer NOT NULL,
 	"rating_id" integer NOT NULL
 );
@@ -303,10 +315,10 @@ CREATE TABLE "sessions" (
 CREATE TABLE "settings" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"open_full_time" boolean DEFAULT false NOT NULL,
-	"start_night_time" timestamp DEFAULT '2025-06-05 02:57:15.156' NOT NULL,
-	"end_night_time" timestamp DEFAULT '2025-06-05 02:57:15.156' NOT NULL,
-	"hotline" varchar(20) DEFAULT '' NOT NULL,
-	"fanpage" text DEFAULT '' NOT NULL,
+	"start_night_time" timestamp DEFAULT '2025-06-17 16:06:24.319' NOT NULL,
+	"end_night_time" timestamp DEFAULT '2025-06-17 16:06:24.319' NOT NULL,
+	"hotline" varchar(20) DEFAULT '',
+	"fanpage" text DEFAULT '',
 	"is_rain" boolean DEFAULT false NOT NULL,
 	"is_night" boolean DEFAULT false NOT NULL,
 	"night_fee" numeric(10, 2) DEFAULT 0 NOT NULL,
@@ -337,17 +349,20 @@ CREATE TABLE "store_requests" (
 CREATE TABLE "stores" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" varchar(100),
-	"description" varchar(255),
-	"address" varchar(255),
+	"description" text,
+	"address" text,
 	"location" varchar(255),
 	"avatar" varchar(255),
 	"background" varchar(255),
+	"rating" numeric(2, 1) DEFAULT 0,
+	"best_seller" integer,
 	"open_time" timestamp,
 	"close_time" timestamp,
 	"open_second_time" timestamp,
 	"close_second_time" timestamp,
 	"is_locked" boolean DEFAULT false NOT NULL,
 	"status" boolean DEFAULT true NOT NULL,
+	"is_recommended" boolean DEFAULT false NOT NULL,
 	"area_id" integer,
 	"user_id" integer NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -363,7 +378,7 @@ CREATE TABLE "stores_to_category_items" (
 CREATE TABLE "transactions" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"type" varchar(50) NOT NULL,
-	"amount" numeric(10, 2) NOT NULL,
+	"amount" numeric(15, 2) NOT NULL,
 	"method" varchar(50),
 	"status" varchar(50) DEFAULT 'PENDING' NOT NULL,
 	"rejected_reason" text,
@@ -399,11 +414,13 @@ CREATE TABLE "users" (
 );
 --> statement-breakpoint
 CREATE TABLE "voucher_usages" (
-	"order_id" integer NOT NULL,
+	"user_id" integer NOT NULL,
 	"voucher_id" integer NOT NULL,
 	"usage_count" integer DEFAULT 1 NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "voucher_usages_order_id_voucher_id_unique" UNIQUE("order_id","voucher_id")
+	"id" integer,
+	"updated_at" timestamp,
+	"created_at" timestamp,
+	CONSTRAINT "voucher_usages_user_id_voucher_id_unique" UNIQUE("user_id","voucher_id")
 );
 --> statement-breakpoint
 CREATE TABLE "vouchers" (
@@ -415,6 +432,7 @@ CREATE TABLE "vouchers" (
 	"end_date" timestamp NOT NULL,
 	"max_uses" integer NOT NULL,
 	"use_per_user" integer NOT NULL,
+	"used_count" integer DEFAULT 0 NOT NULL,
 	"status" varchar(50) DEFAULT 'ACTIVE' NOT NULL,
 	"description" varchar(255),
 	"manager_id" integer,
@@ -431,6 +449,9 @@ CREATE TABLE "vouchers" (
 CREATE TABLE "vouchers_on_orders" (
 	"order_id" integer NOT NULL,
 	"voucher_id" integer NOT NULL,
+	"id" integer,
+	"created_at" timestamp,
+	"updated_at" timestamp,
 	CONSTRAINT "vouchers_on_orders_order_id_voucher_id_pk" PRIMARY KEY("order_id","voucher_id")
 );
 --> statement-breakpoint
@@ -456,7 +477,15 @@ ALTER TABLE "order_details" ADD CONSTRAINT "order_details_order_id_orders_pk" FO
 ALTER TABLE "stores" ADD CONSTRAINT "stores_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "stores_to_category_items" ADD CONSTRAINT "stores_to_category_items_store_id_stores_id_fk" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "stores_to_category_items" ADD CONSTRAINT "stores_to_category_items_category_item_id_category_items_id_fk" FOREIGN KEY ("category_item_id") REFERENCES "public"."category_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "voucher_usages" ADD CONSTRAINT "voucher_usages_order_id_users_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "voucher_usages" ADD CONSTRAINT "voucher_usages_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "voucher_usages" ADD CONSTRAINT "voucher_usages_voucher_id_vouchers_id_fk" FOREIGN KEY ("voucher_id") REFERENCES "public"."vouchers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "vouchers_on_orders" ADD CONSTRAINT "vouchers_on_orders_order_id_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "vouchers_on_orders" ADD CONSTRAINT "vouchers_on_orders_voucher_id_vouchers_id_fk" FOREIGN KEY ("voucher_id") REFERENCES "public"."vouchers"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "vouchers_on_orders" ADD CONSTRAINT "vouchers_on_orders_voucher_id_vouchers_id_fk" FOREIGN KEY ("voucher_id") REFERENCES "public"."vouchers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "products_name_idx" ON "products" USING btree ("name");--> statement-breakpoint
+CREATE INDEX "products_store_id_idx" ON "products" USING btree ("store_id");--> statement-breakpoint
+CREATE INDEX "store_menus_name_idx" ON "store_menus" USING btree ("name");--> statement-breakpoint
+CREATE INDEX "store_menus_store_id_idx" ON "store_menus" USING btree ("store_id");--> statement-breakpoint
+CREATE INDEX "stores_name_idx" ON "stores" USING btree ("name");--> statement-breakpoint
+CREATE INDEX "stores_location_idx" ON "stores" USING btree ("location");--> statement-breakpoint
+CREATE INDEX "stores_user_id_idx" ON "stores" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "stores_area_id_idx" ON "stores" USING btree ("area_id");
