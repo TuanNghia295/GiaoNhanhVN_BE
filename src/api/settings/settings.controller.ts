@@ -1,8 +1,10 @@
+import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { ServiceFeeResDto } from '@/api/settings/dto/service.fee.res.dto';
 import { SettingResDto } from '@/api/settings/dto/setting.res.dto';
 import { UpdateServiceFeeReqDto } from '@/api/settings/dto/update-service.fee.req.dto';
 import { UpdateSettingReqDto } from '@/api/settings/dto/update-setting.req.dto';
 import { RoleEnum } from '@/database/schemas';
+import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth, ApiPublic } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
 import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
@@ -19,8 +21,11 @@ export class SettingsController {
     type: SettingResDto,
   })
   @Get('env')
-  async getSettings(@Query('areaId') areaId: number) {
-    return await this.settingsService.getSettings(areaId);
+  async getSettings(
+    @CurrentUser() payload: JwtPayloadType,
+    @Query('areaId') areaId: number,
+  ) {
+    return await this.settingsService.getSettings(areaId, payload);
   }
 
   @Roles(RoleEnum.MANAGEMENT)

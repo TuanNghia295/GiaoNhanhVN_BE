@@ -502,12 +502,14 @@ export class OrdersService {
     //----------------------------------------------
     // Thu nhập của người giao hàng
     //----------------------------------------------
-    const incomeDeliver = _.round(
-      (totalDelivery * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) /
-        100 -
-        serviceFeeWithTypeFood?.deliverFee,
+    const incomeDeliver = Math.max(
+      _.round(
+        (totalDelivery * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) /
+          100 -
+          serviceFeeWithTypeFood?.deliverFee,
+      ),
+      0,
     );
-
     // phí dịch vụ người dùng
     const userServiceFee = _.round(serviceFeeWithType.userServiceFee);
 
