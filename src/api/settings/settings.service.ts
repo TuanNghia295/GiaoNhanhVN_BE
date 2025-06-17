@@ -132,4 +132,18 @@ export class SettingsService {
 
     return setting;
   }
+
+  async getSettingById(settingId: number) {
+    const [setting] = await this.db
+      .select()
+      .from(settings)
+      .where(eq(settings.id, settingId))
+      .execute();
+
+    if (!setting) {
+      throw new ValidationException(ErrorCode.ST001);
+    }
+
+    return setting;
+  }
 }

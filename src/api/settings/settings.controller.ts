@@ -23,6 +23,17 @@ export class SettingsController {
     return await this.settingsService.getSettings(areaId);
   }
 
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'Lấy cài đặt theo settingId',
+    isPaginated: false,
+    type: SettingResDto,
+  })
+  @Get('one/:settingId')
+  async getSettingById(@Param('settingId') settingId: number) {
+    return await this.settingsService.getSettingById(settingId);
+  }
+
   @ApiPublic({
     summary: 'Lấy cài đặt giá trị môi trường toàn bộ',
     isPaginated: false,
