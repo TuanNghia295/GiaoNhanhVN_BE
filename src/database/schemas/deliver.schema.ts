@@ -30,9 +30,9 @@ export const delivers = pgTable(
     cancelOrderCount: integer('cancel_order_count').default(0),
 
     //sẽ bỏ
-    rating: numeric('rating', { precision: 10, scale: 2, mode: 'number' }),
+    rating: numeric('rating', { precision: 15, scale: 2, mode: 'number' }),
     point: numeric('point', {
-      precision: 10,
+      precision: 15,
       scale: 2,
       mode: 'number',
     }).default(0),

@@ -44,7 +44,6 @@ export const stores = pgTable(
     closeSecondTime: timestamp('close_second_time'),
     isLocked: boolean('is_locked').notNull().default(false),
     status: boolean('status').notNull().default(true),
-    isRecommended: boolean('is_recommended').notNull().default(false),
     areaId: integer('area_id'),
     userId: integer('user_id')
       .notNull()

@@ -21,6 +21,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { AxiosError } from 'axios';
 import { Cache } from 'cache-manager';
 import { plainToInstance } from 'class-transformer';
@@ -54,6 +55,54 @@ export class ZaloService {
     this.zaloConfig = this.configService.getOrThrow('zalo', {
       infer: true,
     });
+  }
+
+  /**
+   * Tự động refresh token mỗi 6 giờ
+   * @returns Thông báo cập nhật token thành công
+   */
+  @Cron(CronExpression.EVERY_6_HOURS)
+  async refreshToken() {
+    const zalo = await this.findZaloToken();
+    if (!zalo) {
+      throw new UnauthorizedException('Zalo not found');
+    }
+    const app_id = this.zaloConfig.app_id;
+    const app_secret = this.zaloConfig.app_secret;
+    const oauth_url = this.zaloConfig.oauth_url;
+    console.log('Refreshing Zalo token...');
+    console.log('Zalo config:', app_id, app_secret, oauth_url);
+    try {
+      const response = await this.httpService.axiosRef.post(
+        `${oauth_url}/v4/oa/access_token`,
+        {
+          app_id,
+          grant_type: 'refresh_token',
+          refresh_token: zalo.refreshToken,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            secret_key: app_secret,
+          },
+        },
+      );
+      if (response.status !== 200 || response.data.error) {
+        throw response.data;
+      }
+      this.logger.log('Zalo token is updated');
+      await this.createZaloToken(
+        response.data.access_token,
+        response.data.refresh_token,
+      );
+      return {
+        status: 'success',
+        message: 'Zalo token is updated',
+      };
+    } catch (error) {
+      this.logger.error('Error when get access token from Zalo', error);
+      throw new UnauthorizedException(error.error_name ?? 'Unauthorized');
+    }
   }
 
   async sendZaloOtp(phone: string) {
