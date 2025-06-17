@@ -28,7 +28,6 @@ export class LocationsService {
         name: true,
       },
     });
-    console.log('area', area);
 
     const [existLocation] = await this.db
       .select()
@@ -42,14 +41,18 @@ export class LocationsService {
       .execute();
 
     if (existLocation) {
-      const [updatedLocation] = await this.db
-        .update(locations)
-        .set({
-          // ...reqDto,
-          ...(area ? { areaId: area.id } : {}),
-        })
-        .where(eq(locations.id, existLocation.id))
-        .returning();
+      let updatedLocation: typeof existLocation;
+
+      if (area) {
+        [updatedLocation] = await this.db
+          .update(locations)
+          .set({
+            areaId: area.id,
+          })
+          .where(eq(locations.id, existLocation.id))
+          .returning();
+      }
+
       return updatedLocation;
     }
 
