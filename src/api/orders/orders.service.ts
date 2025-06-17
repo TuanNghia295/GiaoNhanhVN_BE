@@ -122,7 +122,11 @@ export class OrdersService {
   async getPageOrders(reqDto: PageOrderReqDto, payload: JwtPayloadType) {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.orders> = {
       with: {
-        store: true,
+        store: {
+          with: {
+            user: true,
+          },
+        },
         vouchers: {
           with: {
             voucher: true,
