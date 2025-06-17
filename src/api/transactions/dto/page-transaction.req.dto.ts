@@ -7,4 +7,7 @@ export class PagingTransaction extends PageOptionsDto {
 
   @NumberFieldOptional()
   deliverId?: number;
+
+  @NumberFieldOptional()
+  areaId?: number;
 }

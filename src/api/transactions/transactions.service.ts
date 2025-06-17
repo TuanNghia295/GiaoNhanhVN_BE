@@ -277,6 +277,7 @@ export class TransactionsService {
             ilike(delivers.phone, `%${reqDto.q ?? ''}%`),
             ilike(managers.phone, `%${reqDto.q ?? ''}%`),
           ),
+          ...(reqDto.areaId ? [eq(transactions.areaId, reqDto.areaId)] : []),
           isNotNull(transactions.managerId),
         );
 
