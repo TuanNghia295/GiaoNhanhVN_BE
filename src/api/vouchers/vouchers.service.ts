@@ -34,6 +34,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { plainToInstance } from 'class-transformer';
+import { subHours } from 'date-fns';
 import {
   and,
   asc,
@@ -194,7 +195,6 @@ export class VouchersService {
   }
 
   async create(reqDto: CreateVoucherReqDto, payload: JwtPayloadType) {
-    console.log('reqDto', reqDto);
     //-------------------------------------------------------
     // Kiểm tra mã đó có đang tồn tại
     if (await this.existByCode(reqDto.code, payload.id)) {
@@ -205,12 +205,15 @@ export class VouchersService {
     }
 
     if (reqDto.startDate && reqDto.endDate) {
-      reqDto.startDate = DateTime.fromJSDate(reqDto.startDate)
+      const startDate = DateTime.fromJSDate(reqDto.startDate)
         .startOf('day')
-        .toJSDate();
-      reqDto.endDate = DateTime.fromJSDate(reqDto.endDate)
+        .toJSDate(); // Dùng reqDto.startDate để tạo startDate -> SAI logic
+      const endDate = DateTime.fromJSDate(reqDto.startDate)
         .endOf('day')
-        .toJSDate();
+        .toJSDate(); // Dùng reqDto.startDate để tạo endDate -> SAI logic
+
+      reqDto.startDate = subHours(startDate, 7);
+      reqDto.endDate = subHours(endDate, 7);
       if (reqDto.startDate >= reqDto.endDate) {
         throw new ValidationException(
           ErrorCode.V009,
@@ -219,6 +222,7 @@ export class VouchersService {
         );
       }
     }
+    console.log('reqDto', reqDto);
 
     // Chỉ có role MANAGEMENT với có điểm
     if ([RoleEnum.MANAGEMENT].includes(payload.role)) {
@@ -406,6 +410,25 @@ export class VouchersService {
       ],
       [_.stubTrue, () => VouchersStatusEnum.ACTIVE], // Trường hợp mặc định
     ])(reqDto);
+
+    if (reqDto.startDate && reqDto.endDate) {
+      const startDate = DateTime.fromJSDate(reqDto.startDate)
+        .startOf('day')
+        .toJSDate();
+      const endDate = DateTime.fromJSDate(reqDto.endDate)
+        .endOf('day')
+        .toJSDate();
+
+      reqDto.startDate = subHours(startDate, 7);
+      reqDto.endDate = subHours(endDate, 7);
+      if (reqDto.startDate >= reqDto.endDate) {
+        throw new ValidationException(
+          ErrorCode.V009,
+          HttpStatus.BAD_REQUEST,
+          'Start date must be before end date',
+        );
+      }
+    }
 
     return this.db
       .update(vouchers)
