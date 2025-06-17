@@ -357,6 +357,15 @@ export class TransactionsService {
       switch (payload.role) {
         case RoleEnum.DELIVER: {
           if (createdTransaction.type === TransactionTypeEnum.WITHDRAW) {
+            const deliver = await this.deliversService.existById(
+              createdTransaction.deliverId,
+            );
+            if (!deliver) {
+              throw new ValidationException(ErrorCode.D001);
+            }
+            if (deliver.point < createdTransaction.amount) {
+              throw new ValidationException(ErrorCode.TR002);
+            }
             const bankInfo = await this.db.query.banks.findFirst({
               where: eq(banks.authorId, payload.id),
             });
@@ -375,6 +384,19 @@ export class TransactionsService {
           }
           break;
         }
+        case RoleEnum.MANAGEMENT:
+          if (createdTransaction.type === TransactionTypeEnum.WITHDRAW) {
+            const manager = await this.managersService.existById(
+              createdTransaction.managerId,
+            );
+            if (!manager) {
+              throw new ValidationException(ErrorCode.M001);
+            }
+            if (manager.point < createdTransaction.amount) {
+              throw new ValidationException(ErrorCode.TR002);
+            }
+          }
+          break;
       }
 
       return plainToInstance(TransactionResDto, createdTransaction);
