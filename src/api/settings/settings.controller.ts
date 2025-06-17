@@ -60,6 +60,16 @@ export class SettingsController {
     );
   }
 
+  @ApiPublic({
+    summary: 'Lấy cài đặt giá trị môi trường',
+    isPaginated: false,
+    type: SettingResDto,
+  })
+  @Get('hotline')
+  async getHotline(@Query('provinceName') provinceName: string) {
+    return await this.settingsService.getHotline(provinceName);
+  }
+
   @Roles(RoleEnum.MANAGEMENT)
   @Patch('type/:type')
   @ApiAuth({

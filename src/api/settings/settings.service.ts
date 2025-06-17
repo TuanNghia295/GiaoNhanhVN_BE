@@ -3,7 +3,7 @@ import { SettingResDto } from '@/api/settings/dto/setting.res.dto';
 import { UpdateServiceFeeReqDto } from '@/api/settings/dto/update-service.fee.req.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
-import { distances, serviceFees, settings } from '@/database/schemas';
+import { areas, distances, serviceFees, settings } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable } from '@nestjs/common';
@@ -113,5 +113,23 @@ export class SettingsService {
     if (!setting.openFullTime) {
       throw new ValidationException(ErrorCode.ST003);
     }
+  }
+
+  async getHotline(provinceName: string) {
+    const [setting] = await this.db
+      .select({
+        hotline: settings.hotline,
+        fanpage: settings.fanpage,
+      })
+      .from(settings)
+      .leftJoin(areas, eq(settings.areaId, areas.id))
+      .where(and(eq(areas.name, provinceName)))
+      .execute();
+
+    if (!setting) {
+      throw new ValidationException(ErrorCode.AR001);
+    }
+
+    return setting;
   }
 }
