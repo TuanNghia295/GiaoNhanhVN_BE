@@ -84,6 +84,7 @@ export class RatingsService {
             comment: true,
           },
         },
+        userComment: true,
       },
     });
   }

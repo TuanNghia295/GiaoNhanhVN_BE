@@ -1,6 +1,7 @@
 import { commentsToRatings } from '@/database/schemas/comments-to-ratings.schema';
 import { orders } from '@/database/schemas/order.schema';
 import { stores } from '@/database/schemas/store.schema';
+import { users } from '@/database/schemas/user.schema';
 import { relations } from 'drizzle-orm';
 import { integer, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 
@@ -27,6 +28,10 @@ export const ratingsRelations = relations(ratings, ({ one, many }) => ({
   order: one(orders, {
     fields: [ratings.orderId],
     references: [orders.id],
+  }),
+  userComment: one(users, {
+    fields: [ratings.userId],
+    references: [users.id],
   }),
   commentUsed: many(commentsToRatings),
 }));
