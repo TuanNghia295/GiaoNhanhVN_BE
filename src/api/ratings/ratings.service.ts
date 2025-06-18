@@ -1,7 +1,6 @@
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { OrdersService } from '@/api/orders/orders.service';
 import { CreateRatingReqDto } from '@/api/ratings/dto/create-rating.req.dto';
-import { RatingsResDto } from '@/api/ratings/dto/rating.req.dto';
 import { StoresService } from '@/api/stores/stores.service';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
@@ -11,7 +10,6 @@ import { ratings } from '@/database/schemas/rating.schema';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { plainToInstance } from 'class-transformer';
 import { isArray } from 'class-validator';
 import { eq } from 'drizzle-orm';
 
@@ -78,7 +76,7 @@ export class RatingsService {
   }
 
   async getRatingsByStoreId(storeId: number) {
-    const results = await this.drizzle.query.ratings.findMany({
+    return this.drizzle.query.ratings.findMany({
       where: eq(ratings.storeId, storeId),
       with: {
         commentUsed: {
@@ -88,7 +86,5 @@ export class RatingsService {
         },
       },
     });
-
-    return results.map((rating) => plainToInstance(RatingsResDto, rating));
   }
 }
