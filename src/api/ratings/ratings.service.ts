@@ -81,7 +81,11 @@ export class RatingsService {
     const results = await this.drizzle.query.ratings.findMany({
       where: eq(ratings.storeId, storeId),
       with: {
-        commentUsed: true,
+        commentUsed: {
+          with: {
+            comment: true,
+          },
+        },
       },
     });
 
