@@ -47,7 +47,7 @@ export class RatingsService {
         .returning();
 
       // check if storeComment is an array
-      if (isArray(reqDto.storeComment && reqDto.storeComment.length > 0)) {
+      if (isArray(reqDto.storeComment) && reqDto.storeComment.length > 0) {
         const comments = reqDto.storeComment.map((comment) => ({
           commentId: comment.id,
           ratingId: result[0].id,
