@@ -38,6 +38,6 @@ export class RatingsController {
   })
   @Get('store/:storeId')
   async getRatingsByStoreId(@Param('storeId', ParseIntPipe) storeId: number) {
-    return await this.ratingsService.getRatingsByStoreId(storeId);
+    return this.ratingsService.getRatingsByStoreId(storeId);
   }
 }
