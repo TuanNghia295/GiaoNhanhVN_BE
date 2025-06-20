@@ -16,7 +16,6 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
-import '../src/instrument';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './filter/global-exception.filter';
 

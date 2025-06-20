@@ -1,12 +1,10 @@
 services:
   api-giao-nhanh:
     container_name: api
+    restart: unless-stopped # khi container dừng thì tự động khởi động lại
     build:
       context: .
       dockerfile: Dockerfile
-
-    ports:
-      - "8000:8000"
     env_file:
       - .env
     volumes:
