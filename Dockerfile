@@ -1,41 +1,58 @@
-# Stage 1: Build
-FROM node:22-alpine AS builder
+##################
+# BUILD BASE IMAGE
+##################
 
-# 1. Enable Corepack và cài đặt PNPM
-RUN corepack enable && corepack prepare pnpm@latest --activate
+FROM node:22-alpine AS base
 
+# Install and use pnpm
+RUN npm install -g pnpm
+
+#############################
+# BUILD FOR LOCAL DEVELOPMENT
+#############################
+
+FROM base AS development
 WORKDIR /app
 
-# 2. Copy lock file trước để tận dụng Docker cache
-COPY pnpm-lock.yaml ./
+COPY package*.json pnpm-lock.yaml ./
+RUN pnpm install
 
-# 3. Copy package.json và install dependencies
-COPY package.json .
-RUN pnpm install --frozen-lockfile
-
-# 4. Copy toàn bộ source code và build
+# Bundle app source
 COPY . .
+
+#####################
+# BUILD BUILDER IMAGE
+#####################
+
+FROM base AS builder
+WORKDIR /app
+
+COPY package*.json pnpm-lock.yaml ./
+COPY --from=development /app/node_modules ./node_modules
+COPY --from=development /app/src ./src
+COPY --from=development /app/tsconfig.json ./tsconfig.json
+COPY --from=development /app/tsconfig.build.json ./tsconfig.build.json
+COPY --from=development /app/nest-cli.json ./nest-cli.json
+
 RUN pnpm build
 
-# Stage 2: Production
-FROM node:22-alpine AS runner
+# Re-install only production dependencies
+ENV NODE_ENV=production
+RUN pnpm prune --prod
+RUN pnpm install --prod
 
-# 1. Cài đặt PNPM cho production
-RUN corepack enable && corepack prepare pnpm@latest --activate
+######################
+# BUILD FOR PRODUCTION
+######################
 
+FROM node:22-alpine AS production
 WORKDIR /app
 
-# 2. Chỉ copy những gì cần thiết
-COPY --from=builder /app/package.json .
+# Copy production files
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
-
-# 3. Cài đặt môi trường
-ENV NODE_ENV production
-ENV PORT 3000
-
-# 4. Khởi chạy ứng dụng
-EXPOSE 3000
-CMD ["pnpm", "start"]
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package.json ./
+# Copy ảnh từ builder hoặc context
+RUN mkdir -p uploads && chmod -R 755 uploads
+# Start the server
+CMD ["node", "dist/main.js"]
