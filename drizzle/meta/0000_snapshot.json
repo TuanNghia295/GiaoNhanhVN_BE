@@ -1,5 +1,5 @@
 {
-  "id": "fe08b45d-1b42-4c71-8e70-4920505db613",
+  "id": "a3b32b96-7d76-49f3-9789-a9319ecb7070",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -544,13 +544,13 @@
         },
         "rating": {
           "name": "rating",
-          "type": "numeric(10, 2)",
+          "type": "numeric(15, 2)",
           "primaryKey": false,
           "notNull": false
         },
         "point": {
           "name": "point",
-          "type": "numeric(10, 2)",
+          "type": "numeric(15, 2)",
           "primaryKey": false,
           "notNull": false,
           "default": 0
@@ -2027,14 +2027,14 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "'2025-06-17 16:06:24.319'"
+          "default": "'2025-06-20 03:00:58.746'"
         },
         "end_night_time": {
           "name": "end_night_time",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "'2025-06-17 16:06:24.319'"
+          "default": "'2025-06-20 03:00:58.746'"
         },
         "hotline": {
           "name": "hotline",
@@ -2337,13 +2337,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
-        },
-        "is_recommended": {
-          "name": "is_recommended",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         },
         "area_id": {
           "name": "area_id",

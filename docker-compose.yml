@@ -10,7 +10,7 @@ services:
     env_file:
       - .env
     volumes:
-      - giao-nhanh-uploads:/app/uploads
+      - /home/2412_be_giaonhanhvn/uploads:/app/uploads
     networks:
       - giao-nhanh-network
 
