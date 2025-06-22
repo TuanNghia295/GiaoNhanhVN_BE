@@ -74,3 +74,16 @@ export function deleteIfExists(relativePath: string, basePath: string) {
     }
   }
 }
+
+export function generateCodeFromName(name: string): string {
+  const normalized = name
+    .normalize('NFD') // Loại dấu tiếng Việt
+    .replace(/[\u0300-\u036f]/g, '') // Loại ký tự dấu
+    .replace(/[^a-zA-Z0-9]/g, '') // Loại ký tự đặc biệt
+    .toUpperCase();
+
+  const prefix = normalized.slice(0, 3); // Lấy 3 ký tự đầu tiên
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase(); // Random 4 ký tự
+
+  return `${prefix}-${random}`;
+}

@@ -74,13 +74,13 @@ export class AreasService {
       .then((result) => result[0] ?? null);
   }
 
-  async existByName(name: string): Promise<{ id: number }> {
+  async existByNameAndParent(name: string, parent: string) {
     return this.db
       .select({
         id: areas.id,
       })
       .from(areas)
-      .where(eq(areas.name, name))
+      .where(and(eq(areas.name, name), eq(areas.parent, parent)))
       .then((result) => result[0] ?? null);
   }
 

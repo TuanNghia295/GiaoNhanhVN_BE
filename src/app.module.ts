@@ -88,9 +88,20 @@ import { UserAgentMiddleware } from './ua.middleware';
       isGlobal: true,
       inject: [ConfigService],
     }),
-    ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', '..', 'uploads'), // vì đang chạy trong /app/dist
-      serveRoot: '/api/images',
+    ServeStaticModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => {
+        return [
+          {
+            rootPath:
+              configService.get('DEPLOY_MODE') === 'docker'
+                ? join(__dirname, '..', 'uploads') // vì đang chạy trong /app/dist
+                : join(__dirname, '..', '..', 'uploads'),
+            serveRoot: '/api/images',
+          },
+        ];
+      },
+      inject: [ConfigService],
     }),
     EventEmitterModule.forRoot({
       global: true,

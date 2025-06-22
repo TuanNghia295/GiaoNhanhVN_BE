@@ -1,3 +1,4 @@
+import { AreasService } from '@/api/areas/areas.service';
 import { LoginResDto } from '@/api/auth/dto/login.res.dto';
 import { CreateManagerReqDto } from '@/api/managers/dto/create-manager.req.dto';
 import { ManagerResDto } from '@/api/managers/dto/manager.res.dto';
@@ -17,13 +18,17 @@ import {
 } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
+import { generateCodeFromName } from '@/utils/util';
 import { Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { and, count, desc, eq, ilike, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, sql } from 'drizzle-orm';
 
 @Injectable()
 export class ManagersService {
-  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
+  constructor(
+    private readonly areaService: AreasService,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
+  ) {}
 
   async getInfo(managerId: number) {
     const manager = await this.db.query.managers.findFirst({
@@ -40,31 +45,47 @@ export class ManagersService {
     return plainToInstance(ManagerResDto, manager);
   }
 
-  async existByUsernameOrAreaId(username: string, areaId: number) {
+  async existByUsername(username: string) {
     return this.db
       .select({
         id: managers.id,
         areaId: managers.areaId,
       })
       .from(managers)
-      .where(or(eq(managers.username, username), eq(managers.areaId, areaId)))
+      .where(eq(managers.username, username))
       .then((res) => res[0]);
   }
 
   async create(reqDto: CreateManagerReqDto) {
-    const existManager = await this.existByUsernameOrAreaId(
-      reqDto.username,
-      reqDto.areaId,
-    );
+    console.log('Create manager with reqDto:', reqDto);
+    const existManager = await this.existByUsername(reqDto.username);
     if (existManager) {
       throw new ValidationException(ErrorCode.M002);
     }
 
+    if (
+      await this.areaService.existByNameAndParent(reqDto.name, reqDto.parent)
+    ) {
+      throw new ValidationException(ErrorCode.AR002);
+    }
+
     return this.db.transaction(async (tx) => {
+      const [createArea] = await tx
+        .insert(areas)
+        .values({
+          name: reqDto.name,
+          parent: reqDto.parent,
+          code: generateCodeFromName(reqDto.name),
+        })
+        .returning({
+          id: areas.id,
+        });
+
       const [createdManager] = await tx
         .insert(managers)
         .values({
           ...reqDto,
+          areaId: createArea.id,
           role: RoleEnum.MANAGEMENT,
         })
         .returning();
@@ -73,7 +94,7 @@ export class ManagersService {
       const [createdSetting] = await tx
         .insert(settings)
         .values({
-          areaId: reqDto.areaId,
+          areaId: createArea.id,
         })
         .returning({
           id: settings.id,

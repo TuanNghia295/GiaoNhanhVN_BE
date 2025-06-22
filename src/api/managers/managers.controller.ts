@@ -9,7 +9,7 @@ import { RoleEnum } from '@/database/schemas';
 import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth, ApiPublic } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ManagersService } from './managers.service';
 
 @Controller('managers')
@@ -36,6 +36,18 @@ export class ManagersController {
   @Get('info')
   async getInfoManager(
     @CurrentUser() { id: managerId }: JwtPayloadType,
+  ): Promise<ManagerResDto> {
+    return await this.managersService.getInfo(managerId);
+  }
+
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'Lấy thông tin của manager hiện tại',
+    type: ManagerResDto,
+  })
+  @Get(':managerId')
+  async getManagerById(
+    @Param('managerId') managerId: number,
   ): Promise<ManagerResDto> {
     return await this.managersService.getInfo(managerId);
   }

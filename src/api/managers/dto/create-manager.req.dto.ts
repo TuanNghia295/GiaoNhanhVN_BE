@@ -1,8 +1,4 @@
-import {
-  NumberField,
-  PasswordField,
-  StringField,
-} from '@/decorators/field.decorators';
+import { PasswordField, StringField } from '@/decorators/field.decorators';
 
 export class CreateManagerReqDto {
   @StringField()
@@ -13,8 +9,11 @@ export class CreateManagerReqDto {
   })
   password: string;
 
-  @NumberField()
-  areaId: number;
+  @StringField()
+  name: string;
+
+  @StringField()
+  parent: string;
 
   @StringField()
   phone: string;
