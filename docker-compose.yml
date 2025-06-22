@@ -2,6 +2,8 @@ services:
   api-giao-nhanh:
     container_name: api
     restart: unless-stopped # khi container dừng thì tự động khởi động lại
+    ports:
+      - "8000:8000" # ánh xạ cổng 8000 của máy chủ với cổng 8000 của container
     build:
       context: .
       dockerfile: Dockerfile
