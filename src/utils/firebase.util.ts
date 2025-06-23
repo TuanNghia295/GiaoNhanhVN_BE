@@ -13,31 +13,25 @@ export function buildMulticastMessage(
 
   return {
     tokens,
-    notification: {
-      title: template.title,
-      body: template.body,
-    },
     data: {
       title: template.title,
       body: template.body,
-      sound: template.sound.ios,
+      sound: template.sound,
       ...customData, // merge custom fields vào đây
     },
     android: {
-      notification: {
-        title: template.title,
-        body: template.body,
-        sound: template.sound.android,
-      },
+      priority: 'high',
+      ttl: 60 * 1000,
     },
     apns: {
+      headers: {
+        'apns-push-type': 'background',
+        'apns-priority': '5',
+        'apns-expiration': `${Math.floor(Date.now() / 1000) + 60}`,
+      },
       payload: {
         aps: {
-          alert: {
-            title: template.title,
-            body: template.body,
-          },
-          sound: template.sound.ios,
+          'content-available': 1,
         },
       },
     },
