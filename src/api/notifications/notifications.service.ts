@@ -19,6 +19,7 @@ import {
 } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
+import { buildMulticastMessage } from '@/utils/firebase.util';
 import { deleteIfExists, normalizeImagePath } from '@/utils/util';
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -142,36 +143,13 @@ export class NotificationsService implements OnModuleInit {
   ) {
     if (tokens.length === 0) return;
     try {
-      await this.admin.messaging().sendEachForMulticast({
-        tokens: tokens,
-        notification: {
+      await this.admin.messaging().sendEachForMulticast(
+        buildMulticastMessage({
+          tokens,
           title: notification.title,
           body: notification.body,
-        },
-        data: {
-          title: notification.title,
-          body: notification.body,
-          sound: 'default',
-        },
-        android: {
-          notification: {
-            title: notification.title,
-            body: notification.body,
-            sound: 'default',
-          },
-        },
-        apns: {
-          payload: {
-            aps: {
-              alert: {
-                title: notification.title,
-                body: notification.body,
-              },
-              sound: 'default',
-            },
-          },
-        },
-      });
+        }),
+      );
     } catch (error) {
       this.logger.error('Error sending FCM notification', error);
     }

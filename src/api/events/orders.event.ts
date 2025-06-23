@@ -26,9 +26,14 @@ export class OrdersEvent {
     console.log('Valid FCM tokens:', validTokens);
     if (validTokens.length === 0) return;
     try {
-      await this.firebase
-        .messaging()
-        .sendEachForMulticast(buildMulticastMessage(validTokens, 'NEW_ORDER'));
+      await this.firebase.messaging().sendEachForMulticast(
+        buildMulticastMessage({
+          tokens: validTokens,
+          title: 'Bạn có một đơn hàng mới',
+          body: 'Có một đơn hàng mới cần giao, hãy kiểm tra ngay',
+          sound: 'alert',
+        }),
+      );
     } catch (error) {
       this.logger.error('Error sending FCM notification', error);
     }

@@ -212,11 +212,32 @@ export class StoreRequestsService {
     console.log('Valid FCM tokens:', validTokens);
     if (validTokens.length === 0) return;
     try {
-      await this.admin.messaging().sendEachForMulticast(
-        buildMulticastMessage(validTokens, type, {
-          status: type === 'ACCEPT_STORE_REQUEST' ? 'approved' : 'rejected',
-        }),
-      );
+      switch (type) {
+        case 'ACCEPT_STORE_REQUEST':
+          await this.admin.messaging().sendEachForMulticast(
+            buildMulticastMessage({
+              tokens: validTokens,
+              title: 'Yêu cầu đã được chấp nhận',
+              body: 'Yêu cầu của bạn đã được chấp nhận, vui lòng kiểm tra lại',
+              data: {
+                status: 'approved',
+              },
+            }),
+          );
+          break;
+        case 'REJECT_STORE_REQUEST':
+          await this.admin.messaging().sendEachForMulticast(
+            buildMulticastMessage({
+              tokens: validTokens,
+              title: 'Yêu cầu đã bị từ chối',
+              body: 'Yêu cầu của bạn đã bị từ chối, vui lòng liên hệ hotline để biết thêm chi tiết',
+              data: {
+                status: 'rejected',
+              },
+            }),
+          );
+          break;
+      }
     } catch (error) {
       this.logger.error('Error sending FCM notification', error);
     }

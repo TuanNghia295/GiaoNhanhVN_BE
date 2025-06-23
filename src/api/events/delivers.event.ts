@@ -34,11 +34,13 @@ export class DeliversEvent {
 
     if (deliver.fcmToken) {
       try {
-        await this.admin
-          .messaging()
-          .sendEachForMulticast(
-            buildMulticastMessage([deliver.fcmToken], 'LOCK_ACCOUNT'),
-          );
+        await this.admin.messaging().sendEachForMulticast(
+          buildMulticastMessage({
+            tokens: [deliver.fcmToken],
+            title: 'Tài khoản của bạn đã bị khóa',
+            body: 'Tài khoản của bạn đã bị khóa, vui lòng liên hệ quản trị viên để biết thêm chi tiết',
+          }),
+        );
       } catch (error) {
         this.logger.error('Error sending FCM notification', error);
       }

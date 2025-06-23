@@ -1288,16 +1288,26 @@ export class OrdersService {
     );
     console.log('validUserFcmToken', validUserFcmToken);
     if (validUserFcmToken.fcmToken) {
-      try {
-        await this.admin
-          .messaging()
-          .sendEachForMulticast(
-            buildMulticastMessage([validUserFcmToken.fcmToken], 'CANCEL_ORDER'),
-          );
-      } catch (error) {
-        this.logger.error('Error sending FCM notification', error);
-      }
+      await this.notifyOrderCanceled([validUserFcmToken.fcmToken]);
     }
+  }
+
+  private notifyOrderCanceled(tokens: string[]) {
+    if (tokens.length === 0) {
+      return;
+    }
+    this.admin
+      .messaging()
+      .sendEachForMulticast(
+        buildMulticastMessage({
+          tokens: tokens,
+          title: 'Đơn hàng đã bị hủy',
+          body: 'Đơn hàng của bạn đã bị hủy. Vui lòng kiểm tra lại.',
+        }),
+      )
+      .catch((error) => {
+        this.logger.error('Error sending FCM notification', error);
+      });
   }
 
   //Thực hiện hủy đơn hàng
@@ -1388,15 +1398,7 @@ export class OrdersService {
     );
     console.log('validUserFcmToken', validUserFcmToken);
     if (validUserFcmToken.fcmToken) {
-      try {
-        await this.admin
-          .messaging()
-          .sendEachForMulticast(
-            buildMulticastMessage([validUserFcmToken.fcmToken], 'CANCEL_ORDER'),
-          );
-      } catch (error) {
-        this.logger.error('Error sending FCM notification', error);
-      }
+      await this.notifyOrderCanceled([validUserFcmToken.fcmToken]);
     }
   }
 
