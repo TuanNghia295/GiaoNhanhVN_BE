@@ -10,6 +10,7 @@ import {
   boolean,
   decimal,
   integer,
+  numeric,
   pgTable,
   serial,
   text,
@@ -40,9 +41,15 @@ export const orders = pgTable('orders', {
     .notNull()
     .$type<OrderStatusEnum>()
     .default(OrderStatusEnum.PENDING),
-  isHoliday: boolean('is_holiday').notNull().default(false),
+  // isHoliday: boolean('is_holiday').notNull().default(false),
   isNight: boolean('is_night').notNull().default(false),
   isRain: boolean('is_rain').notNull().default(false),
+  nightFee: numeric('night_fee', { precision: 15, scale: 2, mode: 'number' })
+    .notNull()
+    .default(0),
+  rainFee: numeric('rain_fee', { precision: 15, scale: 2, mode: 'number' })
+    .notNull()
+    .default(0),
   distance: decimal('distance', { precision: 15, scale: 2, mode: 'number' })
     .notNull()
     .default(0),

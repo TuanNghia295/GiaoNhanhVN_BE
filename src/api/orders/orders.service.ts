@@ -97,6 +97,8 @@ export interface CalculateResponse {
   totalDelivery: number;
   isRain: boolean;
   isNight: boolean;
+  rainFee: number;
+  nightFee: number;
   areaId: number;
 }
 
@@ -455,11 +457,13 @@ export class OrdersService {
     return {
       sessionId: sessionId,
       distance: distanceRate,
+      nightFee: 0,
+      rainFee: 0,
       incomeDeliver: incomeDeliver,
       userServiceFee: FIXED_USER_SERVICE_FEE,
       totalDelivery: totalDelivery,
-      isRain: setting.isRain,
-      isNight: setting.isNight,
+      isRain: false,
+      isNight: false,
       areaId: setting.areaId,
     };
   }
@@ -496,15 +500,16 @@ export class OrdersService {
     //--------------------------------------------------------------
     // Tính phí dịch vụ môi trường
     //--------------------------------------------------------------
-    const envFee = await this.calculateEnvironmentFee(setting);
+    const { isNight, nightFee, isRain, rainFee } =
+      await this.calculateEnvironmentFee(setting);
 
-    const totalDelivery = _.round(distanceFee + envFee);
     //----------------------------------------------
     // Thu nhập của người giao hàng
     //----------------------------------------------
     const incomeDeliver = Math.max(
       _.round(
-        (totalDelivery * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) /
+        ((distanceFee + nightFee + rainFee) *
+          (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) /
           100 -
           serviceFeeWithTypeFood?.deliverFee,
       ),
@@ -520,9 +525,11 @@ export class OrdersService {
       distance: distanceRate,
       incomeDeliver: incomeDeliver,
       userServiceFee: userServiceFee,
-      totalDelivery: totalDelivery,
-      isRain: setting.isRain,
-      isNight: setting.isNight,
+      totalDelivery: distanceFee,
+      isRain: isRain,
+      isNight: isNight,
+      rainFee: rainFee,
+      nightFee: nightFee,
       areaId: setting.areaId,
     };
   }
@@ -559,7 +566,12 @@ export class OrdersService {
   }
 
   //hàm tính phí dịch vụ môi tường
-  private async calculateEnvironmentFee(setting: Setting) {
+  private async calculateEnvironmentFee(setting: Setting): Promise<{
+    isNight: boolean;
+    isRain: boolean;
+    nightFee: number;
+    rainFee: number;
+  }> {
     const zone = 'Asia/Ho_Chi_Minh';
     const now = DateTime.now().setZone(zone);
 
@@ -582,7 +594,12 @@ export class OrdersService {
 
     const rainFee = setting.isRain ? setting.rainFee : 0;
 
-    return _.round(nightFee + rainFee);
+    return {
+      isNight: setting.isNight && isNight,
+      isRain: setting.isRain,
+      nightFee: setting.isNight && isNight ? nightFee : 0,
+      rainFee: setting.isRain ? rainFee : 0,
+    };
   }
 
   private async applyCoupon(
@@ -813,6 +830,8 @@ export class OrdersService {
           distance: calculateOrder.distance,
           isRain: calculateOrder.isRain,
           isNight: calculateOrder.isNight,
+          rainFee: calculateOrder.rainFee,
+          nightFee: calculateOrder.nightFee,
           total: total,
         })
         .where(eq(orders.id, order.id));
