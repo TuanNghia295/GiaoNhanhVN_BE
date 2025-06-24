@@ -329,6 +329,9 @@ export class DeliversService implements OnModuleInit {
 
     const info = await this.db.query.delivers.findFirst({
       where: and(eq(delivers.id, deliverId), isNull(delivers.deletedAt)),
+      with: {
+        location: true,
+      },
     });
     if (!info) {
       throw new ValidationException(ErrorCode.D001);
