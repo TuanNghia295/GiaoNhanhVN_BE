@@ -802,7 +802,9 @@ export class OrdersService {
         Math.max(
           Math.max(totalProduct - totalVoucherStore, 0) +
             Math.max(calculateOrder.totalDelivery - totalVoucherApp, 0) +
-            calculateOrder.userServiceFee,
+            calculateOrder.userServiceFee +
+            calculateOrder.nightFee +
+            calculateOrder.rainFee,
           0,
         ),
       );
@@ -1060,7 +1062,9 @@ export class OrdersService {
                  total_delivery::DOUBLE PRECISION    AS "totalDelivery",
                  income_deliver::DOUBLE PRECISION    AS "incomeDeliver",
                  user_service_fee::DOUBLE PRECISION  AS "userServiceFee",
-                 store_service_fee::DOUBLE PRECISION AS "storeServiceFee"
+                 store_service_fee::DOUBLE PRECISION AS "storeServiceFee",
+                 night_fee::DOUBLE PRECISION         AS "nightFee",
+                 rain_fee::DOUBLE PRECISION          AS "rainFee"
           FROM orders
           WHERE id = ${orderId}
             FOR UPDATE
@@ -1130,7 +1134,9 @@ export class OrdersService {
                  total_delivery::DOUBLE PRECISION    AS "totalDelivery",
                  income_deliver::DOUBLE PRECISION    AS "incomeDeliver",
                  user_service_fee::DOUBLE PRECISION  AS "userServiceFee",
-                 store_service_fee::DOUBLE PRECISION AS "storeServiceFee"
+                 store_service_fee::DOUBLE PRECISION AS "storeServiceFee",
+                 night_fee::DOUBLE PRECISION         AS "nightFee",
+                 rain_fee::DOUBLE PRECISION          AS "rainFee"
           FROM orders
           WHERE id = ${orderId}
             FOR UPDATE
@@ -1158,7 +1164,9 @@ export class OrdersService {
       //--------------------------------------------
       const subtractPoint = _.round(
         Math.max(
-          existOrder.totalDelivery -
+          existOrder.totalDelivery +
+            existOrder.nightFee +
+            existOrder.rainFee -
             (existOrder.incomeDeliver || 0) +
             (existOrder.userServiceFee || 0) +
             (existOrder.storeServiceFee || 0),
@@ -1285,7 +1293,9 @@ export class OrdersService {
       //-------------------------------------------------
       const subtractPoint = _.round(
         Math.max(
-          existOrder.totalDelivery -
+          existOrder.totalDelivery +
+            existOrder.nightFee +
+            existOrder.rainFee -
             (existOrder.incomeDeliver || 0) +
             (existOrder.userServiceFee || 0) +
             (existOrder.storeServiceFee || 0),
@@ -1386,15 +1396,15 @@ export class OrdersService {
     // Số điểm sẽ được cộng lại cho người giao hàng
     const subtractPoint = _.round(
       Math.max(
-        existOrder.totalDelivery -
+        existOrder.totalDelivery +
+          existOrder.nightFee +
+          existOrder.rainFee -
           (existOrder.incomeDeliver || 0) +
           (existOrder.userServiceFee || 0) +
-          (existOrder.storeServiceFee || 0) +
-          refund.refundPoint,
+          (existOrder.storeServiceFee || 0),
         0,
       ),
     );
-
     // Cộng lại điểm cho người giao hàng
     await this.deliversService.addPoint(
       existOrder.deliverId,

@@ -43,11 +43,19 @@ export class OrderResDto extends AbstractResDto {
 
   @BooleanField()
   @Expose()
-  isHoliday: boolean;
+  isRain: boolean;
 
   @BooleanField()
   @Expose()
-  isRain: boolean;
+  isNight: boolean;
+
+  @NumberField()
+  @Expose()
+  rainFee: number;
+
+  @NumberField()
+  @Expose()
+  nightFee: number;
 
   @NumberField()
   @Expose()
