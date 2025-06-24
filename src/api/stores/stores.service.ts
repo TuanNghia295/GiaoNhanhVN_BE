@@ -549,15 +549,14 @@ export class StoresService implements OnModuleInit {
       openSecondTime,
       closeSecondTime,
     );
-
+    this.logTimeDebug(
+      now,
+      openTime,
+      closeTime,
+      openSecondTime,
+      closeSecondTime,
+    );
     if (!isOpen) {
-      this.logTimeDebug(
-        now,
-        openTime,
-        closeTime,
-        openSecondTime,
-        closeSecondTime,
-      );
       throw new ValidationException(ErrorCode.S003);
     }
   }
