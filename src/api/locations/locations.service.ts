@@ -3,7 +3,7 @@ import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { CreateLocationReqDto } from '@/api/locations/dto/create-location.req.dto';
 import { LocationResDto } from '@/api/locations/dto/location.res.dto';
 import { DRIZZLE } from '@/database/global';
-import { areas, locations } from '@/database/schemas';
+import { areas, locations, users } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
@@ -18,16 +18,6 @@ export class LocationsService {
 
   async create(payload: JwtPayloadType, reqDto: CreateLocationReqDto) {
     console.log('create location', reqDto);
-    const area = await this.db.query.areas.findFirst({
-      where: and(
-        eq(areas.name, reqDto.province),
-        eq(areas.parent, reqDto.parent),
-      ),
-      columns: {
-        id: true,
-        name: true,
-      },
-    });
 
     const [existLocation] = await this.db
       .select()
@@ -40,21 +30,23 @@ export class LocationsService {
       )
       .execute();
 
-    if (existLocation) {
-      let updatedLocation: typeof existLocation;
+    const area = await this.db.query.areas.findFirst({
+      where: and(
+        eq(areas.name, reqDto.province),
+        eq(areas.parent, reqDto.parent),
+      ),
+      columns: {
+        id: true,
+      },
+    });
+    await this.db
+      .update(users)
+      .set({
+        areaId: area?.id ?? null,
+      })
+      .where(eq(users.id, payload.id));
 
-      if (area) {
-        [updatedLocation] = await this.db
-          .update(locations)
-          .set({
-            areaId: area.id,
-          })
-          .where(eq(locations.id, existLocation.id))
-          .returning();
-      }
-
-      return updatedLocation;
-    }
+    if (existLocation) return existLocation;
 
     const [createdLocation] = await this.db
       .insert(locations)
