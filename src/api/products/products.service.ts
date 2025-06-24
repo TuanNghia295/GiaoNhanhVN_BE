@@ -158,6 +158,7 @@ export class ProductsService implements OnModuleInit {
   }
 
   async update(productId: number, reqDto: UpdateProductReqDto) {
+    console.log('reqDto', reqDto);
     return this.db.transaction(async (tx) => {
       //---------------------------------------------------
       // Check if the product exists
