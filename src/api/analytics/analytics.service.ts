@@ -57,15 +57,34 @@ export class AnalyticsService {
         total_store_service_fee: sum(orders.storeServiceFee).mapWith(Number),
         total_deliver_service_fee: sql<number>`SUM
           (${orders.totalDelivery} - ${orders.incomeDeliver})`.mapWith(Number),
-        total_voucher_value: sum(vouchers.value).mapWith(Number),
-        total_app_revenue: sql<number>`SUM
-        ( (${orders.totalProduct} - ${orders.payforShop}) + ${orders.userServiceFee} +
-          (${orders.totalDelivery} - ${orders.incomeDeliver}) -
-          (
-          CASE
-          WHEN ${vouchers.managerId} IS NOT NULL THEN ${vouchers.value}
-          ELSE 0
-          END))`.mapWith(Number),
+        total_voucher_value: sql
+          .raw(
+            `
+          SUM(
+            CASE 
+              WHEN (vouchers.type = 'MANAGEMENT' OR vouchers.type = 'ADMIN')
+              AND vouchers_on_orders.order_id IS NOT NULL 
+              THEN vouchers.value
+              ELSE 0 
+            END
+          )
+        `,
+          )
+          .mapWith(Number),
+
+        total_app_revenue: sql<number>`
+          ( SUM(${orders.totalProduct}) - SUM(${orders.payforShop}) +
+            SUM(${orders.userServiceFee}) +
+            (SUM(${orders.totalDelivery}) - SUM(${orders.incomeDeliver})) -
+            SUM(
+            CASE
+            WHEN ${vouchers.managerId} IS NOT NULL
+            AND vouchers_on_orders.order_id IS NOT NULL
+            THEN vouchers.value
+            ELSE 0
+            END
+            ))
+        `.mapWith(Number),
       })
       .from(orders)
       .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
