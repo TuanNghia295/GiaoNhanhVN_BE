@@ -98,6 +98,7 @@ export interface CalculateResponse {
   isRain: boolean;
   isNight: boolean;
   rainFee: number;
+  deliveryIncomeTax: number;
   nightFee: number;
   areaId: number;
 }
@@ -449,6 +450,11 @@ export class OrdersService {
         serviceFeeWithTypeFood?.deliverFee,
     );
 
+    //--------------------------------------------------------------
+    //Tính thuế thu nhập cá nhân
+    //--------------------------------------------------------------
+    const deliveryIncomeTax = _.round(incomeDeliver * 0.015);
+
     // phí dịch vụ người dùng
     const FIXED_USER_SERVICE_FEE = 2000; // Phí dịch vụ người dùng cố định
 
@@ -459,6 +465,7 @@ export class OrdersService {
       distance: distanceRate,
       nightFee: 0,
       rainFee: 0,
+      deliveryIncomeTax,
       incomeDeliver: incomeDeliver,
       userServiceFee: FIXED_USER_SERVICE_FEE,
       totalDelivery: totalDelivery,
@@ -515,7 +522,15 @@ export class OrdersService {
       ),
       0,
     );
+
+    //--------------------------------------------------------------
+    //Tính thuế thu nhập cá nhân
+    //--------------------------------------------------------------
+    const deliveryIncomeTax = _.round(incomeDeliver * 0.015);
+
+    //--------------------------------------------------------------
     // phí dịch vụ người dùng
+    //--------------------------------------------------------------
     const userServiceFee = _.round(serviceFeeWithType.userServiceFee);
 
     const sessionId = uuidv4();
@@ -527,6 +542,7 @@ export class OrdersService {
       userServiceFee: userServiceFee,
       totalDelivery: distanceFee,
       isRain: isRain,
+      deliveryIncomeTax,
       isNight: isNight,
       rainFee: rainFee,
       nightFee: nightFee,
@@ -771,6 +787,11 @@ export class OrdersService {
       console.log('📱 App Voucher       :', totalVoucherApp);
       console.groupEnd();
 
+      //-------------------------------------------------
+      // Tiền thuế của sản phẩm 1.5%
+      //-------------------------------------------------
+      const totalProductTax = _.round(totalProduct * 0.015);
+
       const storeServiceFee =
         reqDto.type === OrderTypeEnum.FOOD
           ? _.round(
@@ -784,17 +805,14 @@ export class OrdersService {
 
       //-------------------------------------------------
       // Tính tiền shipper phải đưa cho shop - chỉ tính đơn đò ăn
+      // Thu nhập cửa hàng = tiền sản phẩm - phí dịch vụ cửa hàng - thuế sản phẩm
       //-------------------------------------------------
+      // thu lại shop
       const payforShop =
         reqDto.type === OrderTypeEnum.FOOD
           ? _.round(
-              Math.max(
-                totalProduct *
-                  ((100 - (serviceFeeWithType.pricePct ?? 0)) / 100) -
-                  (serviceFeeWithType.price ?? 0) -
-                  totalVoucherStore,
-                0,
-              ),
+              Math.max(totalProduct - storeServiceFee - totalVoucherStore, 0) -
+                totalProductTax, // trừ thuế sản phẩm
             )
           : 0;
 
@@ -802,9 +820,10 @@ export class OrdersService {
         Math.max(
           Math.max(totalProduct - totalVoucherStore, 0) +
             Math.max(calculateOrder.totalDelivery - totalVoucherApp, 0) +
-            calculateOrder.userServiceFee +
-            calculateOrder.nightFee +
-            calculateOrder.rainFee,
+            calculateOrder.userServiceFee + // phí dịch vụ người dùng
+            totalProductTax + // thuế sản phẩm
+            calculateOrder.nightFee + // phí dịch vụ đêm
+            calculateOrder.rainFee, // phí dịch vụ mưa
           0,
         ),
       );
@@ -1050,9 +1069,6 @@ export class OrdersService {
     reqDto: UpdateStatusOrderReqDto,
     payload: JwtPayloadType,
   ) {
-    //-----------------------------------------------------
-    // Nếu đơn hàng đã bị hủy thì hoàn tiền voucher cho shipper
-    //----------------------------------------------------------
     return await this.db.transaction(async (tx) => {
       const result = await tx.execute(
         sql`
@@ -1317,7 +1333,7 @@ export class OrdersService {
     );
     console.log('validUserFcmToken', validUserFcmToken);
     if (validUserFcmToken.fcmToken) {
-      await this.notifyOrderCanceled([validUserFcmToken.fcmToken]);
+      this.notifyOrderCanceled([validUserFcmToken.fcmToken]);
     }
   }
 

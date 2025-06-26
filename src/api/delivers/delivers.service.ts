@@ -426,6 +426,7 @@ export class DeliversService implements OnModuleInit {
       where: and(
         eq(delivers.areaId, areaId),
         eq(delivers.activated, true),
+        eq(delivers.status, true),
         isNull(delivers.deletedAt),
       ),
       columns: {
