@@ -2,6 +2,7 @@ import { AuthService } from '@/api/auth/auth.service';
 import { LoginReqDto } from '@/api/auth/dto/login.req.dto';
 import { LoginResDto } from '@/api/auth/dto/login.res.dto';
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
+import { ChangePasswordReqDto } from '@/api/users/dto/change-password.req.dto';
 import { CreateUserReqDto } from '@/api/users/dto/create-user.req.dto';
 import { LockUserReqDto } from '@/api/users/dto/lock-user.req.dto';
 import { PageUserReqDto } from '@/api/users/dto/page-user.req.dto';
@@ -135,5 +136,19 @@ export class UsersController {
     @UploadedFile() image: Express.Multer.File,
   ) {
     return await this.usersService.updateImage(payload, image);
+  }
+
+  // api reset password
+  @Roles(RoleEnum.USER)
+  @ApiAuth({
+    summary: 'Cập nhật mật khẩu người dùng [USER]',
+    type: UserResDto,
+  })
+  @Patch('password')
+  async changePassword(
+    @CurrentUser() payload: JwtPayloadType,
+    @Body() reqDto: ChangePasswordReqDto,
+  ) {
+    return await this.usersService.changePassword(payload, reqDto);
   }
 }

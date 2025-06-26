@@ -32,6 +32,8 @@ export enum ErrorCode {
   U001 = 'user.error.not_found',
   U002 = 'user.error.already_exists',
   U003 = 'user.error.is_locked',
+  // mật khẩu không đúng
+  U004 = 'user.error.invalid_password',
 
   // Deliver
   D001 = 'deliver.error.not_found',

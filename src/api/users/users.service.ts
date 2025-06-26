@@ -1,4 +1,5 @@
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
+import { ChangePasswordReqDto } from '@/api/users/dto/change-password.req.dto';
 import { CreateUserReqDto } from '@/api/users/dto/create-user.req.dto';
 import { LockUserReqDto } from '@/api/users/dto/lock-user.req.dto';
 import { PageUserReqDto } from '@/api/users/dto/page-user.req.dto';
@@ -157,6 +158,7 @@ export class UsersService implements OnModuleInit {
       where: eq(users.id, userId),
       columns: {
         id: true,
+        password: true,
         avatar: true,
       },
     });
@@ -250,5 +252,25 @@ export class UsersService implements OnModuleInit {
         fcmToken: true,
       },
     });
+  }
+
+  async changePassword(payload: JwtPayloadType, reqDto: ChangePasswordReqDto) {
+    const user = await this.existById(payload.id);
+    if (!user) {
+      throw new ValidationException(ErrorCode.U001);
+    }
+
+    if (user.password !== reqDto.oldPassword) {
+      throw new ValidationException(ErrorCode.U004);
+    }
+
+    return this.db
+      .update(users)
+      .set({
+        password: reqDto.newPassword,
+      })
+      .where(eq(users.id, payload.id))
+      .returning()
+      .then((result) => plainToInstance(UserResDto, result[0]));
   }
 }

@@ -27,6 +27,14 @@ export enum GenderEnum {
   OTHER = 'OTHER',
 }
 
+export enum ProviderEnum {
+  PASSWORD = 'password',
+  ZALO = 'zalo',
+  GOOGLE = 'google',
+  FACEBOOK = 'facebook',
+  APPLE = 'apple',
+}
+
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   phone: varchar({ length: 255 }).notNull().unique(),
@@ -41,6 +49,9 @@ export const users = pgTable('users', {
   fcmToken: varchar('fcm_token', { length: 255 }),
   refreshToken: varchar('refresh_token', { length: 255 }),
   deletedAt: timestamp('deleted_at'),
+  // phương thức đăng nhập
+  provider: varchar('provider', { length: 255 }).$type<ProviderEnum>(),
+
   // lượt quay
   count: integer('count').notNull().default(0),
   // xu

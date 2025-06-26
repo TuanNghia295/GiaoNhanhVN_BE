@@ -22,6 +22,7 @@
     "db:studio": "drizzle-kit studio --port 3005",
     "db:seed": "tsx ./src/database/seeds.ts",
     "db:seed:fix-key": "tsx ./src/database/fix-primary-key.ts",
+    "db:seed:provider": "tsx ./src/database/seed-add-provider.ts",
     "deploy": "drizzle-kit generate && drizzle-kit migrate && nest build",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",

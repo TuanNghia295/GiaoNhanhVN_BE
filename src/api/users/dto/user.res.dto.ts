@@ -24,6 +24,10 @@ export class UserResDto extends AbstractResDto {
   @Expose()
   fullName: string;
 
+  @StringField()
+  @Expose()
+  provider: string;
+
   @EnumField(() => RoleEnum)
   @Expose()
   role: RoleEnum;

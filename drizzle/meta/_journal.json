@@ -50,6 +50,34 @@
       "when": 1750920117356,
       "tag": "0006_curious_wallflower",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1750923932966,
+      "tag": "0007_rare_venom",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1750923983816,
+      "tag": "0008_slim_golden_guardian",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1750924469562,
+      "tag": "0009_faithful_tempest",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1750924481336,
+      "tag": "0010_secret_morlocks",
+      "breakpoints": true
     }
   ]
 }
