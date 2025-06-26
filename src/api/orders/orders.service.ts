@@ -821,7 +821,6 @@ export class OrdersService {
           Math.max(totalProduct - totalVoucherStore, 0) +
             Math.max(calculateOrder.totalDelivery - totalVoucherApp, 0) +
             calculateOrder.userServiceFee + // phí dịch vụ người dùng
-            totalProductTax + // thuế sản phẩm
             calculateOrder.nightFee + // phí dịch vụ đêm
             calculateOrder.rainFee, // phí dịch vụ mưa
           0,

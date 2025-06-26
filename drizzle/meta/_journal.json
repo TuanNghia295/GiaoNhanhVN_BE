@@ -15,6 +15,13 @@
       "when": 1750745144265,
       "tag": "0001_lowly_iron_lad",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1750912273464,
+      "tag": "0002_clever_maverick",
+      "breakpoints": true
     }
   ]
 }
