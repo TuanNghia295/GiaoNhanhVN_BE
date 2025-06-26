@@ -846,7 +846,9 @@ export class OrdersService {
           payforShop: payforShop,
           totalDelivery: calculateOrder.totalDelivery,
           incomeDeliver: calculateOrder.incomeDeliver,
+          totalProductTax: totalProductTax,
           userServiceFee: calculateOrder.userServiceFee,
+          deliveryIncomeTax: calculateOrder.deliveryIncomeTax,
           distance: calculateOrder.distance,
           isRain: calculateOrder.isRain,
           isNight: calculateOrder.isNight,
@@ -1151,7 +1153,8 @@ export class OrdersService {
                  user_service_fee::DOUBLE PRECISION  AS "userServiceFee",
                  store_service_fee::DOUBLE PRECISION AS "storeServiceFee",
                  night_fee::DOUBLE PRECISION         AS "nightFee",
-                 rain_fee::DOUBLE PRECISION          AS "rainFee"
+                 rain_fee::DOUBLE PRECISION          AS "rainFee",
+                 total_product_tax::DOUBLE PRECISION AS "totalProductTax"
           FROM orders
           WHERE id = ${orderId}
             FOR UPDATE
@@ -1177,17 +1180,7 @@ export class OrdersService {
       //--------------------------------------------
       // Tổng point mà người giao hàng sẽ bị trừ khi nhận đơn
       //--------------------------------------------
-      const subtractPoint = _.round(
-        Math.max(
-          existOrder.totalDelivery +
-            existOrder.nightFee +
-            existOrder.rainFee -
-            (existOrder.incomeDeliver || 0) +
-            (existOrder.userServiceFee || 0) +
-            (existOrder.storeServiceFee || 0),
-          0,
-        ),
-      );
+      const subtractPoint = await this.calculateSubtractPoint(existOrder);
       if (
         this.configService.get('app.nodeEnv', { infer: true }) ===
         Environment.DEVELOPMENT
@@ -1197,6 +1190,9 @@ export class OrdersService {
         console.log('💸 incomeDeliver   :', existOrder.incomeDeliver || 0);
         console.log('🧾 userServiceFee  :', existOrder.userServiceFee || 0);
         console.log('🏪 storeServiceFee :', existOrder.storeServiceFee || 0);
+        console.log('🌙 nightFee       :', existOrder.nightFee || 0);
+        console.log('🌧️ rainFee        :', existOrder.rainFee || 0);
+        console.log('💰 totalProductTax :', existOrder.totalProductTax || 0);
         console.log('➖ subtractPoint    :', subtractPoint);
         console.log('🎯 currentPoint     :', existDeliver.point);
         console.groupEnd();
@@ -1295,6 +1291,19 @@ export class OrdersService {
     });
   }
 
+  private async calculateSubtractPoint(order: Order): Promise<number> {
+    const value =
+      order.totalDelivery +
+      order.nightFee +
+      order.rainFee -
+      order.incomeDeliver -
+      order.userServiceFee +
+      order.storeServiceFee +
+      order.totalProductTax;
+
+    return _.round(Math.max(value, 0));
+  }
+
   private async managerDoCancelOrder(existOrder: Order, tx: Transaction) {
     if (existOrder.deliverId) {
       const existDeliver = await this.deliversService.findById(
@@ -1306,17 +1315,7 @@ export class OrdersService {
       //-------------------------------------------------
       // Cộng lại điểm cho người giao hàng
       //-------------------------------------------------
-      const subtractPoint = _.round(
-        Math.max(
-          existOrder.totalDelivery +
-            existOrder.nightFee +
-            existOrder.rainFee -
-            (existOrder.incomeDeliver || 0) +
-            (existOrder.userServiceFee || 0) +
-            (existOrder.storeServiceFee || 0),
-          0,
-        ),
-      );
+      const subtractPoint = await this.calculateSubtractPoint(existOrder);
 
       await this.deliversService.addPoint(
         existOrder.deliverId,
@@ -1408,19 +1407,10 @@ export class OrdersService {
       )
       .where(eq(orders.id, existOrder.id))
       .groupBy(orders.id);
-    // Số điểm sẽ được cộng lại cho người giao hàng
-    const subtractPoint = _.round(
-      Math.max(
-        existOrder.totalDelivery +
-          existOrder.nightFee +
-          existOrder.rainFee -
-          (existOrder.incomeDeliver || 0) +
-          (existOrder.userServiceFee || 0) +
-          (existOrder.storeServiceFee || 0),
-        0,
-      ),
-    );
-    // Cộng lại điểm cho người giao hàng
+    //---------------------------------------------------
+    // Hoàn lại điểm cho người giao hàng
+    //---------------------------------------------------
+    const subtractPoint = await this.calculateSubtractPoint(existOrder);
     await this.deliversService.addPoint(
       existOrder.deliverId,
       subtractPoint,

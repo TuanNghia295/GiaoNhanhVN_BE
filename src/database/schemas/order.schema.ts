@@ -8,7 +8,7 @@ import { vouchersOnOrders } from '@/database/schemas/voucher.schema';
 import { relations } from 'drizzle-orm';
 import {
   boolean,
-  decimal,
+  index,
   integer,
   numeric,
   pgTable,
@@ -33,98 +33,128 @@ export enum OrderStatusEnum {
   CANCELED = 'CANCELED', // đã hủy
 }
 
-export const orders = pgTable('orders', {
-  id: serial().primaryKey(),
-  type: varchar('type', { length: 20 }).notNull().default(OrderTypeEnum.FOOD),
-  code: varchar('code', { length: 50 }).notNull(),
-  status: varchar('status', { length: 20 })
-    .notNull()
-    .$type<OrderStatusEnum>()
-    .default(OrderStatusEnum.PENDING),
-  // isHoliday: boolean('is_holiday').notNull().default(false),
-  isNight: boolean('is_night').notNull().default(false),
-  isRain: boolean('is_rain').notNull().default(false),
-  nightFee: numeric('night_fee', { precision: 15, scale: 2, mode: 'number' })
-    .notNull()
-    .default(0),
-  rainFee: numeric('rain_fee', { precision: 15, scale: 2, mode: 'number' })
-    .notNull()
-    .default(0),
-  distance: decimal('distance', { precision: 15, scale: 2, mode: 'number' })
-    .notNull()
-    .default(0),
-  totalDelivery: decimal('total_delivery', {
-    precision: 15,
-    scale: 2,
-    mode: 'number',
-  })
-    .notNull()
-    .default(0),
-  totalProduct: decimal('total_product', {
-    precision: 15,
-    scale: 2,
-    mode: 'number',
-  })
-    .notNull()
-    .default(0),
-  totalVoucher: decimal('total_voucher', {
-    precision: 15,
-    scale: 2,
-    mode: 'number',
-  })
-    .notNull()
-    .default(0),
-  userServiceFee: decimal('user_service_fee', {
-    precision: 15,
-    scale: 2,
-    mode: 'number',
-  })
-    .notNull()
-    .default(0),
-  storeServiceFee: decimal('store_service_fee', {
-    precision: 15,
-    scale: 2,
-    mode: 'number',
-  })
-    .notNull()
-    .default(0),
-  total: decimal('total', { precision: 15, scale: 2, mode: 'number' })
-    .notNull()
-    .default(0),
-  incomeDeliver: decimal('income_deliver', {
-    precision: 15,
-    scale: 2,
-    mode: 'number',
-  })
-    .notNull()
-    .default(0),
-  payforShop: decimal('payfor_shop', {
-    precision: 15,
-    scale: 2,
-    mode: 'number',
-  })
-    .notNull()
-    .default(0),
-  isRated: boolean('is_rated').notNull().default(false),
-  addressFrom: varchar('address_from', { length: 255 }).notNull(),
-  geometryFrom: varchar('geometry_from', { length: 255 }).notNull(),
+export const orders = pgTable(
+  'orders',
+  {
+    id: serial().primaryKey(),
+    type: varchar('type', { length: 20 }).notNull().default(OrderTypeEnum.FOOD),
+    code: varchar('code', { length: 50 }).notNull(),
+    status: varchar('status', { length: 20 })
+      .notNull()
+      .$type<OrderStatusEnum>()
+      .default(OrderStatusEnum.PENDING),
+    deliveryIncomeTax: numeric('delivery_income_tax', {
+      precision: 15,
+      scale: 2,
+      mode: 'number',
+    })
+      .notNull()
+      .default(0),
+    totalProductTax: numeric('total_product_tax', {
+      precision: 15,
+      scale: 2,
+      mode: 'number',
+    })
+      .notNull()
+      .default(0),
+    isNight: boolean('is_night').notNull().default(false),
+    isRain: boolean('is_rain').notNull().default(false),
+    nightFee: numeric('night_fee', { precision: 15, scale: 2, mode: 'number' })
+      .notNull()
+      .default(0),
+    rainFee: numeric('rain_fee', { precision: 15, scale: 2, mode: 'number' })
+      .notNull()
+      .default(0),
+    distance: numeric('distance', { precision: 15, scale: 2, mode: 'number' })
+      .notNull()
+      .default(0),
+    totalDelivery: numeric('total_delivery', {
+      precision: 15,
+      scale: 2,
+      mode: 'number',
+    })
+      .notNull()
+      .default(0),
+    totalProduct: numeric('total_product', {
+      precision: 15,
+      scale: 2,
+      mode: 'number',
+    })
+      .notNull()
+      .default(0),
+    totalVoucher: numeric('total_voucher', {
+      precision: 15,
+      scale: 2,
+      mode: 'number',
+    })
+      .notNull()
+      .default(0),
+    userServiceFee: numeric('user_service_fee', {
+      precision: 15,
+      scale: 2,
+      mode: 'number',
+    })
+      .notNull()
+      .default(0),
+    storeServiceFee: numeric('store_service_fee', {
+      precision: 15,
+      scale: 2,
+      mode: 'number',
+    })
+      .notNull()
+      .default(0),
+    total: numeric('total', { precision: 15, scale: 2, mode: 'number' })
+      .notNull()
+      .default(0),
+    incomeDeliver: numeric('income_deliver', {
+      precision: 15,
+      scale: 2,
+      mode: 'number',
+    })
+      .notNull()
+      .default(0),
+    payforShop: numeric('payfor_shop', {
+      precision: 15,
+      scale: 2,
+      mode: 'number',
+    })
+      .notNull()
+      .default(0),
+    isRated: boolean('is_rated').notNull().default(false),
+    addressFrom: varchar('address_from', { length: 255 }).notNull(),
+    geometryFrom: varchar('geometry_from', { length: 255 }).notNull(),
 
-  addressTo: varchar('address_to', { length: 255 }).notNull(),
-  geometryTo: varchar('geometry_to', { length: 255 }).notNull(),
+    addressTo: varchar('address_to', { length: 255 }).notNull(),
+    geometryTo: varchar('geometry_to', { length: 255 }).notNull(),
 
-  nameForContact: varchar('user_for_contact', { length: 255 }),
-  phoneForContact: varchar('phone_for_contact', { length: 20 }),
-  note: text(),
-  userId: integer('user_id'),
-  deliverId: integer('deliver_id'),
-  storeId: integer('store_id'),
-  areaId: integer('area_id'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at')
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
-});
+    nameForContact: varchar('user_for_contact', { length: 255 }),
+    phoneForContact: varchar('phone_for_contact', { length: 20 }),
+    note: text(),
+    userId: integer('user_id'),
+    deliverId: integer('deliver_id'),
+    storeId: integer('store_id'),
+    areaId: integer('area_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at')
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index('orders_code_index').on(table.code),
+    index('orders_user_id_idx').on(table.userId),
+    index('orders_deliver_id_idx').on(table.deliverId),
+    index('orders_area_status_created_idx').on(
+      table.areaId,
+      table.status,
+      table.createdAt,
+    ),
+    index('orders_store_status_idx').on(table.storeId, table.status),
+    index('orders_created_at_idx').on(table.createdAt),
+
+    index('orders_type_idx').on(table.type),
+  ],
+);
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
   area: one(areas, {

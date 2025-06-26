@@ -26,6 +26,7 @@ export const storeMenus = pgTable(
   (table) => [
     index('store_menus_name_idx').on(table.name),
     index('store_menus_store_id_idx').on(table.storeId),
+    index('store_menus_deleted_at_idx').on(table.deletedAt),
   ],
 );
 

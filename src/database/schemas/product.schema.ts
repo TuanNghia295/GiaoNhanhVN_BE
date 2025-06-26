@@ -44,6 +44,16 @@ export const products = pgTable(
   (table) => [
     index('products_name_idx').on(table.name),
     index('products_store_id_idx').on(table.storeId),
+    index('products_category_item_id_idx').on(table.categoryItemId),
+    index('products_store_menu_id_deleted_at_locked_idx').on(
+      table.storeMenuId,
+      table.deletedAt,
+      table.isLocked,
+    ),
+    index('products_store_menu_id_created_at_idx').on(
+      table.storeMenuId,
+      table.createdAt,
+    ),
   ],
 );
 
