@@ -188,7 +188,7 @@ export class UsersService implements OnModuleInit {
       }
     }
 
-    console.log('reqDto', reqDto);
+    console.log('areaId', areaId);
 
     return this.db
       .update(users)

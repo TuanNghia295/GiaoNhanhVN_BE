@@ -11,6 +11,11 @@ export class UpdateUserReqDto {
   @StringFieldOptional()
   fullName: string;
 
+  @StringFieldOptional({
+    default: '0123456789',
+  })
+  phone: string;
+
   @EmailFieldOptional({
     default: 'sting@gmail.com',
   })
