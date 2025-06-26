@@ -71,6 +71,14 @@ export class OrderResDto extends AbstractResDto {
 
   @NumberField()
   @Expose()
+  totalProductTax: number;
+
+  @NumberField()
+  @Expose()
+  deliveryIncomeTax: number;
+
+  @NumberField()
+  @Expose()
   total: number;
 
   @NumberField()
