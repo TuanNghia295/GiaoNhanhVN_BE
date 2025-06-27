@@ -34,7 +34,6 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { plainToInstance } from 'class-transformer';
-import { subHours } from 'date-fns';
 import {
   and,
   asc,
@@ -205,15 +204,13 @@ export class VouchersService {
     }
 
     if (reqDto.startDate && reqDto.endDate) {
-      const startDate = DateTime.fromJSDate(reqDto.startDate)
+      reqDto.startDate = DateTime.fromJSDate(reqDto.startDate)
         .startOf('day')
-        .toJSDate(); // Dùng reqDto.startDate để tạo startDate -> SAI logic
-      const endDate = DateTime.fromJSDate(reqDto.startDate)
+        .toJSDate();
+      reqDto.endDate = DateTime.fromJSDate(reqDto.endDate)
         .endOf('day')
-        .toJSDate(); // Dùng reqDto.startDate để tạo endDate -> SAI logic
+        .toJSDate();
 
-      reqDto.startDate = subHours(startDate, 7);
-      reqDto.endDate = subHours(endDate, 7);
       if (reqDto.startDate >= reqDto.endDate) {
         throw new ValidationException(
           ErrorCode.V009,
@@ -244,7 +241,8 @@ export class VouchersService {
       await this.db
         .update(areas)
         .set({
-          point: sql`${areas.point} -
+          point: sql`${areas.point}
+          -
           ${reqDto.maxUses * reqDto.value}`,
         })
         .where(eq(areas.id, reqDto.areaId));
@@ -348,7 +346,10 @@ export class VouchersService {
     const [row] = await tx
       .select({
         userUsageCount: sql<number>`COALESCE
-          (${voucherUsages.usageCount}, 0)`.mapWith(Number),
+          (
+        ${voucherUsages.usageCount},
+        0
+        )`.mapWith(Number),
       })
       .from(voucherUsages)
       .where(
@@ -399,6 +400,22 @@ export class VouchersService {
 
   async update(voucherId: number, reqDto: UpdateVoucherReqDto) {
     const now = new Date();
+    if (reqDto.startDate && reqDto.endDate) {
+      reqDto.startDate = DateTime.fromJSDate(reqDto.startDate)
+        .startOf('day')
+        .toJSDate();
+      reqDto.endDate = DateTime.fromJSDate(reqDto.endDate)
+        .endOf('day')
+        .toJSDate();
+
+      if (reqDto.startDate >= reqDto.endDate) {
+        throw new ValidationException(
+          ErrorCode.V009,
+          HttpStatus.BAD_REQUEST,
+          'Start date must be before end date',
+        );
+      }
+    }
     const status = _.cond([
       [
         (d: UpdateVoucherReqDto) => d.startDate && new Date(d.startDate) > now,
@@ -410,25 +427,6 @@ export class VouchersService {
       ],
       [_.stubTrue, () => VouchersStatusEnum.ACTIVE], // Trường hợp mặc định
     ])(reqDto);
-
-    if (reqDto.startDate && reqDto.endDate) {
-      const startDate = DateTime.fromJSDate(reqDto.startDate)
-        .startOf('day')
-        .toJSDate();
-      const endDate = DateTime.fromJSDate(reqDto.endDate)
-        .endOf('day')
-        .toJSDate();
-
-      reqDto.startDate = subHours(startDate, 7);
-      reqDto.endDate = subHours(endDate, 7);
-      if (reqDto.startDate >= reqDto.endDate) {
-        throw new ValidationException(
-          ErrorCode.V009,
-          HttpStatus.BAD_REQUEST,
-          'Start date must be before end date',
-        );
-      }
-    }
 
     return this.db
       .update(vouchers)
@@ -487,7 +485,10 @@ export class VouchersService {
           const result = await tx
             .select({
               usedCount: sql<number>`COALESCE
-                (${count(vouchersOnOrders.voucherId)}, 0)`.mapWith(Number),
+                (
+              ${count(vouchersOnOrders.voucherId)},
+              0
+              )`.mapWith(Number),
             })
             .from(vouchersOnOrders)
             .where(eq(vouchersOnOrders.voucherId, updateVoucher.id))
@@ -502,7 +503,8 @@ export class VouchersService {
           await tx
             .update(areas)
             .set({
-              point: sql`${areas.point} +
+              point: sql`${areas.point}
+              +
               ${refundPoint}`,
             })
             .where(eq(areas.id, updateVoucher.areaId));
@@ -531,8 +533,11 @@ export class VouchersService {
     reqDto: UsableVoucherReqDto,
     payload: JwtPayloadType,
   ) {
-    console.log('reqDto', reqDto);
     const usableVouchers = [];
+
+    const startDate = DateTime.fromJSDate(new Date()).startOf('day').toJSDate();
+
+    const endDate = DateTime.fromJSDate(new Date()).endOf('day').toJSDate();
 
     //---------------------------------------------------------
     // Lấy voucher type ADMIN vs MANAGEMENT nếu có areaId
@@ -543,7 +548,10 @@ export class VouchersService {
           ...getTableColumns(vouchers),
           usedCount: count(vouchersOnOrders.voucherId),
           userUsageCount: sql<number>`COALESCE
-            (${voucherUsages.usageCount}, 0)`.mapWith(Number),
+            (
+          ${voucherUsages.usageCount},
+          0
+          )`.mapWith(Number),
         })
         .from(vouchers)
         .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
@@ -568,8 +576,8 @@ export class VouchersService {
               VouchersTypeEnum.ADMIN,
               VouchersTypeEnum.MANAGEMENT,
             ]),
-            lte(vouchers.startDate, new Date()),
-            gte(vouchers.endDate, new Date()),
+            lte(vouchers.startDate, startDate),
+            gte(vouchers.endDate, endDate),
             eq(vouchers.areaId, reqDto.areaId),
           ),
         )
@@ -583,7 +591,10 @@ export class VouchersService {
             lt(count(vouchersOnOrders.voucherId), vouchers.maxUses),
             lt(
               sql`coalesce
-                (${voucherUsages.usageCount}, 0)`,
+                (
+              ${voucherUsages.usageCount},
+              0
+              )`,
               vouchers.usePerUser,
             ),
           ),
@@ -602,8 +613,10 @@ export class VouchersService {
         .select({
           ...getTableColumns(vouchers),
           usedCount: count(vouchersOnOrders.voucherId).mapWith(Number),
-          usedByUserCount: sql<number>`COALESCE
-            (${voucherUsages.usageCount}, 0)`.mapWith(Number),
+          usedByUserCount: sql<number>`COALESCE (
+          ${voucherUsages.usageCount},
+          0
+          )`.mapWith(Number),
         })
         .from(vouchers)
         .leftJoin(users, eq(users.id, vouchers.userId))
@@ -628,8 +641,8 @@ export class VouchersService {
             eq(vouchers.status, VouchersStatusEnum.ACTIVE),
             eq(vouchers.type, VouchersTypeEnum.STORE),
             eq(stores.id, reqDto.storeId),
-            lte(vouchers.startDate, new Date()),
-            gte(vouchers.endDate, new Date()),
+            lte(vouchers.startDate, startDate),
+            gte(vouchers.endDate, endDate),
           ),
         )
         .groupBy(
@@ -644,7 +657,10 @@ export class VouchersService {
             lt(count(vouchersOnOrders.voucherId), vouchers.maxUses),
             lt(
               sql`coalesce
-                (${voucherUsages.usageCount}, 0)`,
+                (
+              ${voucherUsages.usageCount},
+              0
+              )`,
               vouchers.usePerUser,
             ),
           ),

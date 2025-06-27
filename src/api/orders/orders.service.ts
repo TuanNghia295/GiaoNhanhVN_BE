@@ -510,13 +510,14 @@ export class OrdersService {
     const { isNight, nightFee, isRain, rainFee } =
       await this.calculateEnvironmentFee(setting);
 
+    const totalDelivery = _.round(distanceFee + nightFee + rainFee);
+
     //----------------------------------------------
     // Thu nhập của người giao hàng
     //----------------------------------------------
     const incomeDeliver = Math.max(
       _.round(
-        ((distanceFee + nightFee + rainFee) *
-          (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) /
+        (totalDelivery * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) /
           100 -
           serviceFeeWithTypeFood?.deliverFee,
       ),
@@ -540,7 +541,7 @@ export class OrdersService {
       distance: distanceRate,
       incomeDeliver: incomeDeliver,
       userServiceFee: userServiceFee,
-      totalDelivery: distanceFee,
+      totalDelivery,
       isRain: isRain,
       deliveryIncomeTax,
       isNight: isNight,
@@ -932,8 +933,7 @@ export class OrdersService {
                                              FROM extras_to_order_details etod
                                                     JOIN extras ex ON ex.id = etod.extra_id
                                              WHERE etod.order_detail_id = order_details.id), 0)
-          )
-        FROM products p
+          ) FROM products p
         WHERE order_details.id = ${orderDetail.id}
           AND order_details.product_id = p.id
       `);
@@ -1075,7 +1075,7 @@ export class OrdersService {
         sql`
           SELECT id,
                  status,
-                 deliver_id                          AS "deliverId",
+                 deliver_id AS "deliverId",
                  total_delivery::DOUBLE PRECISION    AS "totalDelivery",
                  income_deliver::DOUBLE PRECISION    AS "incomeDeliver",
                  user_service_fee::DOUBLE PRECISION  AS "userServiceFee",
@@ -1084,7 +1084,8 @@ export class OrdersService {
                  rain_fee::DOUBLE PRECISION          AS "rainFee"
           FROM orders
           WHERE id = ${orderId}
-            FOR UPDATE
+            FOR
+          UPDATE
         `,
       );
       const existOrder = result.rows[0] as Order;
@@ -1147,7 +1148,7 @@ export class OrdersService {
         sql`
           SELECT id,
                  status,
-                 deliver_id                          AS "deliverId",
+                 deliver_id AS "deliverId",
                  total_delivery::DOUBLE PRECISION    AS "totalDelivery",
                  income_deliver::DOUBLE PRECISION    AS "incomeDeliver",
                  user_service_fee::DOUBLE PRECISION  AS "userServiceFee",
@@ -1157,7 +1158,8 @@ export class OrdersService {
                  total_product_tax::DOUBLE PRECISION AS "totalProductTax"
           FROM orders
           WHERE id = ${orderId}
-            FOR UPDATE
+            FOR
+          UPDATE
         `,
       );
       const existOrder = result.rows[0] as Order;
