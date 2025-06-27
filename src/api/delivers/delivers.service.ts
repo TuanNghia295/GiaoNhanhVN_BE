@@ -71,17 +71,10 @@ export class DeliversService implements OnModuleInit {
   async getPageDelivers(reqDto: PageDeliverReqDto, payload: JwtPayloadType) {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.delivers> = {
       where: and(
-        ...(payload.role === RoleEnum.MANAGEMENT
-          ? [eq(delivers.areaId, payload.areaId)]
-          : []),
+        ...(payload.role === RoleEnum.MANAGEMENT ? [eq(delivers.areaId, payload.areaId)] : []),
         ...(reqDto.areaId ? [eq(delivers.areaId, reqDto.areaId)] : []),
         ...(reqDto.q
-          ? [
-              or(
-                ilike(delivers.phone, `%${reqDto.q}%`),
-                ilike(delivers.fullName, `%${reqDto.q}%`),
-              ),
-            ]
+          ? [or(ilike(delivers.phone, `%${reqDto.q}%`), ilike(delivers.fullName, `%${reqDto.q}%`))]
           : []),
         isNull(delivers.deletedAt),
       ),
@@ -99,11 +92,7 @@ export class DeliversService implements OnModuleInit {
     const [entities, [{ totalCount }]] = await Promise.all([
       this.db.query.delivers.findMany({
         ...baseConfig,
-        orderBy: [
-          reqDto.order === Order.DESC
-            ? desc(delivers.createdAt)
-            : asc(delivers.createdAt),
-        ],
+        orderBy: [reqDto.order === Order.DESC ? desc(delivers.createdAt) : asc(delivers.createdAt)],
         limit: reqDto.limit,
         offset: reqDto.offset,
       }),
@@ -129,10 +118,7 @@ export class DeliversService implements OnModuleInit {
       return [];
     }
     return this.db.query.orders.findMany({
-      where: and(
-        eq(orders.status, OrderStatusEnum.PENDING),
-        eq(orders.areaId, payload.areaId),
-      ),
+      where: and(eq(orders.status, OrderStatusEnum.PENDING), eq(orders.areaId, payload.areaId)),
       orderBy: asc(orders.createdAt),
       with: {
         user: true,
@@ -204,11 +190,7 @@ export class DeliversService implements OnModuleInit {
     return plainToInstance(DeliverResDto, result);
   }
 
-  async update(
-    deliverId: number,
-    reqDto: UpdateDeliverReqDto,
-    payload: JwtPayloadType,
-  ) {
+  async update(deliverId: number, reqDto: UpdateDeliverReqDto, payload: JwtPayloadType) {
     return this.db.transaction(async (tx) => {
       if (reqDto.location) {
         await tx
@@ -306,10 +288,7 @@ export class DeliversService implements OnModuleInit {
     if (image?.buffer) {
       const fileName = await this.buildFileName('banner');
       const fullImagePath = join(this.basePath, fileName);
-      await sharp(image.buffer)
-        .rotate()
-        .jpeg({ quality: 80 })
-        .toFile(fullImagePath);
+      await sharp(image.buffer).rotate().jpeg({ quality: 80 }).toFile(fullImagePath);
       normalizedPath = normalizeImagePath(fullImagePath);
     }
 
@@ -377,10 +356,7 @@ export class DeliversService implements OnModuleInit {
     return this.db.query.orders.findMany({
       where: and(
         eq(orders.deliverId, payload.id),
-        notInArray(orders.status, [
-          OrderStatusEnum.CANCELED,
-          OrderStatusEnum.DELIVERED,
-        ]),
+        notInArray(orders.status, [OrderStatusEnum.CANCELED, OrderStatusEnum.DELIVERED]),
       ),
       orderBy: desc(orders.createdAt),
       with: {
@@ -412,11 +388,7 @@ export class DeliversService implements OnModuleInit {
       })
       .from(delivers)
       .where(
-        and(
-          eq(delivers.id, deliverId),
-          eq(delivers.activated, true),
-          isNull(delivers.deletedAt),
-        ),
+        and(eq(delivers.id, deliverId), eq(delivers.activated, true), isNull(delivers.deletedAt)),
       )
       .then((res) => res[0]);
   }
@@ -447,37 +419,18 @@ export class DeliversService implements OnModuleInit {
       this.db
         .select({
           ...getTableColumns(orders),
+          // eslint-disable-next-line
           subtractPoint: sql`
-            CASE
-                WHEN
-            ${orders.status}
-            =
-            ${OrderStatusEnum.CANCELED}
-            THEN
-            0
-            ELSE
-            (
-            COALESCE
-            (
-            SUM
-            (
-            ${vouchers.value}
-            ),
-            0
-            )
-            -
-            (
-            ${orders.totalDelivery}
-            -
-            ${orders.incomeDeliver}
-            +
-            ${orders.userServiceFee}
-            +
-            ${orders.storeServiceFee}
-            )
-            )
-            END
-          `.mapWith(Number),
+                CASE
+                WHEN ${orders.status} = ${OrderStatusEnum.CANCELED} THEN 0
+                ELSE (
+                    COALESCE(SUM(${vouchers.value}), 0) - (
+                        ${orders.totalDelivery} - ${orders.incomeDeliver} +
+                        ${orders.userServiceFee} + ${orders.storeServiceFee}
+                    )
+                )
+                END
+              `.mapWith(Number),
         })
         .from(orders)
         .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
@@ -485,19 +438,13 @@ export class DeliversService implements OnModuleInit {
           vouchers,
           and(
             eq(vouchers.id, vouchersOnOrders.voucherId),
-            inArray(vouchers.type, [
-              VouchersTypeEnum.MANAGEMENT,
-              VouchersTypeEnum.ADMIN,
-            ]),
+            inArray(vouchers.type, [VouchersTypeEnum.MANAGEMENT, VouchersTypeEnum.ADMIN]),
           ),
         )
         .where(
           and(
             eq(orders.deliverId, deliverId),
-            inArray(orders.status, [
-              OrderStatusEnum.DELIVERED,
-              OrderStatusEnum.CANCELED,
-            ]),
+            inArray(orders.status, [OrderStatusEnum.DELIVERED, OrderStatusEnum.CANCELED]),
             ...(reqDto.from && reqDto.to
               ? [between(orders.updatedAt, reqDto.from, reqDto.to)]
               : []),
@@ -506,7 +453,16 @@ export class DeliversService implements OnModuleInit {
         .groupBy(orders.id)
         .orderBy(desc(orders.createdAt)),
       this.db
-        .select({ totalIncome: sum(orders.incomeDeliver).mapWith(Number) })
+        .select({
+          //Tổng thu nhập của deliver
+          totalIncome: sum(orders.incomeDeliver).mapWith(Number),
+          //Tổng thuế của đơn hàng
+          totalTax: sum(orders.deliveryIncomeTax).mapWith(Number),
+          // Thực lãnh
+          totalRealIncome: sum(sql`${orders.incomeDeliver} - ${orders.deliveryIncomeTax}`).mapWith(
+            Number,
+          ),
+        })
         .from(orders)
         .where(
           and(
@@ -522,6 +478,10 @@ export class DeliversService implements OnModuleInit {
     return {
       orderCount: results.length,
       totalIncome: incomeResult[0]?.totalIncome || 0,
+      //Tổng thuế
+      totalTax: incomeResult[0]?.totalTax || 0,
+      //Thực lãnh
+      totalRealIncome: incomeResult[0]?.totalRealIncome || 0,
       orders: results,
     };
   }
@@ -532,12 +492,7 @@ export class DeliversService implements OnModuleInit {
         isNull(delivers.deletedAt),
         ...(areaId ? [eq(delivers.areaId, areaId)] : []),
         ...(input
-          ? [
-              or(
-                ilike(delivers.phone, `%${input}%`),
-                ilike(delivers.fullName, `%${input}%`),
-              ),
-            ]
+          ? [or(ilike(delivers.phone, `%${input}%`), ilike(delivers.fullName, `%${input}%`))]
           : []),
       ),
       limit: 20,

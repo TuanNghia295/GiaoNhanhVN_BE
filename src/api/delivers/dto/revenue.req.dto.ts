@@ -1,9 +1,9 @@
-import { DateField } from '@/decorators/field.decorators';
+import { DateFieldOptional } from '@/decorators/field.decorators';
 
 export class RevenueReqDto {
-  @DateField()
-  from: Date;
+  @DateFieldOptional()
+  from?: Date;
 
-  @DateField()
-  to: Date;
+  @DateFieldOptional()
+  to?: Date;
 }
