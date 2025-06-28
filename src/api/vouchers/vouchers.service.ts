@@ -8,7 +8,7 @@ import { VoucherResDto } from '@/api/vouchers/dto/voucher.res.dto';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { AllConfigType } from '@/config/config.type';
-import { Environment, Order } from '@/constants/app.constant';
+import { Environment } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE, Transaction, withPagination } from '@/database/global';
 import {
@@ -30,7 +30,6 @@ import { ConfigService } from '@nestjs/config';
 import { plainToInstance } from 'class-transformer';
 import {
   and,
-  asc,
   count,
   desc,
   eq,
@@ -66,6 +65,7 @@ export class VouchersService {
         usedCount: count(vouchersOnOrders.voucherId),
         user: users,
         area: areas,
+        store: stores,
       })
       .from(vouchers)
       .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
@@ -73,8 +73,7 @@ export class VouchersService {
       .leftJoin(orders, eq(orders.id, vouchersOnOrders.orderId))
       .leftJoin(users, eq(users.id, vouchers.userId))
       .leftJoin(stores, eq(stores.userId, users.id))
-      .groupBy(vouchers.id, users.id, areas.id)
-      .orderBy(reqDto.order === Order.DESC ? desc(vouchers.createdAt) : asc(vouchers.createdAt))
+      .groupBy(vouchers.id, users.id, areas.id, stores.id)
       .$dynamic();
 
     let whereClause: SQL;
@@ -129,12 +128,10 @@ export class VouchersService {
 
     await withPagination(qb, reqDto.limit, reqDto.offset);
     const [entities, { totalCount }] = await Promise.all([
-      qb
-        .where(whereClause)
-        .orderBy(
-          sql.raw("CASE WHEN vouchers.status = 'ACTIVE' THEN 0 ELSE 1 END"),
-          desc(vouchers.createdAt),
-        ),
+      qb.where(whereClause).orderBy(
+        // sql.raw("CASE WHEN vouchers.status = 'ACTIVE' THEN 0 ELSE 1 END"),
+        desc(vouchers.createdAt),
+      ),
       this.db
         .select({
           totalCount: count(),
@@ -360,6 +357,7 @@ export class VouchersService {
   }
 
   async update(voucherId: number, reqDto: UpdateVoucherReqDto) {
+    console.log('reqDto', reqDto);
     const now = new Date();
     if (reqDto.startDate && reqDto.endDate) {
       reqDto.startDate = DateTime.fromJSDate(reqDto.startDate).startOf('day').toJSDate();
@@ -384,12 +382,13 @@ export class VouchersService {
       ],
       [_.stubTrue, () => VouchersStatusEnum.ACTIVE], // Trường hợp mặc định
     ])(reqDto);
+    console.log('status', status);
 
     return this.db
       .update(vouchers)
       .set({
-        ...reqDto,
         ...(reqDto.status ? { status: reqDto.status } : { status }),
+        ...reqDto,
       })
       .where(eq(vouchers.id, voucherId))
       .returning()
