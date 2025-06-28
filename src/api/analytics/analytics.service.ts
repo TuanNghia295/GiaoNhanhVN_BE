@@ -57,9 +57,16 @@ export class AnalyticsService {
         total_user_service_fee: sum(orders.userServiceFee).mapWith(Number),
         total_store_service_fee: sum(orders.storeServiceFee).mapWith(Number),
         total_deliver_service_fee: sql<number>`SUM
-          ((${orders.totalDelivery} + ${orders.nightFee} + ${orders.rainFee} ) - ${orders.incomeDeliver})`.mapWith(
-          Number,
-        ),
+          ((
+        ${orders.totalDelivery}
+        +
+        ${orders.nightFee}
+        +
+        ${orders.rainFee}
+        )
+        -
+        ${orders.incomeDeliver}
+        )`.mapWith(Number),
         total_voucher_value: sql
           .raw(
             `
@@ -312,6 +319,8 @@ export class AnalyticsService {
           )
           .mapWith(Number),
         total_store_revenue: sum(orders.payforShop).mapWith(Number),
+        // thuế
+        total_product_tax: sum(orders.totalProductTax).mapWith(Number),
       })
       .from(orders)
       .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
@@ -330,6 +339,7 @@ export class AnalyticsService {
     const result = statuses.map((status) => {
       const filterData = orderFilterMap.get(status) || {
         total_order: 0,
+        total_product_tax: 0,
         total_product_price: 0,
         total_store_service_fee: 0,
         total_voucher_value: 0,
@@ -339,6 +349,7 @@ export class AnalyticsService {
       return {
         status,
         total_order: filterData.total_order,
+        total_product_tax: filterData.total_product_tax,
         total_product_price: filterData.total_product_price,
         total_store_service_fee: filterData.total_store_service_fee,
         total_voucher_value: filterData.total_voucher_value,
@@ -369,6 +380,8 @@ export class AnalyticsService {
       DATA_FILTERED?.reduce((acc, cur) => acc + cur.total_voucher_value, 0) ?? 0;
     const total_all_store_revenue =
       DATA_FILTERED?.reduce((acc, cur) => acc + cur.total_store_revenue, 0) ?? 0;
+    const total_all_product_tax =
+      DATA_FILTERED?.reduce((acc, cur) => acc + cur.total_product_tax, 0) ?? 0;
 
     return {
       all: result,
@@ -377,6 +390,7 @@ export class AnalyticsService {
       total_all_store_service_fee,
       total_all_voucher_value,
       total_all_store_revenue,
+      total_all_product_tax,
     };
   }
 
