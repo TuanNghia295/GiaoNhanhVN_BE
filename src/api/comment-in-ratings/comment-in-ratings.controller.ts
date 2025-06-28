@@ -7,9 +7,7 @@ import { CommentInRatingsService } from './comment-in-ratings.service';
 
 @Controller('comment-in-ratings')
 export class CommentInRatingsController {
-  constructor(
-    private readonly commentInRatingsService: CommentInRatingsService,
-  ) {}
+  constructor(private readonly commentInRatingsService: CommentInRatingsService) {}
 
   @Roles(RoleEnum.USER)
   @ApiAuth({

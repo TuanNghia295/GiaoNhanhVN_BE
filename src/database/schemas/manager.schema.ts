@@ -1,14 +1,7 @@
 import { areas } from '@/database/schemas/area.schema';
 import { RoleEnum } from '@/database/schemas/user.schema';
 import { relations } from 'drizzle-orm';
-import {
-  foreignKey,
-  integer,
-  pgTable,
-  serial,
-  timestamp,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { foreignKey, integer, pgTable, serial, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 export const managers = pgTable(
   'managers',

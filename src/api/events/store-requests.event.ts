@@ -35,8 +35,6 @@ export class StoreRequestsEvent {
     //---------------------------------------------------
     // Notify the user that their store request has been approved
     //---------------------------------------------------
-    this.userGateway.server
-      .to(String(payload.userId))
-      .emit('store-require-verified');
+    this.userGateway.server.to(String(payload.userId)).emit('store-require-verified');
   }
 }

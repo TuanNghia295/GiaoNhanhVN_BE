@@ -15,9 +15,7 @@ export const options = pgTable(
   {
     id: serial('id').primaryKey().notNull(),
     name: varchar('name', { length: 255 }).notNull(),
-    price: decimal('price', { precision: 15, scale: 2, mode: 'number' })
-      .notNull()
-      .default(0),
+    price: decimal('price', { precision: 15, scale: 2, mode: 'number' }).notNull().default(0),
     productId: integer('product_id'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at')

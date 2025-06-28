@@ -36,9 +36,7 @@ export class BannersService implements OnModuleInit {
   async getPageBanners(reqDto: PageBannerReqDto, payload: JwtPayloadType) {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.banners> = {
       where: and(
-        ...(payload.role === RoleEnum.MANAGEMENT
-          ? [eq(banners.areaId, payload.areaId)]
-          : []),
+        ...(payload.role === RoleEnum.MANAGEMENT ? [eq(banners.areaId, payload.areaId)] : []),
         ...(reqDto.type ? [eq(banners.type, reqDto.type)] : []),
         ...(reqDto.areaId ? [eq(banners.areaId, reqDto.areaId)] : []),
         // ilike(banners.title, `%${reqDto.q ?? ''}%`),
@@ -56,11 +54,7 @@ export class BannersService implements OnModuleInit {
     const [entities, [{ totalCount }]] = await Promise.all([
       this.db.query.banners.findMany({
         ...baseConfig,
-        orderBy: [
-          reqDto.order === Order.DESC
-            ? desc(banners.createdAt)
-            : asc(banners.createdAt),
-        ],
+        orderBy: [reqDto.order === Order.DESC ? desc(banners.createdAt) : asc(banners.createdAt)],
         limit: reqDto.limit,
         offset: reqDto.offset,
       }),
@@ -83,10 +77,7 @@ export class BannersService implements OnModuleInit {
     const fileName = await this.buildFileName('banner');
     const fullImagePath = join(this.basePath, fileName);
 
-    await sharp(image.buffer)
-      .rotate()
-      .jpeg({ quality: 80 })
-      .toFile(fullImagePath); // Use fullImagePath
+    await sharp(image.buffer).rotate().jpeg({ quality: 80 }).toFile(fullImagePath); // Use fullImagePath
     const normalizedPath = normalizeImagePath(fullImagePath);
 
     const banner = await this.db
@@ -125,11 +116,7 @@ export class BannersService implements OnModuleInit {
     await this.db.delete(banners).where(eq(banners.id, bannerId));
   }
 
-  async update(
-    bannerId: number,
-    reqDto: UploadBannerReqDto,
-    image?: Express.Multer.File,
-  ) {
+  async update(bannerId: number, reqDto: UploadBannerReqDto, image?: Express.Multer.File) {
     const banner = await this.existById(bannerId);
     if (!banner) {
       throw new ValidationException(ErrorCode.B001);
@@ -138,10 +125,7 @@ export class BannersService implements OnModuleInit {
     if (image?.buffer) {
       const fileName = await this.buildFileName('banner');
       const fullImagePath = join(this.basePath, fileName);
-      await sharp(image.buffer)
-        .rotate()
-        .jpeg({ quality: 80 })
-        .toFile(fullImagePath);
+      await sharp(image.buffer).rotate().jpeg({ quality: 80 }).toFile(fullImagePath);
       normalizedPath = normalizeImagePath(fullImagePath);
     }
 

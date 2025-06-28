@@ -12,10 +12,7 @@ export type NotificationTemplateKey =
   | 'ACCEPT_STORE_REQUEST'
   | 'REJECT_STORE_REQUEST';
 
-export const NOTIFICATION_TEMPLATES: Record<
-  NotificationTemplateKey,
-  NotificationTemplate
-> = {
+export const NOTIFICATION_TEMPLATES: Record<NotificationTemplateKey, NotificationTemplate> = {
   NEW_ORDER: {
     title: 'Bạn có một đơn hàng mới',
     body: 'Có một đơn hàng mới cần giao, hãy kiểm tra ngay',

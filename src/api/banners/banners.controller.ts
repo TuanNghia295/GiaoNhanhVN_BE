@@ -35,10 +35,7 @@ export class BannersController {
     type: BannerResDto,
   })
   @Get('list')
-  async getPageBanners(
-    @CurrentUser() payload: JwtPayloadType,
-    @Query() reqDto: PageBannerReqDto,
-  ) {
+  async getPageBanners(@CurrentUser() payload: JwtPayloadType, @Query() reqDto: PageBannerReqDto) {
     return await this.bannersService.getPageBanners(reqDto, payload);
   }
 
@@ -62,10 +59,7 @@ export class BannersController {
       storage: memoryStorage(),
     }),
   )
-  async create(
-    @UploadedFile() image: Express.Multer.File,
-    @Body() reqDto: CreateBannerReqDto,
-  ) {
+  async create(@UploadedFile() image: Express.Multer.File, @Body() reqDto: CreateBannerReqDto) {
     return await this.bannersService.create(reqDto, image);
   }
 

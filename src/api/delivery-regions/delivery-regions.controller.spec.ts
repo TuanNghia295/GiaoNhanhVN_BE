@@ -11,9 +11,7 @@ describe('DeliveryRegionsController', () => {
       providers: [DeliveryRegionsService],
     }).compile();
 
-    controller = module.get<DeliveryRegionsController>(
-      DeliveryRegionsController,
-    );
+    controller = module.get<DeliveryRegionsController>(DeliveryRegionsController);
   });
 
   it('should be defined', () => {

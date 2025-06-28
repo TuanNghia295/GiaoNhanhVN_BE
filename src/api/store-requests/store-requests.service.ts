@@ -17,10 +17,7 @@ import {
   stores,
   users,
 } from '@/database/schemas';
-import {
-  notifications,
-  NotificationTypeEnum,
-} from '@/database/schemas/notification.schema';
+import { notifications, NotificationTypeEnum } from '@/database/schemas/notification.schema';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { buildMulticastMessage } from '@/utils/firebase.util';
@@ -44,10 +41,7 @@ export class StoreRequestsService {
 
   private readonly logger = new Logger(StoreRequestsService.name);
 
-  async getPageStoreRequests(
-    reqDto: PageStoreRequestReqDto,
-    payload: JwtPayloadType,
-  ) {
+  async getPageStoreRequests(reqDto: PageStoreRequestReqDto, payload: JwtPayloadType) {
     const whereClause = and(
       ...(reqDto.q
         ? [
@@ -59,9 +53,7 @@ export class StoreRequestsService {
           ]
         : []),
       ...(reqDto.areaId ? [eq(storeRequests.areaId, reqDto.areaId)] : []),
-      ...(payload.role === RoleEnum.MANAGEMENT
-        ? [eq(storeRequests.areaId, payload.areaId)]
-        : []),
+      ...(payload.role === RoleEnum.MANAGEMENT ? [eq(storeRequests.areaId, payload.areaId)] : []),
     );
     const qb = this.db
       .select({

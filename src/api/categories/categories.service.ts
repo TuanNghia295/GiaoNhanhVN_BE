@@ -19,8 +19,6 @@ export class CategoriesService {
     const sortedResult = result.sort((a, b) => {
       return codes.indexOf(a.code) - codes.indexOf(b.code);
     });
-    return sortedResult.map((entity) =>
-      plainToInstance(CategoryResDto, entity),
-    );
+    return sortedResult.map((entity) => plainToInstance(CategoryResDto, entity));
   }
 }

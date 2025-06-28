@@ -1,7 +1,4 @@
-import {
-  DateFieldOptional,
-  StringFieldOptional,
-} from 'src/decorators/field.decorators';
+import { DateFieldOptional, StringFieldOptional } from 'src/decorators/field.decorators';
 
 export class StoreRevenueReqDto {
   @DateFieldOptional({

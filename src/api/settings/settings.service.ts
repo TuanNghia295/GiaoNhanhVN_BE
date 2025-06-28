@@ -3,18 +3,12 @@ import { SettingResDto } from '@/api/settings/dto/setting.res.dto';
 import { UpdateServiceFeeReqDto } from '@/api/settings/dto/update-service.fee.req.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
-import {
-  areas,
-  distances,
-  RoleEnum,
-  serviceFees,
-  settings,
-} from '@/database/schemas';
+import { areas, distances, RoleEnum, serviceFees, settings } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { JwtPayloadType } from '../auth/types/jwt-payload.type';
 import { UpdateSettingReqDto } from './dto/update-setting.req.dto';
 
@@ -22,20 +16,20 @@ import { UpdateSettingReqDto } from './dto/update-setting.req.dto';
 export class SettingsService {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
 
-  async getSettings(areaId: number, payload: JwtPayloadType) {
-    return this.db
-      .select()
-      .from(settings)
-      .where(
-        and(
-          ...(payload.role === RoleEnum.MANAGEMENT
-            ? [eq(settings.areaId, payload.areaId)]
-            : []),
-          ...(areaId
-            ? [eq(settings.areaId, areaId)]
-            : [isNull(settings.areaId)]),
-        ),
-      );
+  async getSettingByAreaId(areaId: number, payload: JwtPayloadType) {
+    return this.db.query.settings.findFirst({
+      where: and(
+        ...(payload.role === RoleEnum.MANAGEMENT ? [eq(settings.areaId, payload.areaId)] : []),
+        eq(settings.areaId, areaId),
+      ),
+      with: {
+        serviceFees: {
+          with: {
+            distance: true,
+          },
+        },
+      },
+    });
   }
 
   async getServiceFees(settingId: number) {
@@ -62,10 +56,7 @@ export class SettingsService {
 
   async getServiceFeesByTypeAndSettingId(type: string, settingId: number) {
     const result = await this.db.query.serviceFees.findFirst({
-      where: and(
-        eq(serviceFees.type, type),
-        eq(serviceFees.settingId, settingId),
-      ),
+      where: and(eq(serviceFees.type, type), eq(serviceFees.settingId, settingId)),
       with: {
         distance: {
           orderBy: asc(distances.minDistance),
@@ -86,12 +77,7 @@ export class SettingsService {
               .set({
                 rate: distance.rate,
               })
-              .where(
-                and(
-                  eq(distances.id, distance.id),
-                  eq(distances.serviceFeeId, serviceFeeId),
-                ),
-              )
+              .where(and(eq(distances.id, distance.id), eq(distances.serviceFeeId, serviceFeeId)))
               .execute();
           }),
         );

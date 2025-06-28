@@ -4,10 +4,7 @@ import { StoreResDto } from '@/api/stores/dto/store.res.dto';
 import { VoucherResDto } from '@/api/vouchers/dto/voucher.res.dto';
 import { WrapperType } from '@/common/types/types';
 import { AbstractResDto } from '@/database/dto/abstract.res.dto';
-import {
-  OrderStatusEnum,
-  OrderTypeEnum,
-} from '@/database/schemas/order.schema';
+import { OrderStatusEnum, OrderTypeEnum } from '@/database/schemas/order.schema';
 import {
   BooleanField,
   ClassField,

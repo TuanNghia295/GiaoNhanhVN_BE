@@ -5,14 +5,7 @@ import { RoleEnum } from '@/database/schemas';
 import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth, ApiPublic } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseIntPipe,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
 import { RatingsService } from './ratings.service';
 
 @Controller('ratings')
@@ -25,10 +18,7 @@ export class RatingsController {
     summary: 'Tạo đánh giá',
     type: RatingsResDto,
   })
-  async create(
-    @Body() reqDto: CreateRatingReqDto,
-    @CurrentUser() payload: JwtPayloadType,
-  ) {
+  async create(@Body() reqDto: CreateRatingReqDto, @CurrentUser() payload: JwtPayloadType) {
     return await this.ratingsService.create(reqDto, payload);
   }
 

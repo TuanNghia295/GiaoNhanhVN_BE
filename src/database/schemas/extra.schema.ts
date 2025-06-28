@@ -62,16 +62,13 @@ export const extrasToOrderDetails = pgTable(
   (t) => [primaryKey({ columns: [t.extraId, t.orderDetailId] })],
 );
 
-export const extrasToOrderDetailsRelations = relations(
-  extrasToOrderDetails,
-  ({ one }) => ({
-    extra: one(extras, {
-      fields: [extrasToOrderDetails.extraId],
-      references: [extras.id],
-    }),
-    orderDetails: one(orderDetails, {
-      fields: [extrasToOrderDetails.orderDetailId],
-      references: [orderDetails.id],
-    }),
+export const extrasToOrderDetailsRelations = relations(extrasToOrderDetails, ({ one }) => ({
+  extra: one(extras, {
+    fields: [extrasToOrderDetails.extraId],
+    references: [extras.id],
   }),
-);
+  orderDetails: one(orderDetails, {
+    fields: [extrasToOrderDetails.orderDetailId],
+    references: [orderDetails.id],
+  }),
+}));

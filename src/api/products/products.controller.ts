@@ -44,9 +44,7 @@ export class ProductsController {
     type: ProductResDto,
   })
   @Get(':productId')
-  async getProductById(
-    @Param('productId') productId: number,
-  ): Promise<ProductResDto> {
+  async getProductById(@Param('productId') productId: number): Promise<ProductResDto> {
     return await this.productsService.getProductById(productId);
   }
 
@@ -118,10 +116,7 @@ export class ProductsController {
     type: ProductResDto,
   })
   @Patch('lock/:productId')
-  async lockProduct(
-    @Param('productId') productId: number,
-    @Body() reqDto: LockProductReqDto,
-  ) {
+  async lockProduct(@Param('productId') productId: number, @Body() reqDto: LockProductReqDto) {
     return await this.productsService.lock(productId, reqDto);
   }
 }

@@ -12,6 +12,7 @@ import {
   delivers,
   orders,
   OrderStatusEnum,
+  OrderTypeEnum,
   reasonDeliverCancelOrders,
   RoleEnum,
   stores,
@@ -56,7 +57,9 @@ export class AnalyticsService {
         total_user_service_fee: sum(orders.userServiceFee).mapWith(Number),
         total_store_service_fee: sum(orders.storeServiceFee).mapWith(Number),
         total_deliver_service_fee: sql<number>`SUM
-          (${orders.totalDelivery} - ${orders.incomeDeliver})`.mapWith(Number),
+          ((${orders.totalDelivery} + ${orders.nightFee} + ${orders.rainFee} ) - ${orders.incomeDeliver})`.mapWith(
+          Number,
+        ),
         total_voucher_value: sql
           .raw(
             `
@@ -73,17 +76,9 @@ export class AnalyticsService {
           .mapWith(Number),
 
         total_app_revenue: sql<number>`
-          ( SUM(${orders.totalProduct}) - SUM(${orders.payforShop}) +
-            SUM(${orders.userServiceFee}) +
-            (SUM(${orders.totalDelivery}) - SUM(${orders.incomeDeliver})) -
-            SUM(
-            CASE
-            WHEN ${vouchers.managerId} IS NOT NULL
-            AND vouchers_on_orders.order_id IS NOT NULL
-            THEN vouchers.value
-            ELSE 0
-            END
-            ))
+          ( SUM (${orders.totalProduct}) - SUM (${orders.payforShop}) +
+            SUM (${orders.userServiceFee}) +
+            (SUM (${orders.totalDelivery}) + SUM (${orders.rainFee}) + SUM (${orders.nightFee})- SUM (${orders.incomeDeliver})))
         `.mapWith(Number),
       })
       .from(orders)
@@ -91,18 +86,10 @@ export class AnalyticsService {
       .leftJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
       .where(
         and(
-          ...(payload.role === RoleEnum.MANAGEMENT
-            ? [eq(orders.areaId, payload.areaId)]
-            : []),
+          ...(payload.role === RoleEnum.MANAGEMENT ? [eq(orders.areaId, payload.areaId)] : []),
           ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
           ...(reqDto.from && reqDto.to
-            ? [
-                between(
-                  orders.createdAt,
-                  startOfDay(reqDto.from),
-                  endOfDay(reqDto.to),
-                ),
-              ]
+            ? [between(orders.createdAt, startOfDay(reqDto.from), endOfDay(reqDto.to))]
             : []),
         ),
       )
@@ -141,24 +128,14 @@ export class AnalyticsService {
       OrderStatusEnum.ACCEPTED,
       OrderStatusEnum.DELIVERING,
     ];
-    result.sort(
-      (a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status),
-    );
+    result.sort((a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status));
 
-    const DATA_FILTERED = result.filter(
-      (item) => item.status !== OrderStatusEnum.CANCELED,
-    );
+    const DATA_FILTERED = result.filter((item) => item.status !== OrderStatusEnum.CANCELED);
     const total_all: RevenueResult = {
       status: null, // Dòng tổng không có trạng thái
       total_order: DATA_FILTERED.reduce((acc, cur) => acc + cur.total_order, 0),
-      total_product_price: DATA_FILTERED.reduce(
-        (acc, cur) => acc + cur.total_product_price,
-        0,
-      ),
-      total_user_payment: DATA_FILTERED.reduce(
-        (acc, cur) => acc + cur.total_user_payment,
-        0,
-      ),
+      total_product_price: DATA_FILTERED.reduce((acc, cur) => acc + cur.total_product_price, 0),
+      total_user_payment: DATA_FILTERED.reduce((acc, cur) => acc + cur.total_user_payment, 0),
       total_store_service_fee: DATA_FILTERED.reduce(
         (acc, cur) => acc + cur.total_store_service_fee,
         0,
@@ -167,18 +144,12 @@ export class AnalyticsService {
         (acc, cur) => acc + cur.total_deliver_service_fee,
         0,
       ),
-      total_voucher_value: DATA_FILTERED.reduce(
-        (acc, cur) => acc + cur.total_voucher_value,
-        0,
-      ),
+      total_voucher_value: DATA_FILTERED.reduce((acc, cur) => acc + cur.total_voucher_value, 0),
       total_user_service_fee: DATA_FILTERED.reduce(
         (acc, cur) => acc + (cur.total_user_service_fee || 0),
         0,
       ),
-      total_app_revenue: DATA_FILTERED.reduce(
-        (acc, cur) => acc + cur.total_app_revenue,
-        0,
-      ),
+      total_app_revenue: DATA_FILTERED.reduce((acc, cur) => acc + cur.total_app_revenue, 0),
     };
 
     console.log('total_all', total_all);
@@ -207,8 +178,10 @@ export class AnalyticsService {
         status: orders.status,
         total_order: count(orders.id).mapWith(Number).as('total_order'),
         total_product_price: sum(orders.totalProduct).mapWith(Number),
+        total_user_service_fee: sum(orders.userServiceFee).mapWith(Number),
         total_user_payment: sum(orders.total).mapWith(Number),
-        total_store_service_fee: sum(sql`${orders.totalProduct} -
+        total_store_service_fee: sum(sql`${orders.totalProduct}
+        -
         ${orders.payforShop}`).mapWith(Number),
         total_voucher_value: sql
           .raw(
@@ -234,20 +207,11 @@ export class AnalyticsService {
       .groupBy(orders.status)
       .where(
         and(
-          ...(payload.role === RoleEnum.MANAGEMENT
-            ? [eq(stores.areaId, payload.areaId)]
-            : []),
-          ...(reqDto.q
-            ? [or(eq(users.phone, reqDto.q), eq(stores.name, reqDto.q))]
-            : []),
+          eq(orders.type, OrderTypeEnum.FOOD),
+          ...(payload.role === RoleEnum.MANAGEMENT ? [eq(stores.areaId, payload.areaId)] : []),
+          ...(reqDto.q ? [or(eq(users.phone, reqDto.q), eq(stores.name, reqDto.q))] : []),
           ...(reqDto.from && reqDto.to
-            ? [
-                between(
-                  orders.createdAt,
-                  startOfDay(reqDto.from),
-                  endOfDay(reqDto.to),
-                ),
-              ]
+            ? [between(orders.createdAt, startOfDay(reqDto.from), endOfDay(reqDto.to))]
             : []),
         ),
       );
@@ -257,6 +221,7 @@ export class AnalyticsService {
       const filterData = orderFilterMap.get(status) || {
         total_order: 0,
         total_product_price: 0,
+        total_user_service_fee: 0,
         total_user_payment: 0,
         total_store_service_fee: 0,
         total_voucher_value: 0,
@@ -268,6 +233,7 @@ export class AnalyticsService {
         total_order: filterData.total_order,
         total_product_price: filterData.total_product_price,
         total_user_payment: filterData.total_user_payment,
+        total_user_service_fee: filterData.total_user_service_fee,
         total_store_service_fee: filterData.total_store_service_fee,
         total_voucher_value: filterData.total_voucher_value,
         total_store_revenue: filterData.total_store_revenue,
@@ -282,29 +248,23 @@ export class AnalyticsService {
       OrderStatusEnum.ACCEPTED,
       OrderStatusEnum.DELIVERING,
     ];
-    formattedResult.sort(
-      (a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status),
-    );
+    formattedResult.sort((a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status));
 
     // ✅ Tính tổng trừ các đơn hàng đã hủy
     const DATA_FILTERED = formattedResult.filter(
       (item) => item.status !== OrderStatusEnum.CANCELED,
     );
-    const total_all_order = DATA_FILTERED.reduce(
-      (acc, cur) => acc + Number(cur.total_order),
-      0,
-    );
+    const total_all_order = DATA_FILTERED.reduce((acc, cur) => acc + Number(cur.total_order), 0);
     const total_all_product_price =
       DATA_FILTERED.reduce((acc, cur) => acc + cur.total_product_price, 0) ?? 0;
     const total_all_store_service_fee =
-      DATA_FILTERED.reduce(
-        (acc, cur) => acc + cur.total_store_service_fee,
-        0,
-      ) ?? 0;
+      DATA_FILTERED.reduce((acc, cur) => acc + cur.total_store_service_fee, 0) ?? 0;
     const total_all_voucher_value =
       DATA_FILTERED.reduce((acc, cur) => acc + cur.total_voucher_value, 0) ?? 0;
     const total_all_store_revenue =
       DATA_FILTERED.reduce((acc, cur) => acc + cur.total_store_revenue, 0) ?? 0;
+    const total_all_user_service_fee =
+      DATA_FILTERED.reduce((acc, cur) => acc + (cur.total_user_service_fee || 0), 0) ?? 0;
     return plainToInstance(StoreRevenueResDto, {
       all: formattedResult,
       total_all_order,
@@ -312,6 +272,7 @@ export class AnalyticsService {
       total_all_store_service_fee,
       total_all_voucher_value,
       total_all_store_revenue,
+      total_all_user_service_fee,
     });
   }
 
@@ -333,7 +294,8 @@ export class AnalyticsService {
         status: orders.status,
         total_order: count(orders.id).mapWith(Number).as('total_order'),
         total_product_price: sum(orders.totalProduct).mapWith(Number),
-        total_store_service_fee: sum(sql`${orders.totalProduct} -
+        total_store_service_fee: sum(sql`${orders.totalProduct}
+        -
         ${orders.payforShop}`).mapWith(Number),
         total_voucher_value: sql
           .raw(
@@ -358,18 +320,12 @@ export class AnalyticsService {
       .where(
         and(
           eq(stores.id, store.storeId),
-          between(
-            orders.createdAt,
-            startOfDay(reqDto.from),
-            endOfDay(reqDto.to),
-          ),
+          between(orders.createdAt, startOfDay(reqDto.from), endOfDay(reqDto.to)),
         ),
       )
       .groupBy(orders.status);
 
-    const orderFilterMap = new Map(
-      orderFilter.map((item) => [item.status, item]),
-    );
+    const orderFilterMap = new Map(orderFilter.map((item) => [item.status, item]));
 
     const result = statuses.map((status) => {
       const filterData = orderFilterMap.get(status) || {
@@ -399,33 +355,20 @@ export class AnalyticsService {
       OrderStatusEnum.DELIVERING,
     ];
 
-    result.sort(
-      (a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status),
-    );
+    result.sort((a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status));
 
     // ✅ Tính tổng trừ các đơn hàng đã hủy
-    const DATA_FILTERED = result.filter(
-      (item) => item.status !== OrderStatusEnum.CANCELED,
-    );
+    const DATA_FILTERED = result.filter((item) => item.status !== OrderStatusEnum.CANCELED);
 
-    const total_all_order = DATA_FILTERED?.reduce(
-      (acc, cur) => acc + Number(cur.total_order),
-      0,
-    );
+    const total_all_order = DATA_FILTERED?.reduce((acc, cur) => acc + Number(cur.total_order), 0);
     const total_all_product_price =
-      DATA_FILTERED?.reduce((acc, cur) => acc + cur.total_product_price, 0) ??
-      0;
+      DATA_FILTERED?.reduce((acc, cur) => acc + cur.total_product_price, 0) ?? 0;
     const total_all_store_service_fee =
-      DATA_FILTERED?.reduce(
-        (acc, cur) => acc + cur.total_store_service_fee,
-        0,
-      ) ?? 0;
+      DATA_FILTERED?.reduce((acc, cur) => acc + cur.total_store_service_fee, 0) ?? 0;
     const total_all_voucher_value =
-      DATA_FILTERED?.reduce((acc, cur) => acc + cur.total_voucher_value, 0) ??
-      0;
+      DATA_FILTERED?.reduce((acc, cur) => acc + cur.total_voucher_value, 0) ?? 0;
     const total_all_store_revenue =
-      DATA_FILTERED?.reduce((acc, cur) => acc + cur.total_store_revenue, 0) ??
-      0;
+      DATA_FILTERED?.reduce((acc, cur) => acc + cur.total_store_revenue, 0) ?? 0;
 
     return {
       all: result,
@@ -447,53 +390,69 @@ export class AnalyticsService {
         full_name: delivers.fullName,
         total_orders: count(orders.id).mapWith(Number),
         total_order_delivered: sql<number>`COALESCE
-          ( COUNT(${orders.id}) FILTER (WHERE ${orders.status} = 'DELIVERED'), 0)`
+          ( COUNT(
+        ${orders.id}
+        )
+        FILTER
+        (
+        WHERE
+        ${orders.status}
+        =
+        'DELIVERED'
+        ),
+        0
+        )`
           .mapWith(Number)
           .as('totalOrderDelivered'),
         total_order_canceled: sql<number>`COALESCE
-          ( COUNT(${orders.id}) FILTER (WHERE ${orders.status} = 'CANCELED'), 0)`
+          ( COUNT(
+        ${orders.id}
+        )
+        FILTER
+        (
+        WHERE
+        ${orders.status}
+        =
+        'CANCELED'
+        ),
+        0
+        )`
           .mapWith(Number)
           .as('totalOrderCanceled'),
         total_deliver_point: delivers.point,
         total_income: sql<number>`COALESCE
-          ( SUM(${orders.incomeDeliver}) FILTER (WHERE ${orders.status} = 'DELIVERED'), 0)`
+          ( SUM(
+        ${orders.incomeDeliver}
+        )
+        FILTER
+        (
+        WHERE
+        ${orders.status}
+        =
+        'DELIVERED'
+        ),
+        0
+        )`
           .mapWith(Number)
           .as('totalIncome'),
       })
       .from(delivers)
       .leftJoin(orders, eq(orders.deliverId, delivers.id))
-      .leftJoin(
-        reasonDeliverCancelOrders,
-        eq(reasonDeliverCancelOrders.orderId, orders.id),
-      )
+      .leftJoin(reasonDeliverCancelOrders, eq(reasonDeliverCancelOrders.orderId, orders.id))
       .where(
         and(
           isNull(delivers.deletedAt),
-          ...(payload.role === RoleEnum.MANAGEMENT
-            ? [eq(delivers.areaId, payload.areaId)]
-            : []),
+          ...(payload.role === RoleEnum.MANAGEMENT ? [eq(delivers.areaId, payload.areaId)] : []),
           ...(reqDto.phone ? [eq(delivers.phone, reqDto.phone)] : []),
           ...(reqDto.from && reqDto.to
-            ? [
-                between(
-                  orders.createdAt,
-                  startOfDay(reqDto.from),
-                  endOfDay(reqDto.to),
-                ),
-              ]
+            ? [between(orders.createdAt, startOfDay(reqDto.from), endOfDay(reqDto.to))]
             : []),
         ),
       )
       .groupBy(delivers.id);
 
-    const total_income = result.reduce(
-      (acc, cur) => acc + (cur.total_income || 0),
-      0,
-    );
-    const total_all_orders = result.reduce(
-      (acc, cur) => acc + (cur.total_orders || 0),
-      0,
-    );
+    const total_income = result.reduce((acc, cur) => acc + (cur.total_income || 0), 0);
+    const total_all_orders = result.reduce((acc, cur) => acc + (cur.total_orders || 0), 0);
     const total_all_order_delivered = result.reduce(
       (acc, cur) => acc + (cur.total_order_delivered || 0),
       0,

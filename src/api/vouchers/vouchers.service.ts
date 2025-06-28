@@ -25,13 +25,7 @@ import {
 import { voucherUsages } from '@/database/schemas/voucher-usage.schema'; // Import Lodash
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
-import {
-  ForbiddenException,
-  HttpStatus,
-  Inject,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { ForbiddenException, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { plainToInstance } from 'class-transformer';
 import {
@@ -80,11 +74,7 @@ export class VouchersService {
       .leftJoin(users, eq(users.id, vouchers.userId))
       .leftJoin(stores, eq(stores.userId, users.id))
       .groupBy(vouchers.id, users.id, areas.id)
-      .orderBy(
-        reqDto.order === Order.DESC
-          ? desc(vouchers.createdAt)
-          : asc(vouchers.createdAt),
-      )
+      .orderBy(reqDto.order === Order.DESC ? desc(vouchers.createdAt) : asc(vouchers.createdAt))
       .$dynamic();
 
     let whereClause: SQL;
@@ -103,12 +93,7 @@ export class VouchersService {
               ]
             : []),
           ...(reqDto.isApp
-            ? [
-                inArray(vouchers.type, [
-                  VouchersTypeEnum.ADMIN,
-                  VouchersTypeEnum.MANAGEMENT,
-                ]),
-              ]
+            ? [inArray(vouchers.type, [VouchersTypeEnum.ADMIN, VouchersTypeEnum.MANAGEMENT])]
             : [eq(vouchers.type, VouchersTypeEnum.STORE)]),
           ...(reqDto.areaId ? [eq(vouchers.areaId, reqDto.areaId)] : []),
         );
@@ -139,9 +124,7 @@ export class VouchersService {
         );
         break;
       default:
-        throw new ForbiddenException(
-          'You do not have permission to access this resource.',
-        );
+        throw new ForbiddenException('You do not have permission to access this resource.');
     }
 
     await withPagination(qb, reqDto.limit, reqDto.offset);
@@ -183,10 +166,7 @@ export class VouchersService {
         and(
           isNull(vouchers.deletedAt),
           eq(vouchers.code, code),
-          or(
-            eq(vouchers.userId, userOrManagerId),
-            eq(vouchers.managerId, userOrManagerId),
-          ),
+          or(eq(vouchers.userId, userOrManagerId), eq(vouchers.managerId, userOrManagerId)),
         ),
       )
       .limit(1)
@@ -204,12 +184,8 @@ export class VouchersService {
     }
 
     if (reqDto.startDate && reqDto.endDate) {
-      reqDto.startDate = DateTime.fromJSDate(reqDto.startDate)
-        .startOf('day')
-        .toJSDate();
-      reqDto.endDate = DateTime.fromJSDate(reqDto.endDate)
-        .endOf('day')
-        .toJSDate();
+      reqDto.startDate = DateTime.fromJSDate(reqDto.startDate).startOf('day').toJSDate();
+      reqDto.endDate = DateTime.fromJSDate(reqDto.endDate).endOf('day').toJSDate();
 
       if (reqDto.startDate >= reqDto.endDate) {
         throw new ValidationException(
@@ -219,7 +195,6 @@ export class VouchersService {
         );
       }
     }
-    console.log('reqDto', reqDto);
 
     // Chỉ có role MANAGEMENT với có điểm
     if ([RoleEnum.MANAGEMENT].includes(payload.role)) {
@@ -254,10 +229,7 @@ export class VouchersService {
         (d: CreateVoucherReqDto) => d.startDate && d.startDate > now,
         () => VouchersStatusEnum.PENDING,
       ],
-      [
-        (d: CreateVoucherReqDto) => d.endDate && d.endDate < now,
-        () => VouchersStatusEnum.EXPIRED,
-      ],
+      [(d: CreateVoucherReqDto) => d.endDate && d.endDate < now, () => VouchersStatusEnum.EXPIRED],
       [_.stubTrue, () => VouchersStatusEnum.ACTIVE], // Trường hợp mặc định
     ])(reqDto);
 
@@ -352,12 +324,7 @@ export class VouchersService {
         )`.mapWith(Number),
       })
       .from(voucherUsages)
-      .where(
-        and(
-          eq(voucherUsages.voucherId, voucherId),
-          eq(voucherUsages.userId, userId),
-        ),
-      );
+      .where(and(eq(voucherUsages.voucherId, voucherId), eq(voucherUsages.userId, userId)));
 
     const userUsageCount = row?.userUsageCount ?? 0;
     if (!voucher) {
@@ -368,10 +335,7 @@ export class VouchersService {
       );
     }
 
-    if (
-      this.configService.get('app', { infer: true }).nodeEnv ===
-      Environment.DEVELOPMENT
-    ) {
+    if (this.configService.get('app', { infer: true }).nodeEnv === Environment.DEVELOPMENT) {
       console.group('🎟️ Voucher Usage Details');
       console.log('🔢 Used Count          :', voucher.usedCount);
       console.log('👤 User Usage Count    :', userUsageCount);
@@ -382,10 +346,7 @@ export class VouchersService {
       console.groupEnd();
     }
 
-    if (
-      voucher.usedCount >= voucher.maxUses ||
-      userUsageCount >= voucher.usePerUser
-    ) {
+    if (voucher.usedCount >= voucher.maxUses || userUsageCount >= voucher.usePerUser) {
       throw new ValidationException(ErrorCode.V006, HttpStatus.BAD_REQUEST);
     }
 
@@ -401,12 +362,8 @@ export class VouchersService {
   async update(voucherId: number, reqDto: UpdateVoucherReqDto) {
     const now = new Date();
     if (reqDto.startDate && reqDto.endDate) {
-      reqDto.startDate = DateTime.fromJSDate(reqDto.startDate)
-        .startOf('day')
-        .toJSDate();
-      reqDto.endDate = DateTime.fromJSDate(reqDto.endDate)
-        .endOf('day')
-        .toJSDate();
+      reqDto.startDate = DateTime.fromJSDate(reqDto.startDate).startOf('day').toJSDate();
+      reqDto.endDate = DateTime.fromJSDate(reqDto.endDate).endOf('day').toJSDate();
 
       if (reqDto.startDate >= reqDto.endDate) {
         throw new ValidationException(
@@ -477,10 +434,7 @@ export class VouchersService {
           // ---------------------------------------------------
           const area = await this.areasService.existById(updateVoucher.areaId);
           if (!area) {
-            throw new ValidationException(
-              ErrorCode.AR001,
-              HttpStatus.BAD_REQUEST,
-            );
+            throw new ValidationException(ErrorCode.AR001, HttpStatus.BAD_REQUEST);
           }
           const result = await tx
             .select({
@@ -496,9 +450,7 @@ export class VouchersService {
 
           const usedCount = result[0]?.usedCount ?? 0;
           console.log('usedCount', usedCount);
-          const refundPoint = round(
-            (updateVoucher.maxUses - usedCount) * updateVoucher.value,
-          );
+          const refundPoint = round((updateVoucher.maxUses - usedCount) * updateVoucher.value);
           console.log('refundPoint', refundPoint);
           await tx
             .update(areas)
@@ -529,10 +481,7 @@ export class VouchersService {
     return plainToInstance(VoucherResDto, voucher);
   }
 
-  async getUsableVouchers(
-    reqDto: UsableVoucherReqDto,
-    payload: JwtPayloadType,
-  ) {
+  async getUsableVouchers(reqDto: UsableVoucherReqDto, payload: JwtPayloadType) {
     const usableVouchers = [];
 
     const startDate = DateTime.fromJSDate(new Date()).startOf('day').toJSDate();
@@ -557,25 +506,16 @@ export class VouchersService {
         .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
         .leftJoin(
           voucherUsages,
-          and(
-            eq(voucherUsages.voucherId, vouchers.id),
-            eq(voucherUsages.userId, payload.id),
-          ),
+          and(eq(voucherUsages.voucherId, vouchers.id), eq(voucherUsages.userId, payload.id)),
         )
         .where(
           and(
             isNull(vouchers.deletedAt),
             ...(reqDto.isHidden
-              ? [
-                  eq(vouchers.isHidden, reqDto.isHidden),
-                  eq(vouchers.code, reqDto.code),
-                ]
+              ? [eq(vouchers.isHidden, reqDto.isHidden), eq(vouchers.code, reqDto.code)]
               : [eq(vouchers.isHidden, false)]),
             eq(vouchers.status, VouchersStatusEnum.ACTIVE),
-            inArray(vouchers.type, [
-              VouchersTypeEnum.ADMIN,
-              VouchersTypeEnum.MANAGEMENT,
-            ]),
+            inArray(vouchers.type, [VouchersTypeEnum.ADMIN, VouchersTypeEnum.MANAGEMENT]),
             lte(vouchers.startDate, startDate),
             gte(vouchers.endDate, endDate),
             eq(vouchers.areaId, reqDto.areaId),
@@ -623,19 +563,13 @@ export class VouchersService {
         .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
         .leftJoin(
           voucherUsages,
-          and(
-            eq(voucherUsages.voucherId, vouchers.id),
-            eq(voucherUsages.userId, payload.id),
-          ),
+          and(eq(voucherUsages.voucherId, vouchers.id), eq(voucherUsages.userId, payload.id)),
         )
         .leftJoin(stores, eq(stores.userId, users.id))
         .where(
           and(
             ...(reqDto.isHidden
-              ? [
-                  eq(vouchers.isHidden, reqDto.isHidden),
-                  eq(vouchers.code, reqDto.code),
-                ]
+              ? [eq(vouchers.isHidden, reqDto.isHidden), eq(vouchers.code, reqDto.code)]
               : [eq(vouchers.isHidden, false)]),
             isNull(vouchers.deletedAt),
             eq(vouchers.status, VouchersStatusEnum.ACTIVE),
@@ -645,12 +579,7 @@ export class VouchersService {
             gte(vouchers.endDate, endDate),
           ),
         )
-        .groupBy(
-          vouchers.id,
-          users.id,
-          voucherUsages.userId,
-          voucherUsages.usageCount,
-        )
+        .groupBy(vouchers.id, users.id, voucherUsages.userId, voucherUsages.usageCount)
         .orderBy(desc(vouchers.createdAt))
         .having(
           and(

@@ -14,9 +14,7 @@ import { Server, Socket } from 'socket.io';
 
 @WebSocketGateway({ cors: true, namespace: 'users' })
 @Injectable()
-export class UserGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
-{
+export class UserGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(UserGateway.name);
 
   @WebSocketServer()
@@ -48,9 +46,7 @@ export class UserGateway
 
   @SubscribeMessage('account-locked')
   handleAccountLocked(userId: string) {
-    this.server
-      .to(userId.toString())
-      .emit('account-locked', 'account has been locked');
+    this.server.to(userId.toString()).emit('account-locked', 'account has been locked');
     this.logger.debug(`${userId} account has been locked`);
   }
 
@@ -70,9 +66,7 @@ export class UserGateway
   ) {
     this.logger.debug(`user client ${client.id} join room order: ${orderId}`);
     await client.join(orderId?.toString());
-    this.server
-      .to(orderId.toString())
-      .emit('join-room-order', 'join room order success');
+    this.server.to(orderId.toString()).emit('join-room-order', 'join room order success');
   }
 
   @SubscribeMessage('change-order-status')
@@ -97,25 +91,19 @@ export class UserGateway
 
   @SubscribeMessage('order-cancel-by-admin')
   handleOrderCancelByAdmin(orderId: string) {
-    this.server
-      .to(orderId.toString())
-      .emit('order-cancel-by-admin', 'order canceled by admin');
+    this.server.to(orderId.toString()).emit('order-cancel-by-admin', 'order canceled by admin');
     this.logger.debug(`order ${orderId} has been canceled by admin`);
   }
 
   @SubscribeMessage('order-cancel-by-deliver')
   handleOrderCancelByDeliver(orderId: string) {
-    this.server
-      .to(orderId.toString())
-      .emit('order-cancel-by-deliver', 'order canceled by deliver');
+    this.server.to(orderId.toString()).emit('order-cancel-by-deliver', 'order canceled by deliver');
     this.logger.debug(`order ${orderId} has been canceled by deliver`);
   }
 
   @SubscribeMessage('order-cancel-by-system')
   handleOrderCancelBySystem(orderId: string) {
-    this.server
-      .to(orderId.toString())
-      .emit('order-cancel-by-system', 'order canceled by system');
+    this.server.to(orderId.toString()).emit('order-cancel-by-system', 'order canceled by system');
     this.logger.debug(`order ${orderId} has been canceled by system`);
   }
 }

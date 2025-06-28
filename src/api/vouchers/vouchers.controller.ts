@@ -8,16 +8,7 @@ import { RoleEnum } from '@/database/schemas';
 import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { VouchersService } from './vouchers.service';
 
 @Controller('vouchers')
@@ -30,10 +21,7 @@ export class VouchersController {
     type: VoucherResDto,
   })
   @Post('create')
-  async create(
-    @Body() reqDto: CreateVoucherReqDto,
-    @CurrentUser() payload: JwtPayloadType,
-  ) {
+  async create(@Body() reqDto: CreateVoucherReqDto, @CurrentUser() payload: JwtPayloadType) {
     return await this.vouchersService.create(reqDto, payload);
   }
 
@@ -57,10 +45,7 @@ export class VouchersController {
     type: VoucherResDto,
   })
   @Patch('update/:id')
-  async update(
-    @Param('id') voucherId: number,
-    @Body() reqDto: UpdateVoucherReqDto,
-  ) {
+  async update(@Param('id') voucherId: number, @Body() reqDto: UpdateVoucherReqDto) {
     return await this.vouchersService.update(voucherId, reqDto);
   }
 

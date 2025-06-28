@@ -71,10 +71,7 @@ export class UsersController {
     type: UserResDto,
   })
   @Get()
-  async getPageUsers(
-    @CurrentUser() payload: JwtPayloadType,
-    @Query() reqDto: PageUserReqDto,
-  ) {
+  async getPageUsers(@CurrentUser() payload: JwtPayloadType, @Query() reqDto: PageUserReqDto) {
     return await this.usersService.getPageUsers(reqDto, payload);
   }
 
@@ -104,10 +101,7 @@ export class UsersController {
     type: UserResDto,
   })
   @Patch()
-  async update(
-    @CurrentUser() payload: JwtPayloadType,
-    @Body() reqDto: UpdateUserReqDto,
-  ) {
+  async update(@CurrentUser() payload: JwtPayloadType, @Body() reqDto: UpdateUserReqDto) {
     return await this.usersService.update(payload, reqDto);
   }
 

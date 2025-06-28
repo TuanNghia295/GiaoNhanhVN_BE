@@ -10,12 +10,6 @@ import { Module } from '@nestjs/common';
 
 @Module({
   imports: [GatewaysModule, DeliversModule, StoresModule],
-  providers: [
-    UsersEvent,
-    DeliversEvent,
-    OrdersEvent,
-    StoreRequestsEvent,
-    NotificationEvent,
-  ],
+  providers: [UsersEvent, DeliversEvent, OrdersEvent, StoreRequestsEvent, NotificationEvent],
 })
 export class EventsModule {}

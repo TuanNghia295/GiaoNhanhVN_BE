@@ -3,15 +3,7 @@ import { bankRecords } from '@/database/schemas/bank-record.schema';
 import { delivers } from '@/database/schemas/deliver.schema';
 import { managers } from '@/database/schemas/manager.schema';
 import { relations } from 'drizzle-orm';
-import {
-  decimal,
-  integer,
-  pgTable,
-  serial,
-  text,
-  timestamp,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { decimal, integer, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 export enum TransactionTypeEnum {
   DEPOSIT = 'DEPOSIT',
@@ -41,9 +33,7 @@ export const transactions = pgTable('transactions', {
     mode: 'number',
   }).notNull(),
   method: varchar('method', { length: 50 }).$type<TransactionMethodEnum>(),
-  status: varchar('status', { length: 50 })
-    .notNull()
-    .default(TransactionStatus.PENDING),
+  status: varchar('status', { length: 50 }).notNull().default(TransactionStatus.PENDING),
   rejectedReason: text('rejected_reason'),
   approvedBy: integer('approved_by'),
   role: varchar('role', { length: 50 }),

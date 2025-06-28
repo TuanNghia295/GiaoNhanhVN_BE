@@ -9,14 +9,7 @@ import { StoresService } from '@/api/stores/stores.service';
 import { ImportHeaderKeys, ImportHeaderLabels } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
-import {
-  categoryItems,
-  extras,
-  options,
-  Order,
-  products,
-  storeMenus,
-} from '@/database/schemas';
+import { categoryItems, extras, options, Order, products, storeMenus } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { getOrderStatusLabel } from '@/utils/util';
@@ -26,14 +19,15 @@ import * as ExcelJS from 'exceljs';
 import * as XLSX from 'xlsx';
 
 export type ParsedProductRow = Partial<Record<ImportHeaderKeys, string>>;
-export const ImportProductHeaderMap: Record<string, ImportHeaderKeys> =
-  Object.entries(ImportHeaderLabels).reduce(
-    (acc, [key, label]) => {
-      acc[label] = key as ImportHeaderKeys;
-      return acc;
-    },
-    {} as Record<string, ImportHeaderKeys>,
-  );
+export const ImportProductHeaderMap: Record<string, ImportHeaderKeys> = Object.entries(
+  ImportHeaderLabels,
+).reduce(
+  (acc, [key, label]) => {
+    acc[label] = key as ImportHeaderKeys;
+    return acc;
+  },
+  {} as Record<string, ImportHeaderKeys>,
+);
 
 @Injectable()
 export class ExcelsService {
@@ -51,9 +45,7 @@ export class ExcelsService {
       //--------------------------------------------------
       // Kiểm tra xem sản phẩm đã tồn tại hay chưa
       //--------------------------------------------------
-      const existStore = await this.storesService.existByUserPhone(
-        row.storePhone,
-      );
+      const existStore = await this.storesService.existByUserPhone(row.storePhone);
       if (!existStore) {
         throw new ValidationException(ErrorCode.S001);
       }
@@ -73,11 +65,7 @@ export class ExcelsService {
         }
 
         // Check if store menu exists, if not create it
-        const storeMenu = await this.createSoreMenuIfNotExist(
-          tx,
-          existStore.storeId,
-          row.menuName,
-        );
+        const storeMenu = await this.createSoreMenuIfNotExist(tx, existStore.storeId, row.menuName);
 
         console.log('Creating product:', row);
         const [createdProduct] = await tx
@@ -125,11 +113,7 @@ export class ExcelsService {
     return result;
   }
 
-  private async createSoreMenuIfNotExist(
-    tx: DrizzleDB,
-    storeId: number,
-    menuName: string,
-  ) {
+  private async createSoreMenuIfNotExist(tx: DrizzleDB, storeId: number, menuName: string) {
     let [existStoreMenu] = await tx
       .select({
         id: storeMenus.id,
@@ -144,9 +128,7 @@ export class ExcelsService {
       );
 
     if (!existStoreMenu) {
-      console.log(
-        `Creating new store menu: ${menuName} for storeId: ${storeId}`,
-      );
+      console.log(`Creating new store menu: ${menuName} for storeId: ${storeId}`);
       [existStoreMenu] = await tx
         .insert(storeMenus)
         .values({
@@ -182,10 +164,7 @@ export class ExcelsService {
       });
   }
 
-  async createMainDetailSheet(
-    worksheet: ExcelJS.Worksheet,
-    all: OrderStatusRevenueResDto[],
-  ) {
+  async createMainDetailSheet(worksheet: ExcelJS.Worksheet, all: OrderStatusRevenueResDto[]) {
     console.log('all', all);
     // Set the columns for the worksheet
     worksheet.columns = [
@@ -276,10 +255,7 @@ export class ExcelsService {
     });
   }
 
-  async createMainSheet(
-    worksheet: ExcelJS.Worksheet,
-    analyticTotalRevenue: AdminRevenueResDto,
-  ) {
+  async createMainSheet(worksheet: ExcelJS.Worksheet, analyticTotalRevenue: AdminRevenueResDto) {
     // Set the columns for the worksheet
     worksheet.columns = [
       {

@@ -52,10 +52,7 @@ export class StoresController {
     summary: 'Lấy danh sách cửa hàng (optional auth)',
   })
   @Get()
-  async getPageStores(
-    @CurrentUser() payload: JwtPayloadType,
-    @Query() reqDto: PageStoreReqDto,
-  ) {
+  async getPageStores(@CurrentUser() payload: JwtPayloadType, @Query() reqDto: PageStoreReqDto) {
     return await this.storesService.getPageStores(reqDto, payload);
   }
 
@@ -149,10 +146,7 @@ export class StoresController {
   ) {
     switch (payload.role) {
       case RoleEnum.STORE:
-        return await this.storesService.updateBackgroundByUserId(
-          payload.id,
-          background,
-        );
+        return await this.storesService.updateBackgroundByUserId(payload.id, background);
       default:
         // không có quền cập nhật
         throw new ForbiddenException();
@@ -185,10 +179,7 @@ export class StoresController {
   ) {
     switch (payload.role) {
       case RoleEnum.STORE:
-        return await this.storesService.updateAvatarByUserId(
-          payload.id,
-          avatar,
-        );
+        return await this.storesService.updateAvatarByUserId(payload.id, avatar);
       default:
         // không có quền cập nhật
         throw new ForbiddenException();
@@ -201,10 +192,7 @@ export class StoresController {
     type: StoreResDto,
   })
   @Patch()
-  async updateInfoStore(
-    @CurrentUser() payload: JwtPayloadType,
-    @Body() reqDto: UpdateStoreReqDto,
-  ) {
+  async updateInfoStore(@CurrentUser() payload: JwtPayloadType, @Body() reqDto: UpdateStoreReqDto) {
     switch (payload.role) {
       case RoleEnum.STORE:
         return await this.storesService.updateByUserId(payload.id, reqDto);
@@ -249,10 +237,7 @@ export class StoresController {
     type: StoreResDto,
   })
   @Get('manager/list')
-  async getStoresForList(
-    @CurrentUser() payload: JwtPayloadType,
-    @Query() reqDto: QueryListStore,
-  ) {
+  async getStoresForList(@CurrentUser() payload: JwtPayloadType, @Query() reqDto: QueryListStore) {
     return await this.storesService.getStoresForList(reqDto, payload);
   }
 

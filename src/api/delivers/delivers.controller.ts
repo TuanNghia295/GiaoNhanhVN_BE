@@ -51,10 +51,7 @@ export class DeliversController {
     summary: 'Đăng nhập bằng phone và password (deliver)',
   })
   @Post('login')
-  async loginDeliver(
-    @Req() req: Request,
-    @Body() reqDto: LoginReqDto,
-  ): Promise<LoginResDto> {
+  async loginDeliver(@Req() req: Request, @Body() reqDto: LoginReqDto): Promise<LoginResDto> {
     const userAgent = req.headers['user-agent'] || '';
     const parser = new UAParser(userAgent); // ✅ đúng cách
     const result = parser.getResult();
@@ -138,8 +135,7 @@ export class DeliversController {
   @Roles(RoleEnum.DELIVER)
   @Get('traditional/orders')
   @ApiAuth({
-    summary:
-      'Lấy danh đơn hàng shipper có thể nhận (deliver) - phân đơn truyền thống',
+    summary: 'Lấy danh đơn hàng shipper có thể nhận (deliver) - phân đơn truyền thống',
     type: OrderResDto,
     isPaginated: false,
   })
@@ -153,10 +149,7 @@ export class DeliversController {
     summary: 'Nhận đơn hàng (deliver) - phân đơn truyền thống',
     type: OrderResDto,
   })
-  async assignOrder(
-    @CurrentUser() payload: JwtPayloadType,
-    @Param('orderId') orderId: number,
-  ) {
+  async assignOrder(@CurrentUser() payload: JwtPayloadType, @Param('orderId') orderId: number) {
     return await this.ordersService.assignOrderToShipper(orderId, payload);
   }
 
@@ -216,11 +209,7 @@ export class DeliversController {
     @Param('status') status: OrderStatusEnum,
     @Body('reason') reason: string,
   ) {
-    return await this.ordersService.updateOrderStatusByDeliver(
-      orderId,
-      status,
-      reason,
-    );
+    return await this.ordersService.updateOrderStatusByDeliver(orderId, status, reason);
   }
 
   @Roles(RoleEnum.DELIVER)
@@ -229,10 +218,7 @@ export class DeliversController {
     type: OrderResDto,
   })
   @Get('revenue')
-  async getRevenue(
-    @CurrentUser() payload: JwtPayloadType,
-    @Query() reqDto: RevenueReqDto,
-  ) {
+  async getRevenue(@CurrentUser() payload: JwtPayloadType, @Query() reqDto: RevenueReqDto) {
     return await this.deliversService.getRevenue(payload.id, reqDto);
   }
 
@@ -242,10 +228,7 @@ export class DeliversController {
     type: DeliverResDto,
   })
   @Patch('my')
-  async updateMyInfo(
-    @CurrentUser() payload: JwtPayloadType,
-    @Body() reqDto: UpdateDeliverReqDto,
-  ) {
+  async updateMyInfo(@CurrentUser() payload: JwtPayloadType, @Body() reqDto: UpdateDeliverReqDto) {
     return await this.deliversService.update(payload.id, reqDto, payload);
   }
 
@@ -255,10 +238,7 @@ export class DeliversController {
     type: DeliverResDto,
   })
   @Get('list')
-  async getDelivers(
-    @Query('input') input: string,
-    @Query('areaId') areaId: number,
-  ) {
+  async getDelivers(@Query('input') input: string, @Query('areaId') areaId: number) {
     return this.deliversService.getDeliversByPhoneOrName(input, areaId);
   }
 }

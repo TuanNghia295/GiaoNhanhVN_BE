@@ -31,10 +31,7 @@ export class OrdersController {
     type: OrderResDto,
   })
   @Get()
-  async getPageOrders(
-    @Query() reqDto: PageOrderReqDto,
-    @CurrentUser() payload: JwtPayloadType,
-  ) {
+  async getPageOrders(@Query() reqDto: PageOrderReqDto, @CurrentUser() payload: JwtPayloadType) {
     return await this.ordersService.getPageOrders(reqDto, payload);
   }
 
@@ -44,10 +41,7 @@ export class OrdersController {
     type: OrderResDto,
   })
   @Post()
-  async createOrder(
-    @CurrentUser() payload: JwtPayloadType,
-    @Body() reqDto: OrderCreateReqDto,
-  ) {
+  async createOrder(@CurrentUser() payload: JwtPayloadType, @Body() reqDto: OrderCreateReqDto) {
     return await this.ordersService.create(payload, reqDto);
   }
 
@@ -66,10 +60,7 @@ export class OrdersController {
     type: OrderResDto,
   })
   @Get('my')
-  async getMyOrders(
-    @CurrentUser() payload: JwtPayloadType,
-    @Query() reqDto: PageMyOrderReqDto,
-  ) {
+  async getMyOrders(@CurrentUser() payload: JwtPayloadType, @Query() reqDto: PageMyOrderReqDto) {
     return await this.ordersService.getPageByUserId(payload.id, reqDto);
   }
 

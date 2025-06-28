@@ -4,14 +4,7 @@ import { notificationsToUsers } from '@/database/schemas/notification.schema';
 import { orders } from '@/database/schemas/order.schema';
 import { storeRequests } from '@/database/schemas/store-request.schema';
 import { relations } from 'drizzle-orm';
-import {
-  boolean,
-  integer,
-  pgTable,
-  serial,
-  timestamp,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { boolean, integer, pgTable, serial, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 export enum RoleEnum {
   ADMIN = 'ADMIN',

@@ -6,22 +6,11 @@ import { Branded } from '@/common/types/types';
 import { AllConfigType } from '@/config/config.type';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
-import {
-  delivers,
-  managers,
-  RoleEnum,
-  stores,
-  users,
-} from '@/database/schemas';
+import { delivers, managers, RoleEnum, stores, users } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { hashData } from '@/utils/password.util';
-import {
-  HttpStatus,
-  Inject,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { plainToInstance } from 'class-transformer';
@@ -203,10 +192,7 @@ export class AuthService {
 
     // Tìm user theo phone hoặc email
     let user = await this.db.query.users.findFirst({
-      where: or(
-        eq(users.phone, decodedToken.phone_number),
-        eq(users.email, decodedToken.email),
-      ),
+      where: or(eq(users.phone, decodedToken.phone_number), eq(users.email, decodedToken.email)),
       columns: {
         id: true,
         phone: true,
@@ -237,9 +223,7 @@ export class AuthService {
     }
 
     // Kiểm tra nếu user là chủ cửa hàng
-    const baseRole = (await this.existStoreByUserId(user.id))
-      ? RoleEnum.STORE
-      : user.role;
+    const baseRole = (await this.existStoreByUserId(user.id)) ? RoleEnum.STORE : user.role;
 
     // Tạo token đăng nhập
     const tokens = await this.createToken({
@@ -294,9 +278,7 @@ export class AuthService {
     // - TODO: add role
     // - Kiểm tra nếu tài khoản  đã đăng ký cửa hàng thì sẽ trả về role là STORE
     //----------------------------------------------------------
-    const baseRole = (await this.existStoreByUserId(user.id))
-      ? RoleEnum.STORE
-      : user.role;
+    const baseRole = (await this.existStoreByUserId(user.id)) ? RoleEnum.STORE : user.role;
     const tokens = await this.createToken({
       id: user.id,
       // sessionId: session[0].id,

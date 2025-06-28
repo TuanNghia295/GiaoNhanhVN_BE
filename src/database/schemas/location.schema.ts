@@ -2,13 +2,7 @@ import { areas } from '@/database/schemas/area.schema';
 import { delivers } from '@/database/schemas/deliver.schema';
 import { users } from '@/database/schemas/user.schema';
 import { relations } from 'drizzle-orm';
-import {
-  integer,
-  pgTable,
-  serial,
-  timestamp,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { integer, pgTable, serial, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 export const locations = pgTable('locations', {
   id: serial('id').primaryKey().notNull(),

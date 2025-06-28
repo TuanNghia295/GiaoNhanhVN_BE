@@ -60,6 +60,18 @@ export class TransactionsController {
     return this.transactionsService.getRecordTransaction(reqDto, payload);
   }
 
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'Lịch sử nạp/rút điểm của mình (MANAGEMENT , ADMIN)',
+  })
+  @Get('my')
+  async getMyRecordTransaction(
+    @CurrentUser() payload: JwtPayloadType,
+    @Query() reqDto: PagingTransaction,
+  ) {
+    return this.transactionsService.getMyRecordTransaction(reqDto, payload);
+  }
+
   @Roles(RoleEnum.DELIVER)
   @ApiAuth({
     summary: 'Lấy yêu cầu nạp rút',

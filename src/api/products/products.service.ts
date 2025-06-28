@@ -108,17 +108,13 @@ export class ProductsService implements OnModuleInit {
     //---------------------------------------------------
     // Check if the store menu exists
     //---------------------------------------------------
-    const existStoreMenu = await this.storeMenusService.existById(
-      reqDto.storeMenuId,
-    );
+    const existStoreMenu = await this.storeMenusService.existById(reqDto.storeMenuId);
     if (!existStoreMenu) throw new ValidationException(ErrorCode.SM001);
 
     //---------------------------------------------------
     // Check if the category item exists
     //---------------------------------------------------
-    const existCategoryItem = await this.categoryItemsService.existById(
-      reqDto.categoryItemId,
-    );
+    const existCategoryItem = await this.categoryItemsService.existById(reqDto.categoryItemId);
     if (!existCategoryItem) throw new ValidationException(ErrorCode.CI001);
 
     console.log('reqDto', reqDto);
@@ -137,21 +133,13 @@ export class ProductsService implements OnModuleInit {
       // Check if the options exist
       //---------------------------------------------------
       if (reqDto.options.length > 0) {
-        await this.optionsService.createForProduct(
-          product[0].id,
-          reqDto.options,
-          tx,
-        );
+        await this.optionsService.createForProduct(product[0].id, reqDto.options, tx);
       }
       //---------------------------------------------------
       // Check if the extras exist
       //---------------------------------------------------
       if (reqDto.extras.length > 0) {
-        await this.extrasService.createForProduct(
-          product[0].id,
-          reqDto.extras,
-          tx,
-        );
+        await this.extrasService.createForProduct(product[0].id, reqDto.extras, tx);
       }
       return plainToInstance(ProductResDto, product[0]);
     });
@@ -179,9 +167,7 @@ export class ProductsService implements OnModuleInit {
       // Check if the category item exists
       //---------------------------------------------------
       if (reqDto.categoryItemId) {
-        const existCategoryItem = await this.categoryItemsService.existById(
-          reqDto.categoryItemId,
-        );
+        const existCategoryItem = await this.categoryItemsService.existById(reqDto.categoryItemId);
         if (!existCategoryItem) throw new ValidationException(ErrorCode.CI001);
       }
       if (reqDto.storeId) {
@@ -202,11 +188,7 @@ export class ProductsService implements OnModuleInit {
       // Update options if provided
       //---------------------------------------------------
       if (reqDto.options && reqDto.options.length > 0) {
-        await this.optionsService.updateForProduct(
-          productId,
-          reqDto.options,
-          tx,
-        );
+        await this.optionsService.updateForProduct(productId, reqDto.options, tx);
       }
 
       //---------------------------------------------------

@@ -1,9 +1,5 @@
 import { Expose } from 'class-transformer';
-import {
-  ClassField,
-  NumberField,
-  StringField,
-} from 'src/decorators/field.decorators';
+import { ClassField, NumberField, StringField } from 'src/decorators/field.decorators';
 
 export class StoreRevenueItemDto {
   @StringField()
@@ -55,4 +51,8 @@ export class StoreRevenueResDto {
   @NumberField()
   @Expose()
   total_all_store_revenue: number;
+
+  @NumberField()
+  @Expose()
+  total_all_user_service_fee: number;
 }

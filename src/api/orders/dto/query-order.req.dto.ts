@@ -1,8 +1,5 @@
 import { PageOptionsDto } from '@/common/dto/offset-pagination/ page-options.dto';
-import {
-  OrderStatusEnum,
-  OrderTypeEnum,
-} from '@/database/schemas/order.schema';
+import { OrderStatusEnum, OrderTypeEnum } from '@/database/schemas/order.schema';
 import {
   DateFieldOptional,
   EnumFieldOptional,

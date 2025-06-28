@@ -22,19 +22,11 @@ export class LocationsService {
     const [existLocation] = await this.db
       .select()
       .from(locations)
-      .where(
-        and(
-          eq(locations.address, reqDto.address),
-          eq(locations.userId, payload.id),
-        ),
-      )
+      .where(and(eq(locations.address, reqDto.address), eq(locations.userId, payload.id)))
       .execute();
 
     const area = await this.db.query.areas.findFirst({
-      where: and(
-        eq(areas.name, reqDto.province),
-        eq(areas.parent, reqDto.parent),
-      ),
+      where: and(eq(areas.name, reqDto.province), eq(areas.parent, reqDto.parent)),
       columns: {
         id: true,
       },

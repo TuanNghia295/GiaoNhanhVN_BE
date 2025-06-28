@@ -13,9 +13,7 @@ export class CategoryItemsController {
     type: CategoryItemResDto,
   })
   @Get()
-  async getCategoryItems(
-    @Query('category_id') categoryId: number,
-  ): Promise<CategoryItemResDto[]> {
+  async getCategoryItems(@Query('category_id') categoryId: number): Promise<CategoryItemResDto[]> {
     return await this.categoryItemsService.getCategoryItems(categoryId);
   }
 }

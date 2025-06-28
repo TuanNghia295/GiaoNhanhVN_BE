@@ -1,12 +1,6 @@
 import { transactions } from '@/database/schemas/transaction.schema';
 import { relations } from 'drizzle-orm';
-import {
-  integer,
-  pgTable,
-  serial,
-  timestamp,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { integer, pgTable, serial, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 export const bankRecords = pgTable('bank_records', {
   id: serial().primaryKey(),

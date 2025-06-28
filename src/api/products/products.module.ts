@@ -8,13 +8,7 @@ import { ProductsController } from './products.controller';
 import { ProductsService } from './products.service';
 
 @Module({
-  imports: [
-    StoresModule,
-    StoreMenusModule,
-    CategoryItemsModule,
-    OptionsModule,
-    ExtrasModule,
-  ],
+  imports: [StoresModule, StoreMenusModule, CategoryItemsModule, OptionsModule, ExtrasModule],
   controllers: [ProductsController],
   providers: [ProductsService],
   exports: [ProductsService],

@@ -24,10 +24,7 @@ export class StoreMenusService {
 
   async getPageStoreMenus(reqDto: PageStoreMenuReqDto) {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.storeMenus> = {
-      where: and(
-        eq(storeMenus.storeId, reqDto.storeId),
-        isNull(storeMenus.deletedAt),
-      ),
+      where: and(eq(storeMenus.storeId, reqDto.storeId), isNull(storeMenus.deletedAt)),
       with: {
         products: {
           with: {
@@ -111,11 +108,7 @@ export class StoreMenusService {
       .then((result) => result[0] ?? null);
   }
 
-  async update(
-    payload: JwtPayloadType,
-    menuId: number,
-    reqDto: UpdateStoreMenuReqDto,
-  ) {
+  async update(payload: JwtPayloadType, menuId: number, reqDto: UpdateStoreMenuReqDto) {
     const existStore = await this.storesService.existStoreByUserId(payload.id);
     if (!existStore) {
       throw new ValidationException(ErrorCode.S001);

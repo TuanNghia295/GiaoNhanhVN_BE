@@ -1,11 +1,6 @@
 import { AuthService } from '@/api/auth/auth.service';
 import { IS_AUTH_OPTIONAL, IS_PUBLIC } from '@/constants/app.constant';
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 
@@ -24,10 +19,10 @@ export class AuthGuard implements CanActivate {
     // If the route is public, allow access
     if (isPublic) return true;
 
-    const isAuthOptional = this.reflector.getAllAndOverride<boolean>(
-      IS_AUTH_OPTIONAL,
-      [context.getHandler(), context.getClass()],
-    );
+    const isAuthOptional = this.reflector.getAllAndOverride<boolean>(IS_AUTH_OPTIONAL, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
     console.log('isAuthOptional', isAuthOptional);
 
     const request = context.switchToHttp().getRequest();

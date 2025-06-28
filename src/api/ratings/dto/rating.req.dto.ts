@@ -1,11 +1,7 @@
 import { Exclude, Expose } from 'class-transformer';
 import { UserResDto } from 'src/api/users/dto/user.res.dto';
 import { AbstractResDto } from 'src/database/dto/abstract.res.dto';
-import {
-  ClassField,
-  NumberField,
-  NumberFieldOptional,
-} from 'src/decorators/field.decorators';
+import { ClassField, NumberField, NumberFieldOptional } from 'src/decorators/field.decorators';
 
 @Exclude()
 export class RatingsResDto extends AbstractResDto {

@@ -1,12 +1,6 @@
 import { users } from '@/database/schemas/user.schema';
 import { relations } from 'drizzle-orm';
-import {
-  integer,
-  pgTable,
-  primaryKey,
-  text,
-  timestamp,
-} from 'drizzle-orm/pg-core';
+import { integer, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const fcmTokens = pgTable(
   'fcm_tokens',

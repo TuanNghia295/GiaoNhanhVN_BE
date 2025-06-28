@@ -1,9 +1,5 @@
 import { BannerEnum } from '@/database/schemas';
-import {
-  EnumField,
-  FileFieldOptional,
-  StringField,
-} from '@/decorators/field.decorators';
+import { EnumField, FileFieldOptional, StringField } from '@/decorators/field.decorators';
 
 export class UploadBannerReqDto {
   @EnumField(() => BannerEnum)

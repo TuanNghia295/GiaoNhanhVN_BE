@@ -31,18 +31,9 @@ export const formatDistance = (distanceInKilometers: number) => {
 };
 
 export const allowedTransitions: Record<OrderStatusEnum, OrderStatusEnum[]> = {
-  [OrderStatusEnum.PENDING]: [
-    OrderStatusEnum.ACCEPTED,
-    OrderStatusEnum.CANCELED,
-  ],
-  [OrderStatusEnum.ACCEPTED]: [
-    OrderStatusEnum.DELIVERING,
-    OrderStatusEnum.CANCELED,
-  ],
-  [OrderStatusEnum.DELIVERING]: [
-    OrderStatusEnum.DELIVERED,
-    OrderStatusEnum.CANCELED,
-  ],
+  [OrderStatusEnum.PENDING]: [OrderStatusEnum.ACCEPTED, OrderStatusEnum.CANCELED],
+  [OrderStatusEnum.ACCEPTED]: [OrderStatusEnum.DELIVERING, OrderStatusEnum.CANCELED],
+  [OrderStatusEnum.DELIVERING]: [OrderStatusEnum.DELIVERED, OrderStatusEnum.CANCELED],
   [OrderStatusEnum.DELIVERED]: [],
   [OrderStatusEnum.CANCELED]: [],
 };

@@ -52,10 +52,7 @@ export class TransactionsService {
   ) {}
 
   async getCount(payload: JwtPayloadType) {
-    const qb = this.db
-      .select({ totalCount: count() })
-      .from(transactions)
-      .$dynamic();
+    const qb = this.db.select({ totalCount: count() }).from(transactions).$dynamic();
 
     switch (payload.role) {
       case RoleEnum.ADMIN:
@@ -84,17 +81,12 @@ export class TransactionsService {
     return totalCount;
   }
 
-  async addPointsForDeliver(
-    reqDto: AddPointDeliverReqDto,
-    payload: JwtPayloadType,
-  ) {
+  async addPointsForDeliver(reqDto: AddPointDeliverReqDto, payload: JwtPayloadType) {
     return await this.db.transaction(async (tx) => {
       //---------------------------------------------------
       // Check deliver exists
       //----------------------------------------------------
-      const existDeliver = await this.deliversService.existById(
-        reqDto.deliverId,
-      );
+      const existDeliver = await this.deliversService.existById(reqDto.deliverId);
       if (!existDeliver) {
         throw new ValidationException(ErrorCode.D001);
       }
@@ -127,17 +119,9 @@ export class TransactionsService {
             if (area.point < reqDto.point) {
               throw new ValidationException(ErrorCode.TR002);
             }
-            await this.areasService.subtractPoint(
-              payload.areaId,
-              reqDto.point,
-              tx,
-            );
+            await this.areasService.subtractPoint(payload.areaId, reqDto.point, tx);
           }
-          await this.deliversService.addPoint(
-            reqDto.deliverId,
-            reqDto.point,
-            tx,
-          );
+          await this.deliversService.addPoint(reqDto.deliverId, reqDto.point, tx);
           break;
         case TransactionTypeEnum.WITHDRAW:
           if (existDeliver.point < reqDto.point) {
@@ -147,11 +131,7 @@ export class TransactionsService {
           if (payload.role === RoleEnum.MANAGEMENT) {
             await this.areasService.addPoint(payload.areaId, reqDto.point, tx);
           }
-          await this.deliversService.subtractPoint(
-            reqDto.deliverId,
-            reqDto.point,
-            tx,
-          );
+          await this.deliversService.subtractPoint(reqDto.deliverId, reqDto.point, tx);
           break;
         default:
           throw new ValidationException(ErrorCode.CM001);
@@ -160,34 +140,24 @@ export class TransactionsService {
     });
   }
 
-  async getRecordTransaction(
-    reqDto: PagingTransaction,
-    payload: JwtPayloadType,
-  ) {
-    const baseConfig: FindManyQueryConfig<typeof this.db.query.transactions> =
-      {};
+  async getRecordTransaction(reqDto: PagingTransaction, payload: JwtPayloadType) {
+    const baseConfig: FindManyQueryConfig<typeof this.db.query.transactions> = {};
 
     switch (payload.role) {
       case RoleEnum.ADMIN:
         baseConfig.where = and(
           not(eq(transactions.status, TransactionStatus.PENDING)),
           // Lọc ra các giao dịch của shipper đó
-          ...(reqDto.deliverId
-            ? [eq(transactions.deliverId, reqDto.deliverId)]
-            : []),
+          ...(reqDto.deliverId ? [eq(transactions.deliverId, reqDto.deliverId)] : []),
           // Lọc ra các giao dịch của khu vực đó
-          ...(reqDto.managerId
-            ? [eq(transactions.managerId, reqDto.managerId)]
-            : []),
+          ...(reqDto.managerId ? [eq(transactions.managerId, reqDto.managerId)] : []),
         );
         break;
       case RoleEnum.MANAGEMENT:
         baseConfig.where = and(
           not(eq(transactions.status, TransactionStatus.PENDING)),
           // Lọc ra các giao dịch shipper của khu vực mình
-          ...(reqDto.deliverId
-            ? [eq(transactions.deliverId, reqDto.deliverId)]
-            : []),
+          ...(reqDto.deliverId ? [eq(transactions.deliverId, reqDto.deliverId)] : []),
         );
         break;
       case RoleEnum.DELIVER:
@@ -250,11 +220,7 @@ export class TransactionsService {
           if (manager.point < reqDto.point) {
             throw new ValidationException(ErrorCode.TR002);
           }
-          await this.areasService.subtractPoint(
-            manager.areaId,
-            reqDto.point,
-            tx,
-          );
+          await this.areasService.subtractPoint(manager.areaId, reqDto.point, tx);
           break;
         default:
           throw new ValidationException(ErrorCode.CM001);
@@ -263,10 +229,7 @@ export class TransactionsService {
     });
   }
 
-  async getPageTransactions(
-    reqDto: PagingTransaction,
-    payload: JwtPayloadType,
-  ) {
+  async getPageTransactions(reqDto: PagingTransaction, payload: JwtPayloadType) {
     let whereClause: SQL;
     switch (payload.role) {
       case RoleEnum.ADMIN:
@@ -357,9 +320,7 @@ export class TransactionsService {
       switch (payload.role) {
         case RoleEnum.DELIVER: {
           if (createdTransaction.type === TransactionTypeEnum.WITHDRAW) {
-            const deliver = await this.deliversService.existById(
-              createdTransaction.deliverId,
-            );
+            const deliver = await this.deliversService.existById(createdTransaction.deliverId);
             if (!deliver) {
               throw new ValidationException(ErrorCode.D001);
             }
@@ -386,9 +347,7 @@ export class TransactionsService {
         }
         case RoleEnum.MANAGEMENT:
           if (createdTransaction.type === TransactionTypeEnum.WITHDRAW) {
-            const manager = await this.managersService.existById(
-              createdTransaction.managerId,
-            );
+            const manager = await this.managersService.existById(createdTransaction.managerId);
             if (!manager) {
               throw new ValidationException(ErrorCode.M001);
             }
@@ -456,21 +415,14 @@ export class TransactionsService {
     - Nếu là khu vực nạp tiền thì cộng điểm cho khu vực
     - Nếu là khu vực rút tiền thì trừ điểm khu vực
    */
-  private async doApproveTransactionByAdmin(
-    updatedTransaction: TransactionType,
-    tx: Transaction,
-  ) {
+  private async doApproveTransactionByAdmin(updatedTransaction: TransactionType, tx: Transaction) {
     const area = await this.areasService.existById(updatedTransaction.areaId);
     if (!area) {
       throw new ValidationException(ErrorCode.A001);
     }
     switch (updatedTransaction.type) {
       case TransactionTypeEnum.DEPOSIT:
-        await this.areasService.addPoint(
-          area.id,
-          updatedTransaction.amount,
-          tx,
-        );
+        await this.areasService.addPoint(area.id, updatedTransaction.amount, tx);
         break;
       case TransactionTypeEnum.WITHDRAW:
         //----------------------------------------------------
@@ -479,11 +431,7 @@ export class TransactionsService {
         if (area.point < updatedTransaction.amount) {
           throw new ValidationException(ErrorCode.TR002);
         }
-        await this.areasService.subtractPoint(
-          area.id,
-          updatedTransaction.amount,
-          tx,
-        );
+        await this.areasService.subtractPoint(area.id, updatedTransaction.amount, tx);
         break;
     }
   }
@@ -492,9 +440,7 @@ export class TransactionsService {
     updatedTransaction: TransactionType,
     tx: Transaction,
   ) {
-    const deliver = await this.deliversService.existById(
-      updatedTransaction.deliverId,
-    );
+    const deliver = await this.deliversService.existById(updatedTransaction.deliverId);
     if (!deliver) {
       throw new ValidationException(ErrorCode.D001);
     }
@@ -510,11 +456,7 @@ export class TransactionsService {
         //----------------------------------------------------
         // Trừ điểm khu vực
         //----------------------------------------------------
-        await this.areasService.subtractPoint(
-          area.id,
-          updatedTransaction.amount,
-          tx,
-        );
+        await this.areasService.subtractPoint(area.id, updatedTransaction.amount, tx);
         //----------------------------------------------------
         // Cộng điểm cho shipper
         //----------------------------------------------------
@@ -532,11 +474,7 @@ export class TransactionsService {
         //----------------------------------------------------
         // Cộng điểm khu vực
         //----------------------------------------------------
-        await this.areasService.addPoint(
-          area.id,
-          updatedTransaction.amount,
-          tx,
-        );
+        await this.areasService.addPoint(area.id, updatedTransaction.amount, tx);
         //----------------------------------------------------
         // Trừ điểm cho shipper
         //----------------------------------------------------
@@ -569,5 +507,34 @@ export class TransactionsService {
         .returning();
       return plainToInstance(TransactionResDto, updatedTransaction);
     });
+  }
+
+  async getMyRecordTransaction(reqDto: PagingTransaction, payload: JwtPayloadType) {
+    const baseConfig: FindManyQueryConfig<typeof this.db.query.transactions> = {};
+    switch (payload.role) {
+      case RoleEnum.MANAGEMENT:
+        baseConfig.where = and(
+          not(eq(transactions.status, TransactionStatus.PENDING)),
+          eq(transactions.managerId, payload.id),
+        );
+    }
+
+    const qCount = this.db.query.transactions.findMany({
+      ...baseConfig,
+      columns: { id: true },
+    });
+
+    const [entities, [{ totalCount }]] = await Promise.all([
+      this.db.query.transactions.findMany({
+        ...baseConfig,
+        orderBy: desc(transactions.createdAt),
+        limit: reqDto.limit,
+        offset: reqDto.offset,
+      }),
+      this.db.select({ totalCount: count() }).from(sql`${qCount}`),
+    ]);
+
+    const meta = new OffsetPaginationDto(totalCount, reqDto);
+    return new OffsetPaginatedDto(entities, meta);
   }
 }

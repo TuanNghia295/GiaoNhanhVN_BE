@@ -1,8 +1,4 @@
-import {
-  PasswordField,
-  StringField,
-  StringFieldOptional,
-} from '@/decorators/field.decorators';
+import { PasswordField, StringField, StringFieldOptional } from '@/decorators/field.decorators';
 
 export class LoginReqDto {
   @StringField()

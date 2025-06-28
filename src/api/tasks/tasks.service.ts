@@ -43,12 +43,7 @@ export class TasksService implements OnModuleInit {
     this.db
       .update(vouchers)
       .set({ status: VouchersStatusEnum.ACTIVE })
-      .where(
-        and(
-          lte(vouchers.startDate, now.toJSDate()),
-          gt(vouchers.endDate, now.toJSDate()),
-        ),
-      )
+      .where(and(lte(vouchers.startDate, now.toJSDate()), gt(vouchers.endDate, now.toJSDate())))
       .execute()
       .then(() => {
         this.logger.log('Vouchers status updated to ACTIVE');

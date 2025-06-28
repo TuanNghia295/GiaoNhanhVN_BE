@@ -34,10 +34,7 @@ export class BotTelegramServices implements OnModuleInit {
         subscribers.push({ chatId, chatType });
         this.saveSubscribers(subscribers);
 
-        await this.bot.telegram.sendMessage(
-          chatId,
-          'Group này đã đăng ký nhận thông báo.',
-        );
+        await this.bot.telegram.sendMessage(chatId, 'Group này đã đăng ký nhận thông báo.');
       } else {
         console.log(`📌 Group ID ${chatId} đã được đăng ký trước đó.`);
       }
@@ -82,17 +79,12 @@ export class BotTelegramServices implements OnModuleInit {
   }
 
   private saveSubscribers(subscribers: { chatId: number; chatType: string }[]) {
-    fs.writeFileSync(
-      this.subscribersFilePath,
-      JSON.stringify(subscribers, null, 2),
-    );
+    fs.writeFileSync(this.subscribersFilePath, JSON.stringify(subscribers, null, 2));
   }
 
   async sendNotification(message: string) {
     if (!process.env.TELE_BOT_TOKEN || !this.bot) {
-      console.warn(
-        '⚠️ Không có TELE_BOT_TOKEN hoặc bot chưa khởi chạy, không thể gửi tin nhắn.',
-      );
+      console.warn('⚠️ Không có TELE_BOT_TOKEN hoặc bot chưa khởi chạy, không thể gửi tin nhắn.');
       return;
     }
 
@@ -101,10 +93,7 @@ export class BotTelegramServices implements OnModuleInit {
       try {
         await this.bot.telegram.sendMessage(subscriber.chatId, `${message}`);
       } catch (error) {
-        console.error(
-          `❌ Lỗi khi gửi thông báo tới Group ID ${subscriber.chatId}:`,
-          error,
-        );
+        console.error(`❌ Lỗi khi gửi thông báo tới Group ID ${subscriber.chatId}:`, error);
       }
     }
   }

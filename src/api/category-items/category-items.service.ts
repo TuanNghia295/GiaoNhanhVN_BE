@@ -16,9 +16,7 @@ export class CategoryItemsService {
       .from(categoryItems)
       .where(eq(categoryItems.categoryId, categoryId))
       .execute();
-    return entities.map((entity) =>
-      plainToInstance(CategoryItemResDto, entity),
-    );
+    return entities.map((entity) => plainToInstance(CategoryItemResDto, entity));
   }
 
   async existById(categoryItemId: number): Promise<{

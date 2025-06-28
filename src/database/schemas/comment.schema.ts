@@ -1,12 +1,5 @@
 import { relations } from 'drizzle-orm';
-import {
-  integer,
-  pgTable,
-  serial,
-  text,
-  timestamp,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { integer, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 import { commentsToRatings } from './comments-to-ratings.schema';
 
 export enum CommentTypeEnum {

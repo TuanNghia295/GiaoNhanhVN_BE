@@ -21,12 +21,8 @@ export const settings = pgTable('settings', {
   fanpage: text('fanpage').default(''),
   isRain: boolean('is_rain').notNull().default(false),
   isNight: boolean('is_night').notNull().default(false),
-  nightFee: numeric('night_fee', { precision: 10, scale: 2, mode: 'number' })
-    .notNull()
-    .default(0),
-  rainFee: numeric('rain_fee', { precision: 10, scale: 2, mode: 'number' })
-    .notNull()
-    .default(0),
+  nightFee: numeric('night_fee', { precision: 10, scale: 2, mode: 'number' }).notNull().default(0),
+  rainFee: numeric('rain_fee', { precision: 10, scale: 2, mode: 'number' }).notNull().default(0),
   areaId: integer('area_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at')
@@ -40,7 +36,7 @@ export const settingsRelations = relations(settings, ({ one, many }) => ({
     fields: [settings.areaId],
     references: [areas.id],
   }),
-  serviceFee: many(serviceFees),
+  serviceFees: many(serviceFees),
 }));
 
 export type Setting = typeof settings.$inferSelect;

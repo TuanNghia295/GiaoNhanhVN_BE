@@ -1,8 +1,4 @@
-import {
-  NumberFieldOptional,
-  PasswordField,
-  StringField,
-} from '@/decorators/field.decorators';
+import { NumberFieldOptional, PasswordField, StringField } from '@/decorators/field.decorators';
 
 export class CreateUserReqDto {
   @StringField()

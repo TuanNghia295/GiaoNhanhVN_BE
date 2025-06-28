@@ -1,9 +1,6 @@
 import { PageOptionsDto } from '@/common/dto/offset-pagination/ page-options.dto';
 import { OrderStatusEnum } from '@/database/schemas';
-import {
-  DateFieldOptional,
-  EnumFieldOptional,
-} from '@/decorators/field.decorators';
+import { DateFieldOptional, EnumFieldOptional } from '@/decorators/field.decorators';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class PageMyOrderReqDto extends PageOptionsDto {

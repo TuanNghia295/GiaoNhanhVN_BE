@@ -34,9 +34,7 @@ export class ManagersController {
     type: ManagerResDto,
   })
   @Get('info')
-  async getInfoManager(
-    @CurrentUser() { id: managerId }: JwtPayloadType,
-  ): Promise<ManagerResDto> {
+  async getInfoManager(@CurrentUser() { id: managerId }: JwtPayloadType): Promise<ManagerResDto> {
     return await this.managersService.getInfo(managerId);
   }
 
@@ -46,9 +44,7 @@ export class ManagersController {
     type: ManagerResDto,
   })
   @Get(':managerId')
-  async getManagerById(
-    @Param('managerId') managerId: number,
-  ): Promise<ManagerResDto> {
+  async getManagerById(@Param('managerId') managerId: number): Promise<ManagerResDto> {
     return await this.managersService.getInfo(managerId);
   }
 

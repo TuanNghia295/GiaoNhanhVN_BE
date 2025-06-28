@@ -28,10 +28,7 @@ export class RatingsService {
 
     // check deliverId?
 
-    if (
-      reqDto.storeId &&
-      !(await this.storesService.existById(reqDto.storeId))
-    ) {
+    if (reqDto.storeId && !(await this.storesService.existById(reqDto.storeId))) {
       throw new ValidationException(ErrorCode.CM003, HttpStatus.BAD_REQUEST);
     }
 

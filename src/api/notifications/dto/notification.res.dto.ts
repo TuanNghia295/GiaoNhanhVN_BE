@@ -1,8 +1,4 @@
-import {
-  DateField,
-  NumberField,
-  StringField,
-} from 'src/decorators/field.decorators';
+import { DateField, NumberField, StringField } from 'src/decorators/field.decorators';
 
 export class NotificationResDto {
   @NumberField()

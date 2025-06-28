@@ -45,10 +45,7 @@ export class ExcelsController {
       storage: memoryStorage(),
       fileFilter: (req, file, cb) => {
         if (!file.originalname.match(/\.(xlsx|xls)$/)) {
-          return cb(
-            new BadRequestException('Only .xlsx or .xls files are allowed!'),
-            false,
-          );
+          return cb(new BadRequestException('Only .xlsx or .xls files are allowed!'), false);
         }
         cb(null, true);
       },
@@ -72,10 +69,7 @@ export class ExcelsController {
     @Res() res: Response,
   ) {
     // Dữ liệu mẫu
-    const analyticTotalRevenue = await this.analyticsService.getAdminRevenue(
-      reqDto,
-      payload,
-    );
+    const analyticTotalRevenue = await this.analyticsService.getAdminRevenue(reqDto, payload);
     console.log('analyticTotalRevenue', analyticTotalRevenue);
 
     const workbook = new ExcelJS.Workbook();
@@ -92,10 +86,7 @@ export class ExcelsController {
       reqDto.to,
       reqDto.areaId,
     );
-    await this.excelsService.createOrdersSheet(
-      workbook.addWorksheet('Đơn hàng'),
-      orders,
-    );
+    await this.excelsService.createOrdersSheet(workbook.addWorksheet('Đơn hàng'), orders);
     // Set the response headers for Excel file download
     const buffer = await workbook.xlsx.writeBuffer();
     res.setHeader(
@@ -120,10 +111,7 @@ export class ExcelsController {
     @Query() reqDto: StoreRevenueReqDto,
     @Res() res: Response,
   ) {
-    const analyticStoreRevenue = await this.analyticsService.getStoreRevenue(
-      reqDto,
-      payload,
-    );
+    const analyticStoreRevenue = await this.analyticsService.getStoreRevenue(reqDto, payload);
 
     const workbook = new ExcelJS.Workbook();
     await this.excelsService.createMainStoreSheet(
@@ -155,8 +143,7 @@ export class ExcelsController {
     @CurrentUser() payload: JwtPayloadType,
     @Res() res: Response,
   ) {
-    const analyticDeliverRevenue =
-      await this.analyticsService.getDeliverRevenue(reqDto, payload);
+    const analyticDeliverRevenue = await this.analyticsService.getDeliverRevenue(reqDto, payload);
     const workbook = new ExcelJS.Workbook();
     await this.excelsService.createMainDeliverSheet(
       workbook.addWorksheet('Tổng hợp doanh thu'),

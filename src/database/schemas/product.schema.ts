@@ -50,10 +50,7 @@ export const products = pgTable(
       table.deletedAt,
       table.isLocked,
     ),
-    index('products_store_menu_id_created_at_idx').on(
-      table.storeMenuId,
-      table.createdAt,
-    ),
+    index('products_store_menu_id_created_at_idx').on(table.storeMenuId, table.createdAt),
   ],
 );
 

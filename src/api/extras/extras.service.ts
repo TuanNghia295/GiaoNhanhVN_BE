@@ -29,10 +29,7 @@ export class ExtrasService {
     tx: Transaction,
   ): Promise<void> {
     // Xoá tất cả extras hiện tại cho productId
-    await tx
-      .update(extras)
-      .set({ productId: null })
-      .where(eq(extras.productId, productId));
+    await tx.update(extras).set({ productId: null }).where(eq(extras.productId, productId));
 
     // Thêm extras mới
     await this.createForProduct(productId, items, tx);

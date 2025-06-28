@@ -5,16 +5,7 @@ import { UpdatePointAreaReqDto } from '@/api/areas/dto/update-point-area.req.dto
 import { RoleEnum } from '@/database/schemas';
 import { ApiAuth, ApiPublic } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Post,
-  Put,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { AreasService } from './areas.service';
 
 @Controller('areas')

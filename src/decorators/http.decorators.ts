@@ -1,12 +1,7 @@
 import { ErrorDto } from '@/common/dto/error.dto';
 import { Public } from '@/decorators/public.decorator';
 import { ApiPaginatedResponse } from '@/decorators/swagger.decorators';
-import {
-  applyDecorators,
-  HttpCode,
-  HttpStatus,
-  type Type,
-} from '@nestjs/common';
+import { applyDecorators, HttpCode, HttpStatus, type Type } from '@nestjs/common';
 import {
   ApiBasicAuth,
   ApiBearerAuth,
@@ -54,13 +49,12 @@ export const ApiPublic = (options: IApiPublicOptions = {}): MethodDecorator => {
     paginationType: options.paginationType || 'offset',
   };
 
-  const errorResponses = (options.errorResponses || defaultErrorResponses)?.map(
-    (statusCode) =>
-      ApiResponse({
-        status: statusCode,
-        type: ErrorDto,
-        description: STATUS_CODES[statusCode],
-      }),
+  const errorResponses = (options.errorResponses || defaultErrorResponses)?.map((statusCode) =>
+    ApiResponse({
+      status: statusCode,
+      type: ErrorDto,
+      description: STATUS_CODES[statusCode],
+    }),
   );
 
   return applyDecorators(
@@ -90,13 +84,12 @@ export const ApiAuth = (options: IApiAuthOptions = {}): MethodDecorator => {
   };
   const auths = options.auths || ['jwt'];
 
-  const errorResponses = (options.errorResponses || defaultErrorResponses)?.map(
-    (statusCode) =>
-      ApiResponse({
-        status: statusCode,
-        type: ErrorDto,
-        description: STATUS_CODES[statusCode],
-      }),
+  const errorResponses = (options.errorResponses || defaultErrorResponses)?.map((statusCode) =>
+    ApiResponse({
+      status: statusCode,
+      type: ErrorDto,
+      description: STATUS_CODES[statusCode],
+    }),
   );
 
   const authDecorators = auths.map((auth) => {

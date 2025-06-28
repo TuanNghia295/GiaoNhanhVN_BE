@@ -1,14 +1,7 @@
 import { products } from '@/database/schemas/product.schema';
 import { stores } from '@/database/schemas/store.schema';
 import { relations } from 'drizzle-orm';
-import {
-  index,
-  integer,
-  pgTable,
-  serial,
-  timestamp,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { index, integer, pgTable, serial, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 export const storeMenus = pgTable(
   'store_menus',

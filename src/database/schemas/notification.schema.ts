@@ -1,14 +1,7 @@
 import { areas } from '@/database/schemas/area.schema';
 import { users } from '@/database/schemas/user.schema';
 import { relations } from 'drizzle-orm';
-import {
-  boolean,
-  integer,
-  pgTable,
-  serial,
-  timestamp,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { boolean, integer, pgTable, serial, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 export enum NotificationTypeEnum {
   SYSTEM = 'SYSTEM',
@@ -33,17 +26,14 @@ export const notifications = pgTable('notifications', {
 
 export type NotificationType = typeof notifications.$inferSelect;
 
-export const notificationsRelations = relations(
-  notifications,
-  ({ one, many }) => ({
-    area: one(areas, {
-      fields: [notifications.areaId],
-      references: [areas.id],
-    }),
-    notificationsToUsers: many(notificationsToUsers),
-    users: many(notificationsToUsers),
+export const notificationsRelations = relations(notifications, ({ one, many }) => ({
+  area: one(areas, {
+    fields: [notifications.areaId],
+    references: [areas.id],
   }),
-);
+  notificationsToUsers: many(notificationsToUsers),
+  users: many(notificationsToUsers),
+}));
 
 export const notificationsToUsers = pgTable('notifications_to_users', {
   id: serial().primaryKey().notNull(),
@@ -57,16 +47,13 @@ export const notificationsToUsers = pgTable('notifications_to_users', {
     .$onUpdate(() => new Date()),
 });
 
-export const notificationsToUsersRelations = relations(
-  notificationsToUsers,
-  ({ one }) => ({
-    notification: one(notifications, {
-      fields: [notificationsToUsers.notificationId],
-      references: [notifications.id],
-    }),
-    user: one(users, {
-      fields: [notificationsToUsers.userId],
-      references: [users.id],
-    }),
+export const notificationsToUsersRelations = relations(notificationsToUsers, ({ one }) => ({
+  notification: one(notifications, {
+    fields: [notificationsToUsers.notificationId],
+    references: [notifications.id],
   }),
-);
+  user: one(users, {
+    fields: [notificationsToUsers.userId],
+    references: [users.id],
+  }),
+}));

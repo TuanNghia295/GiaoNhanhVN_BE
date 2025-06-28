@@ -1,7 +1,4 @@
-import {
-  NumberFieldOptional,
-  StringFieldOptional,
-} from 'src/decorators/field.decorators';
+import { NumberFieldOptional, StringFieldOptional } from 'src/decorators/field.decorators';
 
 export class QueryListStore {
   @StringFieldOptional()

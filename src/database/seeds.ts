@@ -13,10 +13,7 @@ const pool = new Pool({
 const db = drizzle(pool, { schema }) as NodePgDatabase<typeof schema>;
 
 async function main() {
-  const existAmin = await db
-    .select()
-    .from(managers)
-    .where(eq(managers.role, RoleEnum.ADMIN));
+  const existAmin = await db.select().from(managers).where(eq(managers.role, RoleEnum.ADMIN));
 
   if (existAmin.length === 0) {
     await db.insert(managers).values({
@@ -27,10 +24,7 @@ async function main() {
     });
   }
 
-  const existSettingsAdmin = await db
-    .select()
-    .from(settings)
-    .where(isNull(settings.areaId));
+  const existSettingsAdmin = await db.select().from(settings).where(isNull(settings.areaId));
   if (existSettingsAdmin.length === 0) {
     await db.insert(settings).values({
       areaId: null,

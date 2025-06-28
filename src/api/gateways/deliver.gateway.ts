@@ -12,9 +12,7 @@ import {
 import { Server, Socket } from 'socket.io';
 
 @WebSocketGateway({ cors: true, namespace: 'delivers' })
-export class DeliverGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
-{
+export class DeliverGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(DeliverGateway.name);
 
   @WebSocketServer()
@@ -50,33 +48,25 @@ export class DeliverGateway
 
   @SubscribeMessage('refresh-order')
   handleDeliverRefreshOrder(deliverId: string) {
-    this.server
-      .to(deliverId.toString())
-      .emit('refresh-order', 'refresh your order');
+    this.server.to(deliverId.toString()).emit('refresh-order', 'refresh your order');
     this.logger.debug(`${deliverId} need refresh his/her order`);
   }
 
   @SubscribeMessage('order-cancel-by-user')
   handleOrderCancelByUser(deliverId: string) {
-    this.server
-      .to(deliverId.toString())
-      .emit('order-cancel-by-user', 'order canceled by user');
+    this.server.to(deliverId.toString()).emit('order-cancel-by-user', 'order canceled by user');
     this.logger.debug(`${deliverId} need refresh his/her order`);
   }
 
   @SubscribeMessage('order-cancel-by-admin')
   handleOrderCancelByAdmin(deliverId: string) {
-    this.server
-      .to(deliverId.toString())
-      .emit('order-cancel-by-admin', 'order canceled by admin');
+    this.server.to(deliverId.toString()).emit('order-cancel-by-admin', 'order canceled by admin');
     this.logger.debug(`${deliverId} need refresh his/her order`);
   }
 
   @SubscribeMessage('account-locked')
   handleAccountLocked(deliverId: string) {
-    this.server
-      .to(deliverId.toString())
-      .emit('account-locked', 'account has been locked');
+    this.server.to(deliverId.toString()).emit('account-locked', 'account has been locked');
     this.logger.debug(`${deliverId} account has been locked`);
   }
 }

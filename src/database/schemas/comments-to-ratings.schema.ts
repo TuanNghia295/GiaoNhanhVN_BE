@@ -19,18 +19,15 @@ export const commentsToRatings = pgTable(
   }),
 );
 
-export const commentsToRatingsRelations = relations(
-  commentsToRatings,
-  ({ one }) => ({
-    comment: one(comments, {
-      fields: [commentsToRatings.commentId],
-      references: [comments.id],
-    }),
-    rating: one(ratings, {
-      fields: [commentsToRatings.ratingId],
-      references: [ratings.id],
-    }),
+export const commentsToRatingsRelations = relations(commentsToRatings, ({ one }) => ({
+  comment: one(comments, {
+    fields: [commentsToRatings.commentId],
+    references: [comments.id],
   }),
-);
+  rating: one(ratings, {
+    fields: [commentsToRatings.ratingId],
+    references: [ratings.id],
+  }),
+}));
 
 export type CommentsToRatings = typeof commentsToRatings;

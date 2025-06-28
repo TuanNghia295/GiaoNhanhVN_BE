@@ -68,10 +68,7 @@ export class NotificationsController {
     @CurrentUser() payload: JwtPayloadType,
     @Query() reqDto: PageNotificationsReqDto,
   ) {
-    return await this.notificationsService.getPageNotifications(
-      reqDto,
-      payload,
-    );
+    return await this.notificationsService.getPageNotifications(reqDto, payload);
   }
 
   @Roles(RoleEnum.USER)
@@ -147,10 +144,7 @@ export class NotificationsController {
     summary: 'Xóa thông báo',
   })
   @Delete('delete/:id')
-  async remove(
-    @CurrentUser() payload: JwtPayloadType,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
+  async remove(@CurrentUser() payload: JwtPayloadType, @Param('id', ParseIntPipe) id: number) {
     await this.notificationsService.remove(id, payload);
   }
 }

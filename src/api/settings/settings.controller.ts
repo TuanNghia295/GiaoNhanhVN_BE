@@ -21,11 +21,11 @@ export class SettingsController {
     type: SettingResDto,
   })
   @Get('env')
-  async getSettings(
+  async getSettingByAreaId(
     @CurrentUser() payload: JwtPayloadType,
     @Query('areaId') areaId: number,
   ) {
-    return await this.settingsService.getSettings(areaId, payload);
+    return this.settingsService.getSettingByAreaId(areaId, payload);
   }
 
   @Roles(RoleEnum.MANAGEMENT)
@@ -66,14 +66,8 @@ export class SettingsController {
     type: ServiceFeeResDto,
   })
   @Get('type/:type/:settingId')
-  async getServiceFeesByType(
-    @Param('type') type: string,
-    @Param('settingId') settingId: number,
-  ) {
-    return await this.settingsService.getServiceFeesByTypeAndSettingId(
-      type,
-      settingId,
-    );
+  async getServiceFeesByType(@Param('type') type: string, @Param('settingId') settingId: number) {
+    return await this.settingsService.getServiceFeesByTypeAndSettingId(type, settingId);
   }
 
   @ApiPublic({
@@ -92,10 +86,7 @@ export class SettingsController {
     summary: 'Cập nhật cài đặt giá trị theo loại',
     type: ServiceFeeResDto,
   })
-  async updateDistanceSettings(
-    @Param('type') type: string,
-    @Body() dto: UpdateServiceFeeReqDto,
-  ) {
+  async updateDistanceSettings(@Param('type') type: string, @Body() dto: UpdateServiceFeeReqDto) {
     return await this.settingsService.updateServiceFeesByType(type, dto);
   }
 }

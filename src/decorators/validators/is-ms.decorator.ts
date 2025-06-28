@@ -11,11 +11,7 @@ export function IsMs(validationOptions?: ValidationOptions): PropertyDecorator {
       options: validationOptions,
       validator: {
         validate(value: string) {
-          return !(
-            typeof value !== 'string' ||
-            value.length == 0 ||
-            ms(value) === undefined
-          );
+          return !(typeof value !== 'string' || value.length == 0 || ms(value) === undefined);
         },
         defaultMessage() {
           return `$property must be a valid ms format`;

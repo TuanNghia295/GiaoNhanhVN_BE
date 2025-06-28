@@ -69,9 +69,7 @@ export class AnalyticsController {
       case RoleEnum.STORE:
         return this.analyticsService.getMyStoreRevenue(reqDto, payload);
       default:
-        throw new ForbiddenException(
-          'You do not have permission to access this resource.',
-        );
+        throw new ForbiddenException('You do not have permission to access this resource.');
     }
   }
 }

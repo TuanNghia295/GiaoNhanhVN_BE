@@ -85,18 +85,15 @@ export const vouchersOnOrders = pgTable(
   (t) => [primaryKey({ columns: [t.orderId, t.voucherId] })],
 );
 
-export const vouchersOnOrdersRelations = relations(
-  vouchersOnOrders,
-  ({ one }) => ({
-    voucher: one(vouchers, {
-      fields: [vouchersOnOrders.voucherId],
-      references: [vouchers.id],
-    }),
-    order: one(orders, {
-      fields: [vouchersOnOrders.orderId],
-      references: [orders.id],
-    }),
+export const vouchersOnOrdersRelations = relations(vouchersOnOrders, ({ one }) => ({
+  voucher: one(vouchers, {
+    fields: [vouchersOnOrders.voucherId],
+    references: [vouchers.id],
   }),
-);
+  order: one(orders, {
+    fields: [vouchersOnOrders.orderId],
+    references: [orders.id],
+  }),
+}));
 
 export type Voucher = typeof vouchers.type;

@@ -1,7 +1,4 @@
-import {
-  DateFieldOptional,
-  NumberFieldOptional,
-} from 'src/decorators/field.decorators';
+import { DateFieldOptional, NumberFieldOptional } from 'src/decorators/field.decorators';
 
 export class AdminRevenueReqDto {
   @DateFieldOptional({

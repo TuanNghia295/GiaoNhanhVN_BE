@@ -1,12 +1,6 @@
 import { serviceFees } from '@/database/schemas/service-fee.schema';
 import { relations } from 'drizzle-orm';
-import {
-  decimal,
-  integer,
-  pgTable,
-  serial,
-  timestamp,
-} from 'drizzle-orm/pg-core';
+import { decimal, integer, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 
 export const distances = pgTable('distances', {
   id: serial('id').primaryKey(),

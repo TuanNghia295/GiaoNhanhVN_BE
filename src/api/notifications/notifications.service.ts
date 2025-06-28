@@ -24,16 +24,7 @@ import { deleteIfExists, normalizeImagePath } from '@/utils/util';
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { plainToInstance } from 'class-transformer';
-import {
-  and,
-  asc,
-  count,
-  countDistinct,
-  desc,
-  eq,
-  getTableColumns,
-  isNull,
-} from 'drizzle-orm';
+import { and, asc, count, countDistinct, desc, eq, getTableColumns, isNull } from 'drizzle-orm';
 import admin from 'firebase-admin';
 import { existsSync, mkdirSync } from 'fs';
 import _ from 'lodash';
@@ -137,10 +128,7 @@ export class NotificationsService implements OnModuleInit {
     });
   }
 
-  private async notifyUsers(
-    tokens: string[] = [],
-    notification: NotificationType,
-  ) {
+  private async notifyUsers(tokens: string[] = [], notification: NotificationType) {
     if (tokens.length === 0) return;
     try {
       await this.admin.messaging().sendEachForMulticast(
@@ -155,10 +143,7 @@ export class NotificationsService implements OnModuleInit {
     }
   }
 
-  async getPageNotifications(
-    reqDto: PageNotificationsReqDto,
-    payload: JwtPayloadType,
-  ) {
+  async getPageNotifications(reqDto: PageNotificationsReqDto, payload: JwtPayloadType) {
     const whereClause = and(
       ...(payload.role === RoleEnum.MANAGEMENT
         ? [
@@ -183,20 +168,14 @@ export class NotificationsService implements OnModuleInit {
       })
       .from(notifications)
       .leftJoin(areas, eq(areas.id, notifications.areaId))
-      .leftJoin(
-        notificationsToUsers,
-        eq(notificationsToUsers.notificationId, notifications.id),
-      )
+      .leftJoin(notificationsToUsers, eq(notificationsToUsers.notificationId, notifications.id))
       .where(whereClause)
       .$dynamic();
 
     const qbCount = this.db
       .select({ totalCount: countDistinct(notifications.id) })
       .from(notifications)
-      .leftJoin(
-        notificationsToUsers,
-        eq(notificationsToUsers.notificationId, notifications.id),
-      )
+      .leftJoin(notificationsToUsers, eq(notificationsToUsers.notificationId, notifications.id))
       .where(whereClause);
     const [entities, [{ totalCount }]] = await Promise.all([
       qb
@@ -218,10 +197,7 @@ export class NotificationsService implements OnModuleInit {
     return this.db
       .select()
       .from(notifications)
-      .leftJoin(
-        notificationsToUsers,
-        eq(notificationsToUsers.notificationId, notifications.id),
-      )
+      .leftJoin(notificationsToUsers, eq(notificationsToUsers.notificationId, notifications.id))
       .where(and(eq(notificationsToUsers.userId, payload.id)))
       .orderBy(desc(notifications.createdAt));
   }
@@ -245,11 +221,7 @@ export class NotificationsService implements OnModuleInit {
       .then((res) => res[0]);
   }
 
-  async update(
-    id: number,
-    reqDto: UpdateNotificationReqDto,
-    image?: Express.Multer.File,
-  ) {
+  async update(id: number, reqDto: UpdateNotificationReqDto, image?: Express.Multer.File) {
     const existingNotification = await this.existById(id);
     if (!existingNotification) {
       throw new ValidationException(ErrorCode.N001);
@@ -265,10 +237,7 @@ export class NotificationsService implements OnModuleInit {
     //------------------------------------------------------------
     //- Xoá ảnh cũ nếu có
     //------------------------------------------------------------
-    if (
-      existingNotification.image &&
-      existingNotification.image !== normalizedPath
-    ) {
+    if (existingNotification.image && existingNotification.image !== normalizedPath) {
       deleteIfExists(existingNotification.image, this.basePath);
     }
 
@@ -307,10 +276,7 @@ export class NotificationsService implements OnModuleInit {
           if (existingNotification && existingNotification.image) {
             deleteIfExists(existingNotification.image, this.basePath);
           }
-          return tx
-            .delete(notifications)
-            .where(eq(notifications.id, notificationId))
-            .returning();
+          return tx.delete(notifications).where(eq(notifications.id, notificationId)).returning();
         });
     }
   }
@@ -322,10 +288,7 @@ export class NotificationsService implements OnModuleInit {
       })
       .from(notificationsToUsers)
       .where(
-        and(
-          eq(notificationsToUsers.userId, payload.id),
-          eq(notificationsToUsers.isRead, false),
-        ),
+        and(eq(notificationsToUsers.userId, payload.id), eq(notificationsToUsers.isRead, false)),
       )
       .then((res) => res[0].count);
   }

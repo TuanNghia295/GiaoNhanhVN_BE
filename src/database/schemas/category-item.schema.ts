@@ -17,16 +17,13 @@ export const categoryItems = pgTable('category_items', {
     .$onUpdate(() => new Date()),
 });
 
-export const categoryItemsRelations = relations(
-  categoryItems,
-  ({ one, many }) => ({
-    category: one(categories, {
-      fields: [categoryItems.categoryId],
-      references: [categories.id],
-    }),
-    products: many(products),
-    storesToCategoryItems: many(storesToCategoryItems),
+export const categoryItemsRelations = relations(categoryItems, ({ one, many }) => ({
+  category: one(categories, {
+    fields: [categoryItems.categoryId],
+    references: [categories.id],
   }),
-);
+  products: many(products),
+  storesToCategoryItems: many(storesToCategoryItems),
+}));
 
 export type CategoryItem = typeof categoryItems.$inferSelect;

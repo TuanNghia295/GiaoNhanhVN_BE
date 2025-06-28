@@ -48,10 +48,7 @@ export class UsersService implements OnModuleInit {
     });
   }
 
-  async create(
-    reqDto: CreateUserReqDto,
-    payload: JwtPayloadType,
-  ): Promise<UserResDto> {
+  async create(reqDto: CreateUserReqDto, payload: JwtPayloadType): Promise<UserResDto> {
     console.log('reqDto', await this.existsByPhone(reqDto.phone));
     if (await this.existsByPhone(reqDto.phone)) {
       throw new ValidationException(ErrorCode.U002, HttpStatus.CONFLICT);
@@ -61,9 +58,7 @@ export class UsersService implements OnModuleInit {
       .insert(users)
       .values({
         ...reqDto,
-        ...(payload.role === RoleEnum.MANAGEMENT
-          ? { areaId: payload.areaId }
-          : {}),
+        ...(payload.role === RoleEnum.MANAGEMENT ? { areaId: payload.areaId } : {}),
       })
       .returning()
       .then((result) => plainToInstance(UserResDto, result[0]));
@@ -74,16 +69,11 @@ export class UsersService implements OnModuleInit {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.users> = {
       where: and(
         isNull(users.deletedAt),
-        ...(payload.role === RoleEnum.MANAGEMENT
-          ? [eq(users.areaId, payload.areaId)]
-          : []),
+        ...(payload.role === RoleEnum.MANAGEMENT ? [eq(users.areaId, payload.areaId)] : []),
         ...(payload.role === RoleEnum.ADMIN && reqDto.areaId
           ? [eq(users.areaId, reqDto.areaId)]
           : []),
-        or(
-          ilike(users.phone, `%${reqDto.q ?? ''}%`),
-          ilike(users.fullName, `%${reqDto.q ?? ''}%`),
-        ),
+        or(ilike(users.phone, `%${reqDto.q ?? ''}%`), ilike(users.fullName, `%${reqDto.q ?? ''}%`)),
       ),
       with: {
         area: true,
@@ -99,9 +89,7 @@ export class UsersService implements OnModuleInit {
       this.db.query.users.findMany({
         ...baseConfig,
         orderBy: [
-          ...(reqDto.order === Order.DESC
-            ? [desc(users.createdAt)]
-            : [desc(users.createdAt)]),
+          ...(reqDto.order === Order.DESC ? [desc(users.createdAt)] : [desc(users.createdAt)]),
         ],
         limit: reqDto.limit,
         offset: reqDto.offset,
@@ -175,10 +163,7 @@ export class UsersService implements OnModuleInit {
     let areaId: number | null = null;
     if (reqDto.parent && reqDto.province) {
       const area = await this.db.query.areas.findFirst({
-        where: and(
-          eq(areas.parent, reqDto.parent),
-          eq(areas.name, reqDto.province),
-        ),
+        where: and(eq(areas.parent, reqDto.parent), eq(areas.name, reqDto.province)),
         columns: {
           id: true,
         },
@@ -216,10 +201,7 @@ export class UsersService implements OnModuleInit {
     if (image?.buffer) {
       const fileName = await this.buildFileName('user');
       const fullImagePath = join(this.basePath, fileName);
-      await sharp(image.buffer)
-        .rotate()
-        .jpeg({ quality: 80 })
-        .toFile(fullImagePath);
+      await sharp(image.buffer).rotate().jpeg({ quality: 80 }).toFile(fullImagePath);
       normalizedPath = normalizeImagePath(fullImagePath);
     }
 
@@ -243,11 +225,7 @@ export class UsersService implements OnModuleInit {
 
   async getValidUserFcmTokenById(userId: number) {
     return this.db.query.users.findFirst({
-      where: and(
-        eq(users.id, userId),
-        isNull(users.deletedAt),
-        eq(users.isLocked, false),
-      ),
+      where: and(eq(users.id, userId), isNull(users.deletedAt), eq(users.isLocked, false)),
       columns: {
         fcmToken: true,
       },

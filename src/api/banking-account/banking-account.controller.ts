@@ -4,13 +4,7 @@ import { RoleEnum } from '@/database/schemas';
 import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
-import {
-  Body,
-  Controller,
-  ForbiddenException,
-  Get,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Post } from '@nestjs/common';
 import { BankingAccountService } from './banking-account.service';
 
 @Controller('banking-account')
@@ -31,10 +25,7 @@ export class BankingAccountController {
   })
   @Post()
   @Roles(RoleEnum.DELIVER)
-  async createOrUpdate(
-    @CurrentUser() payload: JwtPayloadType,
-    @Body() reqDto: CreateBankReqDto,
-  ) {
+  async createOrUpdate(@CurrentUser() payload: JwtPayloadType, @Body() reqDto: CreateBankReqDto) {
     switch (payload.role) {
       case RoleEnum.DELIVER:
         return this.bankingAccountService.createOrUpdate(payload.id, reqDto);

@@ -1,9 +1,5 @@
 import { AbstractResDto } from '@/database/dto/abstract.res.dto';
-import {
-  BooleanField,
-  DateField,
-  NumberField,
-} from '@/decorators/field.decorators';
+import { BooleanField, DateField, NumberField } from '@/decorators/field.decorators';
 import { Exclude, Expose } from 'class-transformer';
 
 @Exclude()

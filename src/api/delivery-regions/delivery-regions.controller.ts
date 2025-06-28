@@ -22,9 +22,7 @@ import { DeliveryRegionsService } from './delivery-regions.service';
 
 @Controller('delivery-regions')
 export class DeliveryRegionsController {
-  constructor(
-    private readonly deliveryRegionsService: DeliveryRegionsService,
-  ) {}
+  constructor(private readonly deliveryRegionsService: DeliveryRegionsService) {}
 
   @Roles(RoleEnum.MANAGEMENT) // Ensure only ADMIN can access this route
   @ApiAuth({
@@ -40,9 +38,7 @@ export class DeliveryRegionsController {
       case RoleEnum.MANAGEMENT:
         return this.deliveryRegionsService.create(reqDto, payload);
       default:
-        throw new ForbiddenException(
-          'You do not have permission to create a delivery region.',
-        );
+        throw new ForbiddenException('You do not have permission to create a delivery region.');
     }
   }
 

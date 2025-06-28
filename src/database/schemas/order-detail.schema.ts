@@ -3,14 +3,7 @@ import { options } from '@/database/schemas/option.schema';
 import { orders } from '@/database/schemas/order.schema';
 import { products } from '@/database/schemas/product.schema';
 import { relations } from 'drizzle-orm';
-import {
-  decimal,
-  foreignKey,
-  integer,
-  pgTable,
-  serial,
-  timestamp,
-} from 'drizzle-orm/pg-core';
+import { decimal, foreignKey, integer, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 
 export const orderDetails = pgTable(
   'order_details',
@@ -42,21 +35,18 @@ export const orderDetails = pgTable(
   ],
 );
 
-export const orderDetailsRelations = relations(
-  orderDetails,
-  ({ one, many }) => ({
-    order: one(orders, {
-      fields: [orderDetails.orderId],
-      references: [orders.id],
-    }),
-    product: one(products, {
-      fields: [orderDetails.productId],
-      references: [products.id],
-    }),
-    option: one(options, {
-      fields: [orderDetails.optionId],
-      references: [options.id],
-    }),
-    extras: many(extrasToOrderDetails),
+export const orderDetailsRelations = relations(orderDetails, ({ one, many }) => ({
+  order: one(orders, {
+    fields: [orderDetails.orderId],
+    references: [orders.id],
   }),
-);
+  product: one(products, {
+    fields: [orderDetails.productId],
+    references: [products.id],
+  }),
+  option: one(options, {
+    fields: [orderDetails.optionId],
+    references: [options.id],
+  }),
+  extras: many(extrasToOrderDetails),
+}));

@@ -86,18 +86,15 @@ export const storesToCategoryItems = pgTable(
   (t) => [primaryKey({ columns: [t.storeId, t.categoryItemId] })],
 );
 
-export const storesToCategoryItemsRelations = relations(
-  storesToCategoryItems,
-  ({ one }) => ({
-    store: one(stores, {
-      fields: [storesToCategoryItems.storeId],
-      references: [stores.id],
-    }),
-    categoryItem: one(categoryItems, {
-      fields: [storesToCategoryItems.categoryItemId],
-      references: [categoryItems.id],
-    }),
+export const storesToCategoryItemsRelations = relations(storesToCategoryItems, ({ one }) => ({
+  store: one(stores, {
+    fields: [storesToCategoryItems.storeId],
+    references: [stores.id],
   }),
-);
+  categoryItem: one(categoryItems, {
+    fields: [storesToCategoryItems.categoryItemId],
+    references: [categoryItems.id],
+  }),
+}));
 
 export type Store = typeof stores.$inferSelect;

@@ -1,9 +1,5 @@
 import { Expose } from 'class-transformer';
-import {
-  ClassField,
-  NumberField,
-  StringField,
-} from 'src/decorators/field.decorators';
+import { ClassField, NumberField, StringField } from 'src/decorators/field.decorators';
 
 export class OrderStatusRevenueResDto {
   @StringField()

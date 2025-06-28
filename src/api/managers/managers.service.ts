@@ -63,9 +63,7 @@ export class ManagersService {
       throw new ValidationException(ErrorCode.M002);
     }
 
-    if (
-      await this.areaService.existByNameAndParent(reqDto.name, reqDto.parent)
-    ) {
+    if (await this.areaService.existByNameAndParent(reqDto.name, reqDto.parent)) {
       throw new ValidationException(ErrorCode.AR002);
     }
 

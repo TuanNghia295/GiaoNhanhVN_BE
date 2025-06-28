@@ -13,17 +13,11 @@ const pool = new Pool({
 const db = drizzle(pool, { schema }) as NodePgDatabase<typeof schema>;
 export const DRIZZLE = Symbol('drizzle-connection');
 
-export function withPagination<T extends PgSelect>(
-  qb: T,
-  limit = DEFAULT_PAGE_LIMIT,
-  offset = 0,
-) {
+export function withPagination<T extends PgSelect>(qb: T, limit = DEFAULT_PAGE_LIMIT, offset = 0) {
   return qb.limit(limit).offset(offset);
 }
 
-export type Transaction = Parameters<
-  Parameters<(typeof db)['transaction']>[0]
->[0];
+export type Transaction = Parameters<Parameters<(typeof db)['transaction']>[0]>[0];
 
 export const increment = (column: AnyColumn, value = 1) => {
   return sql`${column} +

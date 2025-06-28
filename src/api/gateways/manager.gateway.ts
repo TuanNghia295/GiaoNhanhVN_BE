@@ -12,9 +12,7 @@ import { Server, Socket } from 'socket.io';
 import { JwtPayloadType } from '../auth/types/jwt-payload.type';
 
 @WebSocketGateway({ cors: true, namespace: 'admin' })
-export class ManagerGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
-{
+export class ManagerGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(ManagerGateway.name);
 
   constructor(private jwtService: JwtService) {}
@@ -23,9 +21,7 @@ export class ManagerGateway
   server: Server;
 
   async handleConnection(@ConnectedSocket() client: Socket) {
-    const accessToken = client.handshake.query.accessToken as
-      | string
-      | undefined;
+    const accessToken = client.handshake.query.accessToken as string | undefined;
     this.logger.debug(`client (admin) connect: ${client.id}`);
     if (accessToken) {
       const decoded = this.jwtService.decode(accessToken) as JwtPayloadType;

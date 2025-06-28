@@ -23,22 +23,17 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService<AllConfigType>);
   const reflector = app.get(Reflector);
-  const isProduction =
-    configService.get('app.nodeEnv', { infer: true }) ===
-    Environment.PRODUCTION;
+  const isProduction = configService.get('app.nodeEnv', { infer: true }) === Environment.PRODUCTION;
 
   // Use global prefix if you don't have subdomain
-  app.setGlobalPrefix(
-    configService.getOrThrow('app.apiPrefix', { infer: true }),
-    {
-      exclude: [
-        {
-          path: 'health',
-          method: RequestMethod.GET,
-        },
-      ],
-    },
-  );
+  app.setGlobalPrefix(configService.getOrThrow('app.apiPrefix', { infer: true }), {
+    exclude: [
+      {
+        path: 'health',
+        method: RequestMethod.GET,
+      },
+    ],
+  });
 
   app.enableCors();
 
@@ -57,11 +52,7 @@ async function bootstrap() {
 
   app.useGlobalGuards(new AuthGuard(reflector, app.get(AuthService)));
   app.useGlobalGuards(
-    new RoleGuard(
-      reflector,
-      app.get(SettingsService),
-      app.get(AccessControlService),
-    ),
+    new RoleGuard(reflector, app.get(SettingsService), app.get(AccessControlService)),
   );
 
   //************************************************************
@@ -77,17 +68,14 @@ async function bootstrap() {
     setupSwagger(app);
   }
 
-  await app.listen(
-    configService.getOrThrow('app.port', { infer: true }),
-    async () => {
-      console.info(`
+  await app.listen(configService.getOrThrow('app.port', { infer: true }), async () => {
+    console.info(`
     ======================================================================================================
         Name: [${configService.getOrThrow('app.name', { infer: true })}] - Port: [${configService.getOrThrow('app.port', { infer: true })}] - Environment: [${configService.getOrThrow('app.nodeEnv', { infer: true })}]
         ${!isProduction ? `Swagger UI: ${(await app.getUrl()).replace(`[::1]`, `localhost`).trim()}/api-docs` : 'Swagger UI: Disabled'}
     ======================================================================================================
   `);
-    },
-  );
+  });
 }
 
 void bootstrap();

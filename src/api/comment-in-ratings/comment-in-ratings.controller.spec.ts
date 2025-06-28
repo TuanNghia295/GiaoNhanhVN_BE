@@ -11,9 +11,7 @@ describe('CommentInRatingsController', () => {
       providers: [CommentInRatingsService],
     }).compile();
 
-    controller = module.get<CommentInRatingsController>(
-      CommentInRatingsController,
-    );
+    controller = module.get<CommentInRatingsController>(CommentInRatingsController);
   });
 
   it('should be defined', () => {

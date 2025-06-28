@@ -12,10 +12,7 @@ export class BankingAccountService {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
 
   async getBankByAuthorId(authorId: number) {
-    const [bank] = await this.db
-      .select()
-      .from(banks)
-      .where(eq(banks.authorId, authorId));
+    const [bank] = await this.db.select().from(banks).where(eq(banks.authorId, authorId));
     if (!bank) {
       throw new ValidationException(ErrorCode.BK001);
     }

@@ -54,11 +54,9 @@ export const ImportHeaderLabels: Record<ImportHeaderKeys, string> = {
   [ImportHeaderKeys.DESCRIPTION]: 'Mô tả',
   [ImportHeaderKeys.IMAGE]: 'Hình ảnh',
   [ImportHeaderKeys.SIZES]: 'Size (nhiều size cách nhau bởi dấu ,)',
-  [ImportHeaderKeys.SIZE_PRICES]:
-    'Giá của size (nhiều giá cách nhau bởi dấu ,)',
+  [ImportHeaderKeys.SIZE_PRICES]: 'Giá của size (nhiều giá cách nhau bởi dấu ,)',
   [ImportHeaderKeys.TOPPINGS]: 'Topping (nhiều topping cách nhau bởi dấu ,)',
-  [ImportHeaderKeys.TOPPING_PRICES]:
-    'Giá của topping (nhiều topping cách nhau bởi dấu ,)',
+  [ImportHeaderKeys.TOPPING_PRICES]: 'Giá của topping (nhiều topping cách nhau bởi dấu ,)',
 };
 export const DEFAULT_PAGE_LIMIT = 10;
 export const DEFAULT_CURRENT_PAGE = 1;

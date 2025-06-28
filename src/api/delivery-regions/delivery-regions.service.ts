@@ -21,9 +21,7 @@ export class DeliveryRegionsService {
     return this.db
       .select()
       .from(deliveryRegions)
-      .where(
-        and(eq(deliveryRegions.name, name), isNull(deliveryRegions.deletedAt)),
-      )
+      .where(and(eq(deliveryRegions.name, name), isNull(deliveryRegions.deletedAt)))
       .then((res) => res[0]);
   }
 
@@ -48,19 +46,11 @@ export class DeliveryRegionsService {
     return this.db
       .select()
       .from(deliveryRegions)
-      .where(
-        and(
-          eq(deliveryRegions.id, deliveryRegionId),
-          isNull(deliveryRegions.deletedAt),
-        ),
-      )
+      .where(and(eq(deliveryRegions.id, deliveryRegionId), isNull(deliveryRegions.deletedAt)))
       .then((res) => res[0]);
   }
 
-  async updateById(
-    deliveryRegionId: number,
-    reqDto: UpdateDeliveryRegionsReqDto,
-  ) {
+  async updateById(deliveryRegionId: number, reqDto: UpdateDeliveryRegionsReqDto) {
     if (!(await this.existsById(deliveryRegionId))) {
       throw new ValidationException(ErrorCode.AR001);
     }
@@ -72,13 +62,8 @@ export class DeliveryRegionsService {
     return updatedRegion;
   }
 
-  async getPageDeliveryRegions(
-    reqDto: PageDeliveryRegionReqDto,
-    payload: JwtPayloadType,
-  ) {
-    const baseConfig: FindManyQueryConfig<
-      typeof this.db.query.deliveryRegions
-    > = {
+  async getPageDeliveryRegions(reqDto: PageDeliveryRegionReqDto, payload: JwtPayloadType) {
+    const baseConfig: FindManyQueryConfig<typeof this.db.query.deliveryRegions> = {
       where: and(
         eq(deliveryRegions.areaId, reqDto.areaId),
         isNull(deliveryRegions.deletedAt),
@@ -119,12 +104,7 @@ export class DeliveryRegionsService {
     const [region] = await this.db
       .select()
       .from(deliveryRegions)
-      .where(
-        and(
-          eq(deliveryRegions.id, deliveryRegionId),
-          isNull(deliveryRegions.deletedAt),
-        ),
-      )
+      .where(and(eq(deliveryRegions.id, deliveryRegionId), isNull(deliveryRegions.deletedAt)))
       .execute();
 
     if (!region) {

@@ -86,11 +86,7 @@ export class AreasService {
 
   async getAreas(q?: string) {
     return this.db.query.areas.findMany({
-      where: and(
-        q
-          ? or(ilike(areas.name, `%${q}%`), ilike(areas.code, `%${q}%`))
-          : undefined,
-      ),
+      where: and(q ? or(ilike(areas.name, `%${q}%`), ilike(areas.code, `%${q}%`)) : undefined),
       orderBy: [asc(areas.parent)],
     });
   }

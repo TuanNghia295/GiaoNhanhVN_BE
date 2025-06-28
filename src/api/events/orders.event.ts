@@ -52,14 +52,10 @@ export class OrdersEvent {
     //----------------------------------------------
     // Lấy tất cả các deliver actived = true và ở trong khu vực
     //-----------------------------------------------
-    const activeDrivers = await this.deliversService.selectFcmTokenByAreaId(
-      order.areaId,
-    );
+    const activeDrivers = await this.deliversService.selectFcmTokenByAreaId(order.areaId);
     const store = await this.storesService.selectFcmTokenById(order.storeId);
 
-    this.logger.log(
-      `Found ${activeDrivers.length} drivers in area ${order.areaId}`,
-    );
+    this.logger.log(`Found ${activeDrivers.length} drivers in area ${order.areaId}`);
 
     const fcmTokens = [
       ...activeDrivers.map((driver) => driver.fcmToken),
@@ -76,22 +72,12 @@ export class OrdersEvent {
   async onOrderUpdatedStatus(order: Order) {
     console.log(`Order updated status with ID: ${order.id}`);
     // Add your logic here
-    this.userGateway.server
-      .to(String(order.id))
-      .emit('change-order-status', order);
+    this.userGateway.server.to(String(order.id)).emit('change-order-status', order);
   }
 
   @OnEvent('order.canceled')
-  public async onOrderCanceled({
-    updatedOrder,
-    role,
-  }: {
-    updatedOrder: Order;
-    role: RoleEnum;
-  }) {
-    this.logger.log(
-      `Order canceled with ID: ${updatedOrder.id} by role: ${role}`,
-    );
+  public async onOrderCanceled({ updatedOrder, role }: { updatedOrder: Order; role: RoleEnum }) {
+    this.logger.log(`Order canceled with ID: ${updatedOrder.id} by role: ${role}`);
     switch (role) {
       case RoleEnum.ADMIN:
       case RoleEnum.MANAGEMENT:
@@ -109,9 +95,7 @@ export class OrdersEvent {
         const driverIds = activeDrivers.map((driver) => String(driver.id));
         if (driverIds.length > 0) {
           // Emit socket to all drivers in the area
-          this.deliverGateway.server
-            .to(driverIds)
-            .emit('refresh-order', updatedOrder);
+          this.deliverGateway.server.to(driverIds).emit('refresh-order', updatedOrder);
         }
 
         //---------------------------------------------------

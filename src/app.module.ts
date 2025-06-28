@@ -62,14 +62,7 @@ import { UserAgentMiddleware } from './ua.middleware';
     SentryModule.forRoot(),
     ConfigModule.forRoot({
       envFilePath: ['.env', `.env.${process.env.NODE_ENV}`],
-      load: [
-        appConfig,
-        redisConfig,
-        authConfig,
-        goongConfig,
-        zaloConfig,
-        firebaseConfig,
-      ],
+      load: [appConfig, redisConfig, authConfig, goongConfig, zaloConfig, firebaseConfig],
       isGlobal: true,
     }),
     ScheduleModule.forRoot(),

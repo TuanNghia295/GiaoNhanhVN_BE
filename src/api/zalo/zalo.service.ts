@@ -13,13 +13,7 @@ import { createCacheKey } from '@/utils/cache.util';
 import { formatVietnamPhoneNumber } from '@/utils/util';
 import { HttpService } from '@nestjs/axios';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import {
-  HttpStatus,
-  Inject,
-  Injectable,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AxiosError } from 'axios';
@@ -91,10 +85,7 @@ export class ZaloService {
         throw response.data;
       }
       this.logger.log('Zalo token is updated');
-      await this.createZaloToken(
-        response.data.access_token,
-        response.data.refresh_token,
-      );
+      await this.createZaloToken(response.data.access_token, response.data.refresh_token);
       return {
         status: 'success',
         message: 'Zalo token is updated',
@@ -143,10 +134,7 @@ export class ZaloService {
         )
         .pipe(
           catchError((error: AxiosError) => {
-            this.logger.error(
-              'Error sending OTP via Zalo:',
-              error.response?.data || error.message,
-            );
+            this.logger.error('Error sending OTP via Zalo:', error.response?.data || error.message);
             throw new UnauthorizedException('Failed to send OTP via Zalo.');
           }),
         ),
@@ -167,10 +155,7 @@ export class ZaloService {
     });
   }
 
-  private async createZaloToken(
-    accessToken: string,
-    refreshToken: string,
-  ): Promise<void> {
+  private async createZaloToken(accessToken: string, refreshToken: string): Promise<void> {
     const existingZaloConfig = await this.findZaloToken();
 
     if (!existingZaloConfig) {
@@ -238,9 +223,7 @@ export class ZaloService {
       throw new ValidationException(ErrorCode.Z005, HttpStatus.BAD_REQUEST);
     }
 
-    const { user, isRegistered } = await this.verifyUserRegistration(
-      reqDto.phone,
-    );
+    const { user, isRegistered } = await this.verifyUserRegistration(reqDto.phone);
 
     if (!user) {
       throw new ValidationException(ErrorCode.U001, HttpStatus.NOT_FOUND);

@@ -22,11 +22,7 @@ import {
 import { ratings } from '@/database/schemas/rating.schema';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
-import {
-  deleteIfExists,
-  formatDistance,
-  normalizeImagePath,
-} from '@/utils/util';
+import { deleteIfExists, formatDistance, normalizeImagePath } from '@/utils/util';
 import {
   HttpStatus,
   Inject,
@@ -190,10 +186,7 @@ export class StoresService implements OnModuleInit {
       baseQb
         .leftJoin(
           orders,
-          and(
-            eq(orders.storeId, stores.id),
-            eq(orders.status, OrderStatusEnum.DELIVERED),
-          ),
+          and(eq(orders.storeId, stores.id), eq(orders.status, OrderStatusEnum.DELIVERED)),
         )
         .groupBy(stores.id)
         .orderBy(
@@ -254,20 +247,12 @@ export class StoresService implements OnModuleInit {
     return new OffsetPaginatedDto(entitiesWithDistance, meta);
   }
 
-  async getPageStoresByManager(
-    reqDto: PageStoreManagerReqDto,
-    payload: JwtPayloadType,
-  ) {
+  async getPageStoresByManager(reqDto: PageStoreManagerReqDto, payload: JwtPayloadType) {
     const whereClause = and(
-      or(
-        ilike(users.phone, `%${reqDto.q ?? ''}%`),
-        ilike(stores.name, `%${reqDto.q ?? ''}%`),
-      ),
+      or(ilike(users.phone, `%${reqDto.q ?? ''}%`), ilike(stores.name, `%${reqDto.q ?? ''}%`)),
       ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
       // Quản lý khu vực chỉ xem được các cửa hàng trong khu vực của mình
-      ...(payload.role === RoleEnum.MANAGEMENT
-        ? [eq(stores.areaId, payload.areaId)]
-        : []),
+      ...(payload.role === RoleEnum.MANAGEMENT ? [eq(stores.areaId, payload.areaId)] : []),
     );
 
     const qb = this.db
@@ -539,23 +524,13 @@ export class StoresService implements OnModuleInit {
 
     const now = DateTime.now().setZone('Asia/Ho_Chi_Minh');
 
-    const { openTime, closeTime, openSecondTime, closeSecondTime } =
-      this.getStoreTimeRanges(store, now);
+    const { openTime, closeTime, openSecondTime, closeSecondTime } = this.getStoreTimeRanges(
+      store,
+      now,
+    );
 
-    const isOpen = this.checkIsStoreOpen(
-      now,
-      openTime,
-      closeTime,
-      openSecondTime,
-      closeSecondTime,
-    );
-    this.logTimeDebug(
-      now,
-      openTime,
-      closeTime,
-      openSecondTime,
-      closeSecondTime,
-    );
+    const isOpen = this.checkIsStoreOpen(now, openTime, closeTime, openSecondTime, closeSecondTime);
+    this.logTimeDebug(now, openTime, closeTime, openSecondTime, closeSecondTime);
     if (!isOpen) {
       throw new ValidationException(ErrorCode.S003);
     }
@@ -582,12 +557,7 @@ export class StoresService implements OnModuleInit {
     closeSecondTime: DateTime | null,
   ) {
     console.debug('📅 Store is currently closed at:', now.toFormat('HH:mm'));
-    console.debug(
-      '⏰ Shift 1:',
-      openTime.toFormat('HH:mm'),
-      '-',
-      closeTime.toFormat('HH:mm'),
-    );
+    console.debug('⏰ Shift 1:', openTime.toFormat('HH:mm'), '-', closeTime.toFormat('HH:mm'));
     if (openSecondTime && closeSecondTime) {
       console.debug(
         '⏰ Shift 2:',
@@ -610,9 +580,7 @@ export class StoresService implements OnModuleInit {
 
     return (
       isBetween(now, openTime, closeTime) ||
-      (openSecondTime &&
-        closeSecondTime &&
-        isBetween(now, openSecondTime, closeSecondTime))
+      (openSecondTime && closeSecondTime && isBetween(now, openSecondTime, closeSecondTime))
     );
   }
 
@@ -659,10 +627,7 @@ export class StoresService implements OnModuleInit {
     return `${prefix}_${uniqueId}.jpeg`;
   }
 
-  async updateBackgroundByUserId(
-    userId: number,
-    background: Express.Multer.File,
-  ) {
+  async updateBackgroundByUserId(userId: number, background: Express.Multer.File) {
     const existStore = await this.existStoreByUserId(userId);
     if (!existStore) {
       throw new ValidationException(ErrorCode.S001);

@@ -1,13 +1,6 @@
 import { areas } from '@/database/schemas/area.schema';
 import { relations } from 'drizzle-orm';
-import {
-  integer,
-  numeric,
-  pgTable,
-  serial,
-  timestamp,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { integer, numeric, pgTable, serial, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 export const deliveryRegions = pgTable('delivery_regions', {
   id: serial().primaryKey(),
@@ -26,12 +19,9 @@ export const deliveryRegions = pgTable('delivery_regions', {
     .$onUpdate(() => new Date()),
 });
 
-export const deliveryRegionRelations = relations(
-  deliveryRegions,
-  ({ one }) => ({
-    area: one(areas, {
-      fields: [deliveryRegions.areaId],
-      references: [areas.id],
-    }),
+export const deliveryRegionRelations = relations(deliveryRegions, ({ one }) => ({
+  area: one(areas, {
+    fields: [deliveryRegions.areaId],
+    references: [areas.id],
   }),
-);
+}));

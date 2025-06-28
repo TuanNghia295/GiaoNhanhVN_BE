@@ -1,9 +1,5 @@
 import { OrderTypeEnum } from '@/database/schemas';
-import {
-  EnumField,
-  NumberFieldOptional,
-  StringFieldOptional,
-} from '@/decorators/field.decorators';
+import { EnumField, NumberFieldOptional, StringFieldOptional } from '@/decorators/field.decorators';
 import { VehicleType } from '@/shared/goong.service';
 
 export class CalculateOrderReqDto {

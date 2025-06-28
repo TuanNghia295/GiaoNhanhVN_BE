@@ -1,9 +1,5 @@
 import { OrderTypeEnum } from '@/database/schemas';
-import {
-  DateFieldOptional,
-  EnumField,
-  NumberFieldOptional,
-} from '@/decorators/field.decorators';
+import { DateFieldOptional, EnumField, NumberFieldOptional } from '@/decorators/field.decorators';
 
 export class MyStoreRevenueReqDto {
   @NumberFieldOptional()

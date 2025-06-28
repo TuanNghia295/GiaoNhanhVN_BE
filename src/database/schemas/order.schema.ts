@@ -62,12 +62,8 @@ export const orders = pgTable(
     nightFee: numeric('night_fee', { precision: 15, scale: 2, mode: 'number' })
       .notNull()
       .default(0),
-    rainFee: numeric('rain_fee', { precision: 15, scale: 2, mode: 'number' })
-      .notNull()
-      .default(0),
-    distance: numeric('distance', { precision: 15, scale: 2, mode: 'number' })
-      .notNull()
-      .default(0),
+    rainFee: numeric('rain_fee', { precision: 15, scale: 2, mode: 'number' }).notNull().default(0),
+    distance: numeric('distance', { precision: 15, scale: 2, mode: 'number' }).notNull().default(0),
     totalDelivery: numeric('total_delivery', {
       precision: 15,
       scale: 2,
@@ -103,9 +99,7 @@ export const orders = pgTable(
     })
       .notNull()
       .default(0),
-    total: numeric('total', { precision: 15, scale: 2, mode: 'number' })
-      .notNull()
-      .default(0),
+    total: numeric('total', { precision: 15, scale: 2, mode: 'number' }).notNull().default(0),
     incomeDeliver: numeric('income_deliver', {
       precision: 15,
       scale: 2,
@@ -144,11 +138,7 @@ export const orders = pgTable(
     index('orders_code_index').on(table.code),
     index('orders_user_id_idx').on(table.userId),
     index('orders_deliver_id_idx').on(table.deliverId),
-    index('orders_area_status_created_idx').on(
-      table.areaId,
-      table.status,
-      table.createdAt,
-    ),
+    index('orders_area_status_created_idx').on(table.areaId, table.status, table.createdAt),
     index('orders_store_status_idx').on(table.storeId, table.status),
     index('orders_created_at_idx').on(table.createdAt),
 

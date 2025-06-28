@@ -5,15 +5,7 @@ import { RoleEnum } from '@/database/schemas';
 import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseIntPipe,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
 import { LocationsService } from './locations.service';
 
 @Controller('locations')
@@ -26,10 +18,7 @@ export class LocationsController {
     type: LocationResDto,
   })
   @Post()
-  async create(
-    @Body() reqDto: CreateLocationReqDto,
-    @CurrentUser() payload: JwtPayloadType,
-  ) {
+  async create(@Body() reqDto: CreateLocationReqDto, @CurrentUser() payload: JwtPayloadType) {
     return await this.locationsService.create(payload, reqDto);
   }
 
@@ -48,9 +37,7 @@ export class LocationsController {
     summary: 'Xóa địa chỉ của người dùng [USER]',
   })
   @Delete(':locationId')
-  async deleteUserLocation(
-    @Param('locationId', ParseIntPipe) locationId: number,
-  ) {
+  async deleteUserLocation(@Param('locationId', ParseIntPipe) locationId: number) {
     return this.locationsService.remove(locationId);
   }
 }

@@ -5,14 +5,7 @@ import { RoleEnum } from '@/database/schemas';
 import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
-import {
-  Body,
-  Controller,
-  Get,
-  ParseIntPipe,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Get, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { StoreRequestsService } from './store-requests.service';
 
 @Controller('store-requests')
@@ -28,10 +21,7 @@ export class StoreRequestsController {
     @Query() reqDto: PageStoreRequestReqDto,
     @CurrentUser() payload: JwtPayloadType,
   ) {
-    return await this.storeRequestsService.getPageStoreRequests(
-      reqDto,
-      payload,
-    );
+    return await this.storeRequestsService.getPageStoreRequests(reqDto, payload);
   }
 
   @Roles(RoleEnum.MANAGEMENT)
@@ -48,10 +38,7 @@ export class StoreRequestsController {
     summary: 'Đăng ký cửa hàng [USER]',
   })
   @Post()
-  async registerStore(
-    @CurrentUser() payload: JwtPayloadType,
-    @Body() reqDto: CreateStoreReqDto,
-  ) {
+  async registerStore(@CurrentUser() payload: JwtPayloadType, @Body() reqDto: CreateStoreReqDto) {
     return await this.storeRequestsService.registerStore(payload, reqDto);
   }
 
@@ -60,9 +47,7 @@ export class StoreRequestsController {
     summary: 'Chấp nhận yêu cầu',
   })
   @Post('accept')
-  async approveStoreRequest(
-    @Query('storeRequestId', ParseIntPipe) storeRequestId: number,
-  ) {
+  async approveStoreRequest(@Query('storeRequestId', ParseIntPipe) storeRequestId: number) {
     return await this.storeRequestsService.approve(storeRequestId);
   }
 
@@ -71,9 +56,7 @@ export class StoreRequestsController {
     summary: 'Từ chối yêu cầu',
   })
   @Post('reject')
-  async rejectStoreRequest(
-    @Query('storeRequestId', ParseIntPipe) storeRequestId: number,
-  ) {
+  async rejectStoreRequest(@Query('storeRequestId', ParseIntPipe) storeRequestId: number) {
     return await this.storeRequestsService.reject(storeRequestId);
   }
 }

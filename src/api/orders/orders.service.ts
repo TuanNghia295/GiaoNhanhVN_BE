@@ -53,13 +53,7 @@ import { GoongService } from '@/shared/goong.service';
 import { buildMulticastMessage } from '@/utils/firebase.util';
 import { allowedTransitions } from '@/utils/util';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import {
-  forwardRef,
-  HttpStatus,
-  Inject,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { forwardRef, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Cache } from 'cache-manager';
@@ -162,17 +156,12 @@ export class OrdersService {
       ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
       ...(reqDto.status ? [eq(orders.status, reqDto.status)] : []),
       ...(reqDto.type ? [eq(orders.type, reqDto.type)] : []),
-      ...(payload.role === RoleEnum.MANAGEMENT
-        ? [eq(orders.areaId, payload.areaId)]
-        : []),
+      ...(payload.role === RoleEnum.MANAGEMENT ? [eq(orders.areaId, payload.areaId)] : []),
       ...(payload.role === RoleEnum.STORE
         ? [
             inArray(
               orders.storeId,
-              this.db
-                .select({ id: stores.id })
-                .from(stores)
-                .where(eq(stores.userId, payload.id)),
+              this.db.select({ id: stores.id }).from(stores).where(eq(stores.userId, payload.id)),
             ),
           ]
         : []),
@@ -198,9 +187,7 @@ export class OrdersService {
             ...(reqDto.q ? [ilike(orders.code, `%${reqDto.q}%`)] : []),
             ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
             ...(reqDto.type ? [eq(orders.type, reqDto.type)] : []),
-            ...(payload.role === RoleEnum.MANAGEMENT
-              ? [eq(orders.areaId, payload.areaId)]
-              : []),
+            ...(payload.role === RoleEnum.MANAGEMENT ? [eq(orders.areaId, payload.areaId)] : []),
             ...(payload.role === RoleEnum.STORE
               ? [
                   inArray(
@@ -220,10 +207,7 @@ export class OrdersService {
     const totalsOrders = Object.fromEntries(
       statusCounts.map(({ status, count }) => [status, count]),
     );
-    const allCount = Object.values(totalsOrders).reduce(
-      (sum, val) => sum + val,
-      0,
-    );
+    const allCount = Object.values(totalsOrders).reduce((sum, val) => sum + val, 0);
 
     const totalOrdersForPaginated: TOTAL_ORDERS_FOR_PAGINATED = {
       totalOrders: allCount,
@@ -238,9 +222,7 @@ export class OrdersService {
     // 👉 Clean mapping: flatten vouchers array
     const mappedEntities = entities.map((entity) => ({
       ...entity,
-      vouchers: Array.isArray(entity.vouchers)
-        ? entity.vouchers.map((v) => v.voucher)
-        : [],
+      vouchers: Array.isArray(entity.vouchers) ? entity.vouchers.map((v) => v.voucher) : [],
     }));
 
     return new OrdersOffsetPaginatedResDto(
@@ -355,11 +337,7 @@ export class OrdersService {
     }
 
     // 24h
-    await this.cache.set(
-      calculationResult.sessionId,
-      calculationResult,
-      24 * 60 * 60 * 1000,
-    ); // in milliseconds with v5!
+    await this.cache.set(calculationResult.sessionId, calculationResult, 24 * 60 * 60 * 1000); // in milliseconds with v5!
     return calculationResult;
   }
 
@@ -382,10 +360,7 @@ export class OrdersService {
       // Nếu có parent và name, lấy area theo tên
       console.log(`lấy area theo tên`, reqDto.parent + ' - ' + reqDto.name);
       area = await this.db.query.areas.findFirst({
-        where: and(
-          eq(areas.parent, reqDto.parent),
-          eq(areas.name, reqDto.name),
-        ),
+        where: and(eq(areas.parent, reqDto.parent), eq(areas.name, reqDto.name)),
       });
     }
 
@@ -445,8 +420,7 @@ export class OrdersService {
     // Thu nhập của người giao hàng
     //----------------------------------------------
     const incomeDeliver = _.round(
-      (totalDelivery * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) /
-        100 -
+      (totalDelivery * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) / 100 -
         serviceFeeWithTypeFood?.deliverFee,
     );
 
@@ -507,8 +481,7 @@ export class OrdersService {
     //--------------------------------------------------------------
     // Tính phí dịch vụ môi trường
     //--------------------------------------------------------------
-    const { isNight, nightFee, isRain, rainFee } =
-      await this.calculateEnvironmentFee(setting);
+    const { isNight, nightFee, isRain, rainFee } = await this.calculateEnvironmentFee(setting);
 
     const totalDelivery = _.round(distanceFee + nightFee + rainFee);
 
@@ -517,8 +490,7 @@ export class OrdersService {
     //----------------------------------------------
     const incomeDeliver = Math.max(
       _.round(
-        (totalDelivery * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) /
-          100 -
+        (totalDelivery * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) / 100 -
           serviceFeeWithTypeFood?.deliverFee,
       ),
       0,
@@ -570,8 +542,7 @@ export class OrdersService {
       } else {
         const matchedDistance = distances.find(
           (distance) =>
-            totalDistance >= distance.minDistance &&
-            totalDistance <= distance.maxDistance,
+            totalDistance >= distance.minDistance && totalDistance <= distance.maxDistance,
         );
         const rate = matchedDistance?.rate ?? 0;
         baseRate += rate * multiplier;
@@ -668,9 +639,7 @@ export class OrdersService {
   }
 
   async create(payload: JwtPayloadType, reqDto: OrderCreateReqDto) {
-    const calculateOrder = await this.cache.get<CalculateResponse>(
-      reqDto.sessionId,
-    );
+    const calculateOrder = await this.cache.get<CalculateResponse>(reqDto.sessionId);
     if (!calculateOrder) {
       throw new ValidationException(
         ErrorCode.OD001,
@@ -708,12 +677,7 @@ export class OrdersService {
         })
         .from(serviceFees)
         .innerJoin(settings, eq(serviceFees.settingId, settings.id))
-        .where(
-          and(
-            eq(serviceFees.type, reqDto.type),
-            eq(settings.areaId, order.areaId),
-          ),
-        );
+        .where(and(eq(serviceFees.type, reqDto.type), eq(settings.areaId, order.areaId)));
 
       const totalProduct = await tx
         .select({
@@ -758,10 +722,7 @@ export class OrdersService {
           .from(vouchersOnOrders)
           .innerJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
           .where(
-            and(
-              eq(vouchersOnOrders.orderId, order.id),
-              eq(vouchers.type, VouchersTypeEnum.STORE),
-            ),
+            and(eq(vouchersOnOrders.orderId, order.id), eq(vouchers.type, VouchersTypeEnum.STORE)),
           )
           .then((res) => res[0]?.total ?? 0),
         tx
@@ -773,10 +734,7 @@ export class OrdersService {
           .where(
             and(
               eq(vouchersOnOrders.orderId, order.id),
-              inArray(vouchers.type, [
-                VouchersTypeEnum.ADMIN,
-                VouchersTypeEnum.MANAGEMENT,
-              ]),
+              inArray(vouchers.type, [VouchersTypeEnum.ADMIN, VouchersTypeEnum.MANAGEMENT]),
             ),
           )
           .then((res) => res[0]?.total ?? 0),
@@ -812,8 +770,7 @@ export class OrdersService {
       const payforShop =
         reqDto.type === OrderTypeEnum.FOOD
           ? _.round(
-              Math.max(totalProduct - storeServiceFee - totalVoucherStore, 0) -
-                totalProductTax, // trừ thuế sản phẩm
+              Math.max(totalProduct - storeServiceFee - totalVoucherStore, 0) - totalProductTax, // trừ thuế sản phẩm
             )
           : 0;
 
@@ -827,10 +784,7 @@ export class OrdersService {
           0,
         ),
       );
-      if (
-        this.configService.get('app.nodeEnv', { infer: true }) ===
-        Environment.DEVELOPMENT
-      ) {
+      if (this.configService.get('app.nodeEnv', { infer: true }) === Environment.DEVELOPMENT) {
         console.group('💰 Service Fee & Payment Calculation');
         console.log('🏪 storeServiceFee:', storeServiceFee);
         console.log('🛍️ payforShop     :', payforShop);
@@ -895,11 +849,7 @@ export class OrdersService {
     });
   }
 
-  async createOrderDetails(
-    orderId: number,
-    items: CreateOrderDetailReqDto[],
-    tx: Transaction,
-  ) {
+  async createOrderDetails(orderId: number, items: CreateOrderDetailReqDto[], tx: Transaction) {
     for (const item of items) {
       const [orderDetail] = await tx
         .insert(orderDetails)
@@ -968,12 +918,8 @@ export class OrdersService {
 
   async getPageByUserId(userId: number, reqDto: PageMyOrderReqDto) {
     if (reqDto.startDate && reqDto.endDate) {
-      reqDto.startDate = DateTime.fromJSDate(new Date(reqDto.startDate))
-        .startOf('day')
-        .toJSDate();
-      reqDto.endDate = DateTime.fromJSDate(new Date(reqDto.endDate))
-        .endOf('day')
-        .toJSDate();
+      reqDto.startDate = DateTime.fromJSDate(new Date(reqDto.startDate)).startOf('day').toJSDate();
+      reqDto.endDate = DateTime.fromJSDate(new Date(reqDto.endDate)).endOf('day').toJSDate();
     }
     const baseConfig: FindManyQueryConfig<typeof this.db.query.orders> = {
       with: {
@@ -1025,9 +971,7 @@ export class OrdersService {
     // 👉 Clean mapping: flatten vouchers array
     const mappedEntities = entities.map((entity) => ({
       ...entity,
-      vouchers: Array.isArray(entity.vouchers)
-        ? entity.vouchers.map((v) => v.voucher)
-        : [],
+      vouchers: Array.isArray(entity.vouchers) ? entity.vouchers.map((v) => v.voucher) : [],
     }));
 
     const totalsOrders = Object.fromEntries(
@@ -1183,10 +1127,7 @@ export class OrdersService {
       // Tổng point mà người giao hàng sẽ bị trừ khi nhận đơn
       //--------------------------------------------
       const subtractPoint = await this.calculateSubtractPoint(existOrder);
-      if (
-        this.configService.get('app.nodeEnv', { infer: true }) ===
-        Environment.DEVELOPMENT
-      ) {
+      if (this.configService.get('app.nodeEnv', { infer: true }) === Environment.DEVELOPMENT) {
         console.group('🚚 Delivery Calculation');
         console.log('📦 totalDelivery   :', existOrder.totalDelivery);
         console.log('💸 incomeDeliver   :', existOrder.incomeDeliver || 0);
@@ -1222,11 +1163,7 @@ export class OrdersService {
     });
   }
 
-  async updateOrderStatusByDeliver(
-    orderId: number,
-    status: OrderStatusEnum,
-    reason: string,
-  ) {
+  async updateOrderStatusByDeliver(orderId: number, status: OrderStatusEnum, reason: string) {
     //--------------------------------------------
     // Kiểm tra xem đơn hàng có tồn tại không
     //--------------------------------------------
@@ -1235,10 +1172,7 @@ export class OrdersService {
       throw new ValidationException(ErrorCode.OD001);
     }
 
-    if (
-      existOrder.status === OrderStatusEnum.PENDING ||
-      existOrder.status === status
-    ) {
+    if (existOrder.status === OrderStatusEnum.PENDING || existOrder.status === status) {
       throw new ValidationException(ErrorCode.OD002);
     }
     const currentStatus = existOrder.status;
@@ -1254,9 +1188,7 @@ export class OrdersService {
     //--------------------------------------------
     // Kiểm tra xem người giao hàng có tồn tại không
     //--------------------------------------------
-    const existDeliver = await this.deliversService.findById(
-      existOrder.deliverId,
-    );
+    const existDeliver = await this.deliversService.findById(existOrder.deliverId);
     if (!existDeliver) {
       throw new ValidationException(ErrorCode.D001);
     }
@@ -1308,9 +1240,7 @@ export class OrdersService {
 
   private async managerDoCancelOrder(existOrder: Order, tx: Transaction) {
     if (existOrder.deliverId) {
-      const existDeliver = await this.deliversService.findById(
-        existOrder.deliverId,
-      );
+      const existDeliver = await this.deliversService.findById(existOrder.deliverId);
       if (!existDeliver) {
         throw new ValidationException(ErrorCode.D001);
       }
@@ -1319,18 +1249,12 @@ export class OrdersService {
       //-------------------------------------------------
       const subtractPoint = await this.calculateSubtractPoint(existOrder);
 
-      await this.deliversService.addPoint(
-        existOrder.deliverId,
-        subtractPoint,
-        tx,
-      );
+      await this.deliversService.addPoint(existOrder.deliverId, subtractPoint, tx);
     }
     //-------------------------------------------------
     // Gửi thông báo FCM  cho người dùng về việc hủy đơn hàng
     //-------------------------------------------------
-    const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(
-      existOrder.userId,
-    );
+    const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(existOrder.userId);
     console.log('validUserFcmToken', validUserFcmToken);
     if (validUserFcmToken.fcmToken) {
       this.notifyOrderCanceled([validUserFcmToken.fcmToken]);
@@ -1401,10 +1325,7 @@ export class OrdersService {
         vouchers,
         and(
           eq(vouchers.id, vouchersOnOrders.voucherId),
-          inArray(vouchers.type, [
-            VouchersTypeEnum.ADMIN,
-            VouchersTypeEnum.MANAGEMENT,
-          ]),
+          inArray(vouchers.type, [VouchersTypeEnum.ADMIN, VouchersTypeEnum.MANAGEMENT]),
         ),
       )
       .where(eq(orders.id, existOrder.id))
@@ -1413,11 +1334,7 @@ export class OrdersService {
     // Hoàn lại điểm cho người giao hàng
     //---------------------------------------------------
     const subtractPoint = await this.calculateSubtractPoint(existOrder);
-    await this.deliversService.addPoint(
-      existOrder.deliverId,
-      subtractPoint,
-      tx,
-    );
+    await this.deliversService.addPoint(existOrder.deliverId, subtractPoint, tx);
 
     await tx.insert(reasonDeliverCancelOrders).values({
       orderId: existOrder.id,
@@ -1429,9 +1346,7 @@ export class OrdersService {
     //-------------------------------------------------
     // Gửi thông báo FCM  cho người dùng về việc hủy đơn hàng
     //-------------------------------------------------
-    const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(
-      existOrder.userId,
-    );
+    const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(existOrder.userId);
     console.log('validUserFcmToken', validUserFcmToken);
     if (validUserFcmToken.fcmToken) {
       await this.notifyOrderCanceled([validUserFcmToken.fcmToken]);
@@ -1449,11 +1364,7 @@ export class OrdersService {
   }
 
   // Thực hiện khi hoàn thành đơn hàng
-  private async doCompleteOrder(
-    existOrder: Order,
-    existDeliver: Deliver,
-    tx: Transaction,
-  ) {
+  private async doCompleteOrder(existOrder: Order, existDeliver: Deliver, tx: Transaction) {
     const [refund] = await tx
       .select({
         refundPoint: sql`coalesce
@@ -1465,37 +1376,25 @@ export class OrdersService {
         vouchers,
         and(
           eq(vouchers.id, vouchersOnOrders.voucherId),
-          inArray(vouchers.type, [
-            VouchersTypeEnum.ADMIN,
-            VouchersTypeEnum.MANAGEMENT,
-          ]),
+          inArray(vouchers.type, [VouchersTypeEnum.ADMIN, VouchersTypeEnum.MANAGEMENT]),
         ),
       )
       .where(eq(orders.id, existOrder.id))
       .groupBy(orders.id);
-    if (
-      this.configService.get('app.nodeEnv', { infer: true }) ===
-      Environment.DEVELOPMENT
-    ) {
+    if (this.configService.get('app.nodeEnv', { infer: true }) === Environment.DEVELOPMENT) {
       console.group('♻️ Refund Point Issued');
       console.log('🚚 Deliver ID   :', existDeliver.id);
       console.log('💰 Refund Point :', refund.refundPoint);
       console.groupEnd();
     }
-    await this.deliversService.addPoint(
-      existDeliver.id,
-      refund.refundPoint,
-      tx,
-    );
+    await this.deliversService.addPoint(existDeliver.id, refund.refundPoint, tx);
   }
 
   async getOrdersByDateRange(from: Date, to: Date, areaId?: number) {
     return this.db.query.orders.findMany({
       where: and(
         ...(areaId ? [eq(orders.areaId, areaId)] : []),
-        ...(from && to
-          ? [gte(orders.createdAt, from), lte(orders.createdAt, to)]
-          : []),
+        ...(from && to ? [gte(orders.createdAt, from), lte(orders.createdAt, to)] : []),
       ),
       orderBy: desc(orders.createdAt),
       with: {
