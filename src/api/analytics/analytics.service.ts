@@ -37,6 +37,7 @@ export type RevenueResult = {
   total_deliver_service_fee: number;
   total_voucher_value: number;
   total_app_revenue: number;
+  total_app_revenue_tax: number; // Chỉ có trong kết quả tổng
 };
 
 @Injectable()
@@ -87,6 +88,27 @@ export class AnalyticsService {
             SUM (${orders.userServiceFee}) +
             (SUM (${orders.totalDelivery}) + SUM (${orders.rainFee}) + SUM (${orders.nightFee})- SUM (${orders.incomeDeliver})))
         `.mapWith(Number),
+        // thuế 1,5% trên total_app_revenue
+        total_app_revenue_tax: sql<number>`COALESCE
+          ( SUM(
+        ${orders.totalProduct}
+        -
+        ${orders.payforShop}
+        +
+        ${orders.userServiceFee}
+        +
+        ${orders.totalDelivery}
+        +
+        ${orders.rainFee}
+        +
+        ${orders.nightFee}
+        -
+        ${orders.incomeDeliver}
+        )
+        *
+        0.015,
+        0
+        )`.mapWith(Number),
       })
       .from(orders)
       .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
@@ -105,6 +127,7 @@ export class AnalyticsService {
     const result = statuses.map((status) => {
       const filterData = results.find((r) => r.status === status) || {
         total_order: 0,
+        total_app_revenue_tax: 0,
         total_product_price: 0,
         total_user_payment: 0,
         total_store_service_fee: 0,
@@ -124,6 +147,7 @@ export class AnalyticsService {
         total_deliver_service_fee: filterData.total_deliver_service_fee,
         total_voucher_value: filterData.total_voucher_value,
         total_app_revenue: filterData.total_app_revenue,
+        total_app_revenue_tax: filterData.total_app_revenue_tax,
       };
     });
 
@@ -157,6 +181,7 @@ export class AnalyticsService {
         0,
       ),
       total_app_revenue: DATA_FILTERED.reduce((acc, cur) => acc + cur.total_app_revenue, 0),
+      total_app_revenue_tax: DATA_FILTERED.reduce((acc, cur) => acc + cur.total_app_revenue_tax, 0),
     };
 
     console.log('total_all', total_all);
@@ -171,6 +196,7 @@ export class AnalyticsService {
       total_all_deliver_service_fee: total_all.total_deliver_service_fee,
       total_all_voucher_value: total_all.total_voucher_value,
       total_all_app_revenue: total_all.total_app_revenue,
+      total_all_app_revenue_tax: total_all.total_app_revenue_tax,
     });
   }
 
@@ -205,6 +231,8 @@ export class AnalyticsService {
           )
           .mapWith(Number),
         total_store_revenue: sum(orders.payforShop).mapWith(Number),
+        // thuế 1,5% trên tổng doanh thu cửa hàng
+        total_product_tax: sum(orders.totalProductTax).mapWith(Number),
       })
       .from(orders)
       .leftJoin(stores, eq(orders.storeId, stores.id))
@@ -229,6 +257,7 @@ export class AnalyticsService {
         total_order: 0,
         total_product_price: 0,
         total_user_service_fee: 0,
+        total_product_tax: 0,
         total_user_payment: 0,
         total_store_service_fee: 0,
         total_voucher_value: 0,
@@ -238,6 +267,7 @@ export class AnalyticsService {
       return {
         status,
         total_order: filterData.total_order,
+        total_product_tax: filterData.total_product_tax,
         total_product_price: filterData.total_product_price,
         total_user_payment: filterData.total_user_payment,
         total_user_service_fee: filterData.total_user_service_fee,
@@ -272,6 +302,8 @@ export class AnalyticsService {
       DATA_FILTERED.reduce((acc, cur) => acc + cur.total_store_revenue, 0) ?? 0;
     const total_all_user_service_fee =
       DATA_FILTERED.reduce((acc, cur) => acc + (cur.total_user_service_fee || 0), 0) ?? 0;
+    const total_all_product_tax =
+      DATA_FILTERED.reduce((acc, cur) => acc + cur.total_product_tax, 0) ?? 0;
     return plainToInstance(StoreRevenueResDto, {
       all: formattedResult,
       total_all_order,
@@ -280,6 +312,7 @@ export class AnalyticsService {
       total_all_voucher_value,
       total_all_store_revenue,
       total_all_user_service_fee,
+      total_all_product_tax,
     });
   }
 
@@ -449,6 +482,7 @@ export class AnalyticsService {
         )`
           .mapWith(Number)
           .as('totalIncome'),
+        total_income_tax: sum(orders.deliveryIncomeTax).mapWith(Number).as('totalIncomeTax'),
       })
       .from(delivers)
       .leftJoin(orders, eq(orders.deliverId, delivers.id))
@@ -479,6 +513,7 @@ export class AnalyticsService {
       (acc, cur) => acc + (cur.total_deliver_point || 0),
       0,
     );
+    const total_income_tax = result.reduce((acc, cur) => acc + (cur.total_income_tax || 0), 0);
     console.log('total_all_order_delivered', total_all_order_delivered);
     return plainToInstance(DeliverRevenueResDto, {
       data: result,
@@ -486,6 +521,7 @@ export class AnalyticsService {
       total_all_orders,
       total_all_order_delivered,
       total_all_order_canceled,
+      total_all_income_tax: total_income_tax,
       total_all_deliver_point: total_deliver_point,
     });
   }

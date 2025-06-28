@@ -14,17 +14,21 @@ export class StoreRevenueItemDto {
   @Expose()
   total_product_price: number;
 
-  @StringField()
+  @NumberField()
   @Expose()
-  total_store_service_fee: string;
+  total_store_service_fee: number;
 
-  @StringField()
+  @NumberField()
   @Expose()
-  total_voucher_value: string;
+  total_voucher_value: number;
 
-  @StringField()
+  @NumberField()
   @Expose()
-  total_store_revenue: string;
+  total_store_revenue: number;
+
+  @NumberField()
+  @Expose()
+  total_product_tax: number;
 }
 
 export class StoreRevenueResDto {
@@ -55,4 +59,8 @@ export class StoreRevenueResDto {
   @NumberField()
   @Expose()
   total_all_user_service_fee: number;
+
+  @NumberField()
+  @Expose()
+  total_all_product_tax: number;
 }

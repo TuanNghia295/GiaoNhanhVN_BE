@@ -15,6 +15,9 @@ export class DeliverDetailResDto {
   total_orders: number;
 
   @NumberField()
+  total_income_tax: number;
+
+  @NumberField()
   total_order_delivered: number;
 
   @NumberField()
@@ -50,6 +53,10 @@ export class DeliverRevenueResDto {
   @NumberField()
   @Expose()
   total_all_order_canceled: number;
+
+  @NumberField()
+  @Expose()
+  total_all_income_tax: number;
 
   @NumberField()
   @Expose()

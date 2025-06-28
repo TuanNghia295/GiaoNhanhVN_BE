@@ -33,6 +33,10 @@ export class OrderStatusRevenueResDto {
   @NumberField()
   @Expose()
   total_app_revenue: number;
+
+  @NumberField()
+  @Expose()
+  total_app_revenue_tax: number;
 }
 
 export class AdminRevenueResDto {
@@ -67,4 +71,8 @@ export class AdminRevenueResDto {
   @NumberField()
   @Expose()
   total_all_app_revenue: number;
+
+  @NumberField()
+  @Expose()
+  total_all_app_revenue_tax: number;
 }
