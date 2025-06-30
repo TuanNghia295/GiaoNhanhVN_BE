@@ -16,6 +16,7 @@ export * from './notification.schema';
 export * from './option.schema';
 export * from './order-detail.schema';
 export * from './order.schema';
+export * from './point-transaction.schema';
 export * from './product.schema';
 export * from './rating.schema';
 export * from './reason-deliver-cancel-order.schema';

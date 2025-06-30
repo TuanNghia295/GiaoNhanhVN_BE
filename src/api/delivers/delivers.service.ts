@@ -150,6 +150,7 @@ export class DeliversService implements OnModuleInit {
     return this.db
       .select({
         id: delivers.id,
+        phone: delivers.phone,
         point: delivers.point,
         avatar: delivers.avatar,
         areaId: delivers.areaId,

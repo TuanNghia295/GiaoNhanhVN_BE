@@ -17,6 +17,7 @@ import {
   banks,
   delivers,
   managers,
+  pointTransactions,
   RoleEnum,
   TransactionMethodEnum,
   transactions,
@@ -102,6 +103,19 @@ export class TransactionsService {
           ...(payload.role === RoleEnum.MANAGEMENT && {
             areaId: payload.areaId,
           }),
+        })
+        .returning();
+
+      //---------------------------------------------------
+      // Log transaction
+      //---------------------------------------------------
+      await this.db
+        .insert(pointTransactions)
+        .values({
+          deliverId: reqDto.deliverId,
+          type: reqDto.type,
+          point: reqDto.point,
+          description: `Nạp/rút điểm ${reqDto.type} cho shipper ${existDeliver.phone}`,
         })
         .returning();
 
@@ -208,6 +222,19 @@ export class TransactionsService {
           managerId: reqDto.managerId,
           approvedBy: payload.id,
           areaId: manager.areaId,
+        })
+        .returning();
+
+      //---------------------------------------------------
+      // Log transaction
+      //---------------------------------------------------
+      await this.db
+        .insert(pointTransactions)
+        .values({
+          managerId: reqDto.managerId,
+          type: reqDto.type,
+          point: reqDto.point,
+          description: `Nạp/rút điểm ${reqDto.type} cho khu vực ${manager.areaId}`,
         })
         .returning();
 
@@ -420,6 +447,16 @@ export class TransactionsService {
     if (!area) {
       throw new ValidationException(ErrorCode.A001);
     }
+
+    //---------------------------------------------------
+    // Log transaction
+    //---------------------------------------------------
+    await this.db.insert(pointTransactions).values({
+      managerId: updatedTransaction.managerId,
+      type: updatedTransaction.type,
+      point: updatedTransaction.amount,
+      description: `Nạp/rút điểm ${updatedTransaction.type} cho khu vực ${area.name}`,
+    });
     switch (updatedTransaction.type) {
       case TransactionTypeEnum.DEPOSIT:
         await this.areasService.addPoint(area.id, updatedTransaction.amount, tx);
@@ -448,6 +485,16 @@ export class TransactionsService {
     if (!area) {
       throw new ValidationException(ErrorCode.A001);
     }
+
+    //---------------------------------------------------
+    // Log transaction
+    //---------------------------------------------------
+    await this.db.insert(pointTransactions).values({
+      deliverId: updatedTransaction.deliverId,
+      type: updatedTransaction.type,
+      point: updatedTransaction.amount,
+      description: `Nạp/rút điểm ${updatedTransaction.type} cho shipper ${deliver.phone}`,
+    });
     switch (updatedTransaction.type) {
       case TransactionTypeEnum.DEPOSIT: {
         if (area.point < updatedTransaction.amount) {
@@ -510,24 +557,21 @@ export class TransactionsService {
   }
 
   async getMyRecordTransaction(reqDto: PagingTransaction, payload: JwtPayloadType) {
-    const baseConfig: FindManyQueryConfig<typeof this.db.query.transactions> = {};
+    const baseConfig: FindManyQueryConfig<typeof this.db.query.pointTransactions> = {};
     switch (payload.role) {
       case RoleEnum.MANAGEMENT:
-        baseConfig.where = and(
-          not(eq(transactions.status, TransactionStatus.PENDING)),
-          eq(transactions.managerId, payload.id),
-        );
+        baseConfig.where = and(eq(pointTransactions.managerId, payload.id));
     }
 
-    const qCount = this.db.query.transactions.findMany({
+    const qCount = this.db.query.pointTransactions.findMany({
       ...baseConfig,
       columns: { id: true },
     });
 
     const [entities, [{ totalCount }]] = await Promise.all([
-      this.db.query.transactions.findMany({
+      this.db.query.pointTransactions.findMany({
         ...baseConfig,
-        orderBy: desc(transactions.createdAt),
+        orderBy: desc(pointTransactions.createdAt),
         limit: reqDto.limit,
         offset: reqDto.offset,
       }),

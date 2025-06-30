@@ -62,6 +62,7 @@ export class AreasService {
     return this.db
       .select({
         id: areas.id,
+        name: areas.name,
         point: areas.point,
       })
       .from(areas)
