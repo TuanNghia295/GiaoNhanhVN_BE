@@ -4,7 +4,6 @@ import { createCacheKey } from '@/utils/cache.util';
 import { buildTopicMessage } from '@/utils/firebase.util';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Controller, Get, Inject, Post } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
 import { Cache } from 'cache-manager'; // Replace with actual cache manager type
 import * as admin from 'firebase-admin';
 import { AppService } from './app.service';
@@ -30,12 +29,12 @@ export class AppController {
   }
 
   // mỗi giây
-  @Cron('*/1 * * * * *')
-  async handleCron() {
-    console.log('Called every second');
-    // You can add any logic you want to execute every second here
-    await this.notifyNewOrderToDriverByTopic('new-order');
-  }
+  // @Cron('*/1 * * * * *')
+  // async handleCron() {
+  //   console.log('Called every second');
+  //   // You can add any logic you want to execute every second here
+  //   await this.notifyNewOrderToDriverByTopic('new-order');
+  // }
 
   @ApiPublic()
   @Get('redis')
