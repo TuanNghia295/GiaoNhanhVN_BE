@@ -62,6 +62,10 @@ export class AppController {
             },
           },
         },
+        data: {
+          title: 'Thông báo đơn hàng mới',
+          body: 'Bạn có đơn hàng mới cần xử lý',
+        },
       });
     } catch (error) {
       console.error('Error sending notification:', error);
