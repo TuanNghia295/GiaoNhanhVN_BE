@@ -44,6 +44,10 @@ export class AppController {
           title: 'Thông báo đơn hàng mới',
           body: 'Bạn có đơn hàng mới cần xử lý',
         },
+        data: {
+          title: 'Thông báo đơn hàng mới',
+          body: 'Bạn có đơn hàng mới cần xử lý',
+        },
         android: {
           ttl: 60 * 1000, // thời gian sống của thông báo trên Android
           priority: 'high',
@@ -61,10 +65,6 @@ export class AppController {
               sound: 'alert.caf', // âm thanh thông báo
             },
           },
-        },
-        data: {
-          title: 'Thông báo đơn hàng mới',
-          body: 'Bạn có đơn hàng mới cần xử lý',
         },
       });
     } catch (error) {

@@ -259,20 +259,20 @@ export class AnalyticsService {
         total_store_service_fee: sum(sql`${orders.totalProduct}
         -
         ${orders.payforShop}`).mapWith(Number),
-        total_voucher_value: sql
-          .raw(
-            `
-                SUM(
-                  CASE 
-                    WHEN vouchers.type = 'STORE'
-                    AND vouchers_on_orders.order_id IS NOT NULL 
-                    THEN vouchers.value
-                    ELSE 0 
-                  END
-                )
-              `,
-          )
-          .mapWith(Number),
+        // total_voucher_value: sql
+        //   .raw(
+        //     `
+        //         SUM(
+        //           CASE
+        //             WHEN vouchers.type = 'STORE'
+        //             AND vouchers_on_orders.order_id IS NOT NULL
+        //             THEN vouchers.value
+        //             ELSE 0
+        //           END
+        //         )
+        //       `,
+        //   )
+        //   .mapWith(Number),
         total_store_revenue: sum(orders.payforShop).mapWith(Number),
         // thuế 1,5% trên tổng doanh thu cửa hàng
         total_product_tax: sum(orders.totalProductTax).mapWith(Number),
@@ -280,8 +280,8 @@ export class AnalyticsService {
       .from(orders)
       .leftJoin(stores, eq(orders.storeId, stores.id))
       .leftJoin(users, eq(users.id, stores.userId))
-      .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.orderId, orders.id))
-      .leftJoin(vouchers, eq(vouchers.id, vouchersOnOrders.voucherId))
+      // .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.orderId, orders.id))
+      // .leftJoin(vouchers, eq(vouchers.id, vouchersOnOrders.voucherId))
       .groupBy(orders.status)
       .where(
         and(
@@ -293,10 +293,52 @@ export class AnalyticsService {
             : []),
         ),
       );
-    const orderFilterMap = new Map(result.map((item) => [item.status, item]));
+
+    const totalVoucherValueResult = await this.db
+      .select({
+        status: orders.status,
+        total_voucher_value: sql
+          .raw(
+            `
+                SUM(
+                  CASE
+                    WHEN vouchers.type = 'STORE'
+                    AND vouchers_on_orders.order_id IS NOT NULL
+                    THEN vouchers.value
+                    ELSE 0
+                  END
+                )
+              `,
+          )
+          .mapWith(Number),
+      })
+      .from(vouchersOnOrders)
+      .leftJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
+      .leftJoin(orders, eq(vouchersOnOrders.orderId, orders.id))
+      .where(
+        and(
+          eq(orders.type, OrderTypeEnum.FOOD),
+          ...(payload.role === RoleEnum.MANAGEMENT ? [eq(stores.areaId, payload.areaId)] : []),
+          ...(reqDto.q ? [or(eq(users.phone, reqDto.q), eq(stores.name, reqDto.q))] : []),
+          ...(reqDto.from && reqDto.to
+            ? [between(orders.createdAt, startOfDay(reqDto.from), endOfDay(reqDto.to))]
+            : []),
+        ),
+      )
+      .groupBy(orders.status);
+
+    // const orderFilterMap = new Map(result.map((item) => [item.status, item]));
+
+    const mergedResults = result.map((item) => {
+      const voucherData = totalVoucherValueResult.find((v) => v.status === item.status);
+      return {
+        ...item,
+        total_voucher_value: voucherData?.total_voucher_value ?? 0,
+      };
+    });
 
     const formattedResult = statuses.map((status) => {
-      const filterData = orderFilterMap.get(status) || {
+      const filterData = mergedResults.find((r) => r.status === status) || {
         total_order: 0,
         total_product_price: 0,
         total_user_service_fee: 0,
@@ -380,20 +422,6 @@ export class AnalyticsService {
         total_store_service_fee: sum(sql`${orders.totalProduct}
         -
         ${orders.payforShop}`).mapWith(Number),
-        total_voucher_value: sql
-          .raw(
-            `
-          SUM(
-            CASE 
-              WHEN vouchers.type = 'STORE'
-              AND vouchers_on_orders.order_id IS NOT NULL 
-              THEN vouchers.value
-              ELSE 0 
-            END
-          )
-        `,
-          )
-          .mapWith(Number),
         total_store_revenue: sum(orders.payforShop).mapWith(Number),
         // thuế
         total_product_tax: sum(orders.totalProductTax).mapWith(Number),
@@ -410,10 +438,48 @@ export class AnalyticsService {
       )
       .groupBy(orders.status);
 
-    const orderFilterMap = new Map(orderFilter.map((item) => [item.status, item]));
+    const totalVoucherValueResult = await this.db
+      .select({
+        status: orders.status,
+        total_voucher_value: sql
+          .raw(
+            `
+                SUM(
+                  CASE
+                    WHEN vouchers.type = 'STORE'
+                    AND vouchers_on_orders.order_id IS NOT NULL
+                    THEN vouchers.value
+                    ELSE 0
+                  END
+                )
+              `,
+          )
+          .mapWith(Number),
+      })
+      .from(vouchersOnOrders)
+      .leftJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
+      .leftJoin(orders, eq(vouchersOnOrders.orderId, orders.id))
+      .where(
+        and(
+          eq(stores.id, store.storeId),
+          between(orders.createdAt, startOfDay(reqDto.from), endOfDay(reqDto.to)),
+        ),
+      )
+      .groupBy(orders.status);
 
+    // const orderFilterMap = new Map(orderFilter.map((item) => [item.status, item]));
+
+    // Kết hợp kết quả từ orderFilter và totalVoucherValueResult
+
+    const mergedResults = orderFilter.map((item) => {
+      const voucherData = totalVoucherValueResult.find((v) => v.status === item.status);
+      return {
+        ...item,
+        total_voucher_value: voucherData?.total_voucher_value ?? 0,
+      };
+    });
     const result = statuses.map((status) => {
-      const filterData = orderFilterMap.get(status) || {
+      const filterData = mergedResults.find((r) => r.status === status) || {
         total_order: 0,
         total_product_tax: 0,
         total_product_price: 0,
