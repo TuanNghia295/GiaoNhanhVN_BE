@@ -53,7 +53,7 @@ export function buildTopicMessage({
       },
       payload: {
         aps: {
-          badge: 1,
+          // badge: 1,
           sound: typeof sound === 'string' ? sound : sound.ios || 'default',
         },
       },
