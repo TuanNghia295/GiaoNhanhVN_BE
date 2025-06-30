@@ -3,7 +3,7 @@ import { DeliverGateway } from '@/api/gateways/deliver.gateway';
 import { UserGateway } from '@/api/gateways/user.gateway';
 import { StoresService } from '@/api/stores/stores.service';
 import { Order, RoleEnum } from '@/database/schemas';
-import { buildMulticastMessage } from '@/utils/firebase.util';
+import { buildMulticastMessage, buildTopicMessage } from '@/utils/firebase.util';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import * as admin from 'firebase-admin';
@@ -21,17 +21,40 @@ export class OrdersEvent {
 
   private readonly logger = new Logger(OrdersEvent.name);
 
-  private async notifyNewOrderByFCM(tokens: string[]) {
-    const validTokens = tokens.filter((t) => !!t);
-    console.log('Valid FCM tokens:', validTokens);
-    if (validTokens.length === 0) return;
+  private async notifyNewOrderToStoreByFcmToken(fcmTokens: string[]) {
+    //--------------------------------------------------------
+    const validFcmTokens = fcmTokens.filter(Boolean);
+    if (validFcmTokens.length === 0) return;
+
     try {
-      await this.firebase.messaging().sendEachForMulticast(
-        buildMulticastMessage({
-          tokens: validTokens,
+      const message = buildMulticastMessage({
+        tokens: fcmTokens,
+        title: 'Bạn có một đơn hàng mới',
+        body: 'Có một đơn hàng mới cần giao, hãy kiểm tra ngay',
+        sound: {
+          ios: 'alert_shipper.caf',
+          android: 'alert_shipper',
+        },
+      });
+
+      const response = await this.firebase.messaging().sendEachForMulticast(message);
+      this.logger.log(`Successfully sent FCM notification to ${response.successCount} tokens`);
+    } catch (error) {
+      this.logger.error('Error sending FCM notification', error);
+    }
+  }
+
+  private async notifyNewOrderToDriverByTopic(topicName: string) {
+    try {
+      await this.firebase.messaging().send(
+        buildTopicMessage({
+          topic: topicName,
           title: 'Bạn có một đơn hàng mới',
           body: 'Có một đơn hàng mới cần giao, hãy kiểm tra ngay',
-          sound: 'alert',
+          sound: {
+            ios: 'alert.caf',
+            android: 'alert',
+          },
         }),
       );
     } catch (error) {
@@ -57,11 +80,11 @@ export class OrdersEvent {
 
     this.logger.log(`Found ${activeDrivers.length} drivers in area ${order.areaId}`);
 
-    const fcmTokens = [
-      ...activeDrivers.map((driver) => driver.fcmToken),
-      ...(store?.fcmToken ? [store.fcmToken] : []), // Thêm fcmToken của cửa hàng nếu có
-    ];
-    await this.notifyNewOrderByFCM(fcmTokens);
+    const fcmTokens = activeDrivers.map((driver) => driver.fcmToken);
+    await Promise.all([
+      this.notifyNewOrderToStoreByFcmToken([store?.fcmToken]),
+      // this.notifyNewOrderToDriverByTopic('new-order'),
+    ]);
     this.logger.log(`FCM sent to ${fcmTokens.length} drivers`);
     // Emit socket to all drivers in the area
     const driverIds = activeDrivers.map((driver) => String(driver.id));

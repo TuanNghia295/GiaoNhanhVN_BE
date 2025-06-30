@@ -36,25 +36,42 @@ export class AppController {
       60 * 60, // Cache for 1 hour
     );
   }
-
+  private async notifyNewOrderToDriverByTopic(topicName: string) {
+    try {
+      await this.admin.messaging().send({
+        topic: topicName,
+        notification: {
+          title: 'Thông báo đơn hàng mới',
+          body: 'Bạn có đơn hàng mới cần xử lý',
+        },
+        android: {
+          ttl: 60 * 1000, // thời gian sống của thông báo trên Android
+          priority: 'high',
+          notification: {
+            sound: 'alert', // âm thanh thông báo
+          },
+        },
+        apns: {
+          payload: {
+            aps: {
+              headers: {
+                'apns-priority': '10', // ưu tiên cao
+              },
+              badge: 1, // tăng badge khi có thông báo mới
+              sound: 'alert.caf', // âm thanh thông báo
+            },
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Error sending notification:', error);
+    }
+  }
   @ApiPublic()
   @Post('notify')
   async notify() {
     try {
-      await this.admin.messaging().sendEachForMulticast({
-        tokens: [
-          'fjoDnfJdRlql9zExUarnJJ:APA91bEfaKgcYt-UXP2fn11RHKOptgtRbgF4fRlWKbUKoXa3wFyEKh2EGMBsLZRAurcTypOXdIbuqdQeJVu8TwIJL59my-Z0j6EAeoA0NWIn3UghJ9NGVxQ',
-        ],
-        notification: {
-          title: 'Bạn có một đơn hàng mới',
-          body: 'Có một đơn hàng mới cần giao, hãy kiểm tra ngay',
-        },
-        data: {
-          title: 'Bạn có một đơn hàng mới',
-          body: 'Có một đơn hàng mới cần giao, hãy kiểm tra ngay',
-          sound: 'alert.caf',
-        },
-      });
+      await this.notifyNewOrderToDriverByTopic('new-order');
     } catch (error) {
       console.error('Error sending notification:', error);
     }

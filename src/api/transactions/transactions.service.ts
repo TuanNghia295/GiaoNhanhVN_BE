@@ -17,8 +17,8 @@ import {
   banks,
   delivers,
   managers,
-  pointTransactions,
   RoleEnum,
+  transactionLogs,
   TransactionMethodEnum,
   transactions,
   TransactionStatus,
@@ -110,7 +110,7 @@ export class TransactionsService {
       // Log transaction
       //---------------------------------------------------
       await this.db
-        .insert(pointTransactions)
+        .insert(transactionLogs)
         .values({
           deliverId: reqDto.deliverId,
           type: reqDto.type,
@@ -229,7 +229,7 @@ export class TransactionsService {
       // Log transaction
       //---------------------------------------------------
       await this.db
-        .insert(pointTransactions)
+        .insert(transactionLogs)
         .values({
           managerId: reqDto.managerId,
           type: reqDto.type,
@@ -451,7 +451,7 @@ export class TransactionsService {
     //---------------------------------------------------
     // Log transaction
     //---------------------------------------------------
-    await this.db.insert(pointTransactions).values({
+    await this.db.insert(transactionLogs).values({
       managerId: updatedTransaction.managerId,
       type: updatedTransaction.type,
       point: updatedTransaction.amount,
@@ -489,7 +489,7 @@ export class TransactionsService {
     //---------------------------------------------------
     // Log transaction
     //---------------------------------------------------
-    await this.db.insert(pointTransactions).values({
+    await this.db.insert(transactionLogs).values({
       deliverId: updatedTransaction.deliverId,
       type: updatedTransaction.type,
       point: updatedTransaction.amount,
@@ -557,21 +557,21 @@ export class TransactionsService {
   }
 
   async getMyRecordTransaction(reqDto: PagingTransaction, payload: JwtPayloadType) {
-    const baseConfig: FindManyQueryConfig<typeof this.db.query.pointTransactions> = {};
+    const baseConfig: FindManyQueryConfig<typeof this.db.query.transactionLogs> = {};
     switch (payload.role) {
       case RoleEnum.MANAGEMENT:
-        baseConfig.where = and(eq(pointTransactions.managerId, payload.id));
+        baseConfig.where = and(eq(transactionLogs.managerId, payload.id));
     }
 
-    const qCount = this.db.query.pointTransactions.findMany({
+    const qCount = this.db.query.transactionLogs.findMany({
       ...baseConfig,
       columns: { id: true },
     });
 
     const [entities, [{ totalCount }]] = await Promise.all([
-      this.db.query.pointTransactions.findMany({
+      this.db.query.transactionLogs.findMany({
         ...baseConfig,
-        orderBy: desc(pointTransactions.createdAt),
+        orderBy: desc(transactionLogs.createdAt),
         limit: reqDto.limit,
         offset: reqDto.offset,
       }),

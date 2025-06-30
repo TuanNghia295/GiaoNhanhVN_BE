@@ -1,13 +1,6 @@
 import { integer, numeric, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
-export enum PointTransactionTypeEnum {
-  CREATE_VOUCHER = 'CREATE_VOUCHER', // Tạo voucher
-  REMOVE_VOUCHER = 'REMOVE_VOUCHER', // Xóa voucher
-  ADD_POINT_DELIVER = 'ADD_POINT_DELIVER', // Thêm điểm cho giao hàng
-  SUBTRACT_POINT_DELIVER = 'SUBTRACT_POINT_DELIVER', // Trừ điểm giao hàng
-}
-
-export const pointTransactions = pgTable('point_transactions', {
+export const transactionLogs = pgTable('transaction_logs', {
   id: serial().primaryKey(),
   deliverId: integer('deliver_id'),
   managerId: integer('manager_id'),

@@ -41,7 +41,6 @@ import { NotificationsModule } from './api/notifications/notifications.module';
 import { OptionsModule } from './api/options/options.module';
 import { OrderDetailsModule } from './api/order-details/order-details.module';
 import { OrdersModule } from './api/orders/orders.module';
-import { PointTransactionsModule } from './api/point-transactions/point-transactions.module';
 import { ProductsModule } from './api/products/products.module';
 import { RatingsModule } from './api/ratings/ratings.module';
 import { SettingsModule } from './api/settings/settings.module';
@@ -135,7 +134,6 @@ import { UserAgentMiddleware } from './ua.middleware';
     BankingAccountModule,
     TasksModule,
     DeliveryRegionsModule,
-    PointTransactionsModule,
   ],
   controllers: [AppController],
   providers: [

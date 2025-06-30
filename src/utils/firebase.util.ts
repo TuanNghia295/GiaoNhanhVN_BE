@@ -4,8 +4,65 @@ interface BuildMessageOptions {
   tokens: string[];
   title: string;
   body: string;
-  sound?: string;
+  sound?:
+    | {
+        android?: string;
+        ios?: string;
+      }
+    | string; // có thể là một chuỗi hoặc một đối tượng với sound cho Android và iOS
   data?: Record<string, string>;
+}
+
+interface BuildTopicMessageOptions {
+  topic: string;
+  title: string;
+  body: string;
+  sound?:
+    | {
+        android?: string;
+        ios?: string;
+      }
+    | string; // có thể là một chuỗi hoặc một đối tượng với sound cho Android và iOS
+  data?: Record<string, string>;
+}
+
+export function buildTopicMessage({
+  topic,
+  title,
+  body,
+  sound = 'default', // mặc định có sound
+  data = {},
+}: BuildTopicMessageOptions): admin.messaging.Message {
+  return {
+    topic: topic,
+    notification: {
+      title: title,
+      body: body,
+    },
+    android: {
+      priority: 'high',
+      notification: {
+        sound: typeof sound === 'string' ? sound : sound.android,
+      },
+    },
+    apns: {
+      payload: {
+        aps: {
+          headers: {
+            'apns-priority': '10', // ưu tiên cao
+          },
+          badge: 1, // tăng badge khi có thông báo mới
+          sound: typeof sound === 'string' ? sound : sound.ios,
+        },
+      },
+    },
+    data: {
+      title: title,
+      body: body,
+      ...data, // thêm dữ liệu bổ sung nếu có
+      sound: typeof sound === 'string' ? sound : 'default', // đảm bảo sound được đặt đúng
+    },
+  };
 }
 
 export function buildMulticastMessage({
@@ -16,29 +73,33 @@ export function buildMulticastMessage({
   data = {},
 }: BuildMessageOptions): admin.messaging.MulticastMessage {
   return {
-    tokens,
-    data,
+    tokens: tokens,
+    notification: {
+      title: title,
+      body: body,
+    },
     android: {
       priority: 'high',
-      ttl: 60 * 1000,
       notification: {
-        sound,
+        sound: typeof sound === 'string' ? sound : sound.android || 'default',
       },
     },
     apns: {
-      headers: {
-        'apns-expiration': `${Math.floor(Date.now() / 1000) + 60}`,
-        'apns-priority': '10',
-      },
       payload: {
         aps: {
           alert: {
-            title,
-            body,
+            title: title,
+            body: body,
           },
-          sound,
+          sound: typeof sound === 'string' ? sound : sound.ios || 'default',
         },
       },
+    },
+    data: {
+      title: title,
+      body: body,
+      ...data, // thêm dữ liệu bổ sung nếu có
+      sound: typeof sound === 'string' ? sound : 'default',
     },
   };
 }
