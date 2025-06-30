@@ -10,12 +10,14 @@ import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto
 import { AllConfigType } from '@/config/config.type';
 import { Environment } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { DRIZZLE, Transaction, withPagination } from '@/database/global';
+import { DRIZZLE, increment, Transaction, withPagination } from '@/database/global';
 import {
   areas,
   orders,
   RoleEnum,
   stores,
+  transactionLogs,
+  TransactionTypeEnum,
   users,
   vouchers,
   vouchersOnOrders,
@@ -25,6 +27,7 @@ import {
 import { voucherUsages } from '@/database/schemas/voucher-usage.schema'; // Import Lodash
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
+import { formatNumber } from '@/utils/util';
 import { ForbiddenException, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { plainToInstance } from 'class-transformer';
@@ -193,99 +196,113 @@ export class VouchersService {
       }
     }
 
-    // Chỉ có role MANAGEMENT với có điểm
-    if ([RoleEnum.MANAGEMENT].includes(payload.role)) {
-      const area = await this.db
-        .select({
-          areaId: areas.id,
-          point: areas.point,
-        })
-        .from(areas)
-        .where(eq(areas.id, reqDto.areaId))
-        .then((res) => res[0]);
-      if (!area) {
-        throw new ValidationException(ErrorCode.AR001, HttpStatus.BAD_REQUEST);
-      }
-      if (area.point < reqDto.maxUses * reqDto.value) {
-        throw new ValidationException(ErrorCode.TR002, HttpStatus.BAD_REQUEST);
-      }
-
-      await this.db
-        .update(areas)
-        .set({
-          point: sql`${areas.point}
-          -
-          ${reqDto.maxUses * reqDto.value}`,
-        })
-        .where(eq(areas.id, reqDto.areaId));
-    }
-
-    const now = new Date();
-    const status = _.cond([
-      [
-        (d: CreateVoucherReqDto) => d.startDate && d.startDate > now,
-        () => VouchersStatusEnum.PENDING,
-      ],
-      [(d: CreateVoucherReqDto) => d.endDate && d.endDate < now, () => VouchersStatusEnum.EXPIRED],
-      [_.stubTrue, () => VouchersStatusEnum.ACTIVE], // Trường hợp mặc định
-    ])(reqDto);
-
-    switch (payload.role) {
-      case RoleEnum.ADMIN:
-        return this.db
-          .insert(vouchers)
-          .values({
-            ...reqDto,
-            status, // Trạng thái voucher tự động được xác định dựa trên ngày bắt đầu và ngày kết thúc
-            ...(reqDto.isHidden ? { isHidden: true } : {}),
-            managerId: payload.id,
-            type: VouchersTypeEnum.ADMIN,
-            areaId: reqDto.areaId,
+    return this.db.transaction(async (tx) => {
+      // Chỉ có role MANAGEMENT với có điểm
+      if ([RoleEnum.MANAGEMENT].includes(payload.role)) {
+        const area = await tx
+          .select({
+            areaId: areas.id,
+            point: areas.point,
           })
-          .returning()
-          .then((res) => {
-            return plainToInstance(VoucherResDto, res[0]);
-          });
-      case RoleEnum.MANAGEMENT:
-        return this.db
-          .insert(vouchers)
-          .values({
-            ...reqDto,
-            status, // Trạng thái voucher tự động được xác định dựa trên ngày bắt đầu và ngày kết thúc
-            ...(reqDto.isHidden ? { isHidden: true } : {}),
-            managerId: payload.id,
-            type: VouchersTypeEnum.MANAGEMENT,
-            areaId: payload.areaId,
-          })
-          .returning()
-          .then((res) => {
-            return plainToInstance(VoucherResDto, res[0]);
-          });
-      case RoleEnum.STORE:
-        if (!reqDto.areaId) {
-          throw new ValidationException(
-            ErrorCode.V004,
-            HttpStatus.BAD_REQUEST,
-            'Area ID is required for store vouchers',
-          );
+          .from(areas)
+          .where(eq(areas.id, reqDto.areaId))
+          .then((res) => res[0]);
+        if (!area) {
+          throw new ValidationException(ErrorCode.AR001, HttpStatus.BAD_REQUEST);
         }
-        return this.db
-          .insert(vouchers)
+        if (area.point < reqDto.maxUses * reqDto.value) {
+          throw new ValidationException(ErrorCode.TR002, HttpStatus.BAD_REQUEST);
+        }
+
+        await tx
+          .insert(transactionLogs)
           .values({
-            ...reqDto,
-            status, // Trạng thái voucher tự động được xác định dựa trên ngày bắt đầu và ngày kết thúc
-            ...(reqDto.isHidden ? { isHidden: true } : {}),
-            userId: payload.id,
-            type: VouchersTypeEnum.STORE,
-            areaId: reqDto.areaId,
+            areaId: area.areaId,
+            type: TransactionTypeEnum.WITHDRAW,
+            point: reqDto.maxUses * reqDto.value,
+            description: `Tạo voucher ${reqDto.code} với: - Giá trị: ${formatNumber(reqDto.value)}- Số lượng tối đa: ${reqDto.maxUses} `,
           })
-          .returning()
-          .then((res) => {
-            return plainToInstance(VoucherResDto, res[0]);
-          });
-      default:
-        throw new ForbiddenException();
-    }
+          .returning();
+        await tx
+          .update(areas)
+          .set({
+            point: sql`${areas.point}
+            -
+            ${reqDto.maxUses * reqDto.value}`,
+          })
+          .where(eq(areas.id, reqDto.areaId));
+      }
+
+      const now = new Date();
+      const status = _.cond([
+        [
+          (d: CreateVoucherReqDto) => d.startDate && d.startDate > now,
+          () => VouchersStatusEnum.PENDING,
+        ],
+        [
+          (d: CreateVoucherReqDto) => d.endDate && d.endDate < now,
+          () => VouchersStatusEnum.EXPIRED,
+        ],
+        [_.stubTrue, () => VouchersStatusEnum.ACTIVE], // Trường hợp mặc định
+      ])(reqDto);
+
+      switch (payload.role) {
+        case RoleEnum.ADMIN:
+          return tx
+            .insert(vouchers)
+            .values({
+              ...reqDto,
+              status, // Trạng thái voucher tự động được xác định dựa trên ngày bắt đầu và ngày kết thúc
+              ...(reqDto.isHidden ? { isHidden: true } : {}),
+              managerId: payload.id,
+              type: VouchersTypeEnum.ADMIN,
+              areaId: reqDto.areaId,
+            })
+            .returning()
+            .then((res) => {
+              return plainToInstance(VoucherResDto, res[0]);
+            });
+        case RoleEnum.MANAGEMENT:
+          return tx
+            .insert(vouchers)
+            .values({
+              ...reqDto,
+              status, // Trạng thái voucher tự động được xác định dựa trên ngày bắt đầu và ngày kết thúc
+              ...(reqDto.isHidden ? { isHidden: true } : {}),
+              managerId: payload.id,
+              type: VouchersTypeEnum.MANAGEMENT,
+              areaId: payload.areaId,
+            })
+            .returning()
+            .then((res) => {
+              return plainToInstance(VoucherResDto, res[0]);
+            });
+        case RoleEnum.STORE:
+          if (!reqDto.areaId) {
+            throw new ValidationException(
+              ErrorCode.V004,
+              HttpStatus.BAD_REQUEST,
+              'Area ID is required for store vouchers',
+            );
+          }
+          return tx
+            .insert(vouchers)
+            .values({
+              ...reqDto,
+              status, // Trạng thái voucher tự động được xác định dựa trên ngày bắt đầu và ngày kết thúc
+              ...(reqDto.isHidden ? { isHidden: true } : {}),
+              userId: payload.id,
+              type: VouchersTypeEnum.STORE,
+              areaId: reqDto.areaId,
+            })
+            .returning()
+            .then((res) => {
+              return plainToInstance(VoucherResDto, res[0]);
+            });
+        default:
+          throw new ForbiddenException();
+      }
+    });
   }
 
   async ensureVoucherIsActive(
@@ -451,12 +468,21 @@ export class VouchersService {
           console.log('usedCount', usedCount);
           const refundPoint = round((updateVoucher.maxUses - usedCount) * updateVoucher.value);
           console.log('refundPoint', refundPoint);
+
+          await tx
+            .insert(transactionLogs)
+            .values({
+              areaId: area.id,
+              type: TransactionTypeEnum.DEPOSIT,
+              point: refundPoint,
+              description: `Xóa voucher ${updateVoucher.code} với: - Giá trị: ${formatNumber(updateVoucher?.value)}- Lượt còn lại: ${updateVoucher.maxUses - usedCount} `,
+            })
+            .returning();
+
           await tx
             .update(areas)
             .set({
-              point: sql`${areas.point}
-              +
-              ${refundPoint}`,
+              point: increment(areas.point, refundPoint),
             })
             .where(eq(areas.id, updateVoucher.areaId));
         }

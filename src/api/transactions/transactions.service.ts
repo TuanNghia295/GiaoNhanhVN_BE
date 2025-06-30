@@ -100,9 +100,7 @@ export class TransactionsService {
           deliverId: reqDto.deliverId,
           status: TransactionStatus.APPROVED,
           method: TransactionMethodEnum.TRANSFER,
-          ...(payload.role === RoleEnum.MANAGEMENT && {
-            areaId: payload.areaId,
-          }),
+          areaId: payload.areaId,
         })
         .returning();
 
@@ -112,10 +110,10 @@ export class TransactionsService {
       await this.db
         .insert(transactionLogs)
         .values({
-          deliverId: reqDto.deliverId,
+          areaId: payload.areaId,
           type: reqDto.type,
           point: reqDto.point,
-          description: `Nạp/rút điểm ${reqDto.type} cho shipper ${existDeliver.phone}`,
+          description: `${reqDto.type === TransactionTypeEnum.DEPOSIT ? 'Nạp' : 'Rút'} điểm vào tài khoản của shipper ${existDeliver.phone}`,
         })
         .returning();
 
@@ -228,13 +226,18 @@ export class TransactionsService {
       //---------------------------------------------------
       // Log transaction
       //---------------------------------------------------
+
+      const area = await this.areasService.existById(manager.areaId);
+      if (!area) {
+        throw new ValidationException(ErrorCode.A001);
+      }
       await this.db
         .insert(transactionLogs)
         .values({
-          managerId: reqDto.managerId,
+          areaId: manager.areaId,
           type: reqDto.type,
           point: reqDto.point,
-          description: `Nạp/rút điểm ${reqDto.type} cho khu vực ${manager.areaId}`,
+          description: `${transaction.type === TransactionTypeEnum.DEPOSIT ? 'Nạp' : 'Rút'} điểm cho khu vực ${area.name} - ${area.parent}`,
         })
         .returning();
 
@@ -438,10 +441,10 @@ export class TransactionsService {
   }
 
   /*
-    Xử lý approve giao dịch của admin
-    - Nếu là khu vực nạp tiền thì cộng điểm cho khu vực
-    - Nếu là khu vực rút tiền thì trừ điểm khu vực
-   */
+      Xử lý approve giao dịch của admin
+      - Nếu là khu vực nạp tiền thì cộng điểm cho khu vực
+      - Nếu là khu vực rút tiền thì trừ điểm khu vực
+     */
   private async doApproveTransactionByAdmin(updatedTransaction: TransactionType, tx: Transaction) {
     const area = await this.areasService.existById(updatedTransaction.areaId);
     if (!area) {
@@ -452,10 +455,10 @@ export class TransactionsService {
     // Log transaction
     //---------------------------------------------------
     await this.db.insert(transactionLogs).values({
-      managerId: updatedTransaction.managerId,
+      areaId: updatedTransaction.areaId,
       type: updatedTransaction.type,
       point: updatedTransaction.amount,
-      description: `Nạp/rút điểm ${updatedTransaction.type} cho khu vực ${area.name}`,
+      description: `${updatedTransaction.type === TransactionTypeEnum.DEPOSIT ? 'Nạp' : 'Rút'} điểm cho khu vực ${area.name} - ${area.parent}`,
     });
     switch (updatedTransaction.type) {
       case TransactionTypeEnum.DEPOSIT:
@@ -490,10 +493,10 @@ export class TransactionsService {
     // Log transaction
     //---------------------------------------------------
     await this.db.insert(transactionLogs).values({
-      deliverId: updatedTransaction.deliverId,
+      areaId: updatedTransaction.areaId,
       type: updatedTransaction.type,
       point: updatedTransaction.amount,
-      description: `Nạp/rút điểm ${updatedTransaction.type} cho shipper ${deliver.phone}`,
+      description: `${updatedTransaction.type === TransactionTypeEnum.DEPOSIT ? 'Nạp' : 'Rút'} điểm cho shipper ${deliver.phone} - khu vực ${area.name} - ${area.parent}`,
     });
     switch (updatedTransaction.type) {
       case TransactionTypeEnum.DEPOSIT: {
@@ -560,7 +563,7 @@ export class TransactionsService {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.transactionLogs> = {};
     switch (payload.role) {
       case RoleEnum.MANAGEMENT:
-        baseConfig.where = and(eq(transactionLogs.managerId, payload.id));
+        baseConfig.where = and(eq(transactionLogs.areaId, payload.areaId));
     }
 
     const qCount = this.db.query.transactionLogs.findMany({

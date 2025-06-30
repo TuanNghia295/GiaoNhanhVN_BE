@@ -21,7 +21,7 @@ import { ValidationException } from '@/exceptions/validation.exception';
 import { generateCodeFromName } from '@/utils/util';
 import { Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { and, count, desc, eq, ilike, sql } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, or, sql } from 'drizzle-orm';
 
 @Injectable()
 export class ManagersService {
@@ -138,7 +138,9 @@ export class ManagersService {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.managers> = {
       where: and(
         eq(managers.role, RoleEnum.MANAGEMENT),
-        ilike(managers.phone, `%${reqDto.q ?? ''}%`),
+        ...(reqDto.q
+          ? [or(ilike(managers.username, `%${reqDto.q}%`), ilike(managers.phone, `%${reqDto.q}%`))]
+          : []),
       ),
       with: {
         area: true,

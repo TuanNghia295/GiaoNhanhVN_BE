@@ -7,7 +7,7 @@ import { RoleEnum } from '@/database/schemas';
 import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Post, Query } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 
 @Controller('transactions')
@@ -33,7 +33,12 @@ export class TransactionsController {
     @Body() reqDto: AddPointDeliverReqDto,
   ) {
     console.log('reqDto', reqDto);
-    return this.transactionsService.addPointsForDeliver(reqDto, payload);
+    switch (payload.role) {
+      case RoleEnum.MANAGEMENT:
+        return this.transactionsService.addPointsForDeliver(reqDto, payload);
+      default:
+        throw new ForbiddenException('Bạn không có quyền thực hiện hành động này');
+    }
   }
 
   @Roles(RoleEnum.ADMIN)

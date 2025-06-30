@@ -63,6 +63,7 @@ export class AreasService {
       .select({
         id: areas.id,
         name: areas.name,
+        parent: areas.parent,
         point: areas.point,
       })
       .from(areas)

@@ -18,6 +18,11 @@ export const formatVietnamPhoneNumber = (phoneNumber: string) => {
   return `+84${phone}`;
 };
 
+export function formatNumber(value: number): string {
+  if (value === null || value === undefined) return '';
+  return new Intl.NumberFormat('vi-VN').format(value);
+}
+
 export const formatDistance = (distanceInKilometers: number) => {
   const isKm = distanceInKilometers >= 1;
   const value = isKm
