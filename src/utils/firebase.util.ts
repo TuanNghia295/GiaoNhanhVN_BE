@@ -40,27 +40,28 @@ export function buildTopicMessage({
       body: body,
     },
     android: {
+      ttl: 60 * 1000,
       priority: 'high',
       notification: {
-        sound: typeof sound === 'string' ? sound : sound.android,
+        sound: typeof sound === 'string' ? sound : sound.android || 'default',
+        channelId: 'alert-channel',
       },
     },
     apns: {
+      headers: {
+        'apns-priority': '10',
+      },
       payload: {
         aps: {
-          headers: {
-            'apns-priority': '10', // ưu tiên cao
-          },
-          badge: 1, // tăng badge khi có thông báo mới
-          sound: typeof sound === 'string' ? sound : sound.ios,
+          badge: 1,
+          sound: typeof sound === 'string' ? sound : sound.ios || 'default',
         },
       },
     },
     data: {
-      title: title,
-      body: body,
+      type: 'new_order',
+      createdAt: new Date().toISOString(),
       ...data, // thêm dữ liệu bổ sung nếu có
-      sound: typeof sound === 'string' ? sound : 'default', // đảm bảo sound được đặt đúng
     },
   };
 }

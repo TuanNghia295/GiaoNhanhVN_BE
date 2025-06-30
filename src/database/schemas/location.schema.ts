@@ -10,7 +10,7 @@ export const locations = pgTable('locations', {
   geometry: varchar('geometry', { length: 255 }).notNull(),
   userId: integer('user_id'),
   areaId: integer('area_id'),
-  deliverId: integer('deliver_id').unique(),
+  deliverId: integer('deliver_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at')
     .notNull()

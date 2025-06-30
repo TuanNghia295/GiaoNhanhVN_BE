@@ -1,5 +1,5 @@
 {
-  "id": "a3b32b96-7d76-49f3-9789-a9319ecb7070",
+  "id": "abdf14ca-18c4-42a1-9edb-686c0c585495",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1401,12 +1401,19 @@
           "notNull": true,
           "default": "'PENDING'"
         },
-        "is_holiday": {
-          "name": "is_holiday",
-          "type": "boolean",
+        "delivery_income_tax": {
+          "name": "delivery_income_tax",
+          "type": "numeric(15, 2)",
           "primaryKey": false,
           "notNull": true,
-          "default": false
+          "default": 0
+        },
+        "total_product_tax": {
+          "name": "total_product_tax",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "is_night": {
           "name": "is_night",
@@ -1421,6 +1428,20 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "night_fee": {
+          "name": "night_fee",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "rain_fee": {
+          "name": "rain_fee",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "distance": {
           "name": "distance",
@@ -1573,7 +1594,131 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "orders_code_index": {
+          "name": "orders_code_index",
+          "columns": [
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "orders_user_id_idx": {
+          "name": "orders_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "orders_deliver_id_idx": {
+          "name": "orders_deliver_id_idx",
+          "columns": [
+            {
+              "expression": "deliver_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "orders_area_status_created_idx": {
+          "name": "orders_area_status_created_idx",
+          "columns": [
+            {
+              "expression": "area_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "orders_store_status_idx": {
+          "name": "orders_store_status_idx",
+          "columns": [
+            {
+              "expression": "store_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "orders_created_at_idx": {
+          "name": "orders_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "orders_type_idx": {
+          "name": "orders_type_idx",
+          "columns": [
+            {
+              "expression": "type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -1721,6 +1866,69 @@
           "columns": [
             {
               "expression": "store_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "products_category_item_id_idx": {
+          "name": "products_category_item_id_idx",
+          "columns": [
+            {
+              "expression": "category_item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "products_store_menu_id_deleted_at_locked_idx": {
+          "name": "products_store_menu_id_deleted_at_locked_idx",
+          "columns": [
+            {
+              "expression": "store_menu_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "deleted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "is_locked",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "products_store_menu_id_created_at_idx": {
+          "name": "products_store_menu_id_created_at_idx",
+          "columns": [
+            {
+              "expression": "store_menu_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2027,14 +2235,14 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "'2025-06-20 03:00:58.746'"
+          "default": "'2025-06-30 07:51:59.857'"
         },
         "end_night_time": {
           "name": "end_night_time",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "'2025-06-20 03:00:58.746'"
+          "default": "'2025-06-30 07:51:59.857'"
         },
         "hotline": {
           "name": "hotline",
@@ -2171,6 +2379,21 @@
           "columns": [
             {
               "expression": "store_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "store_menus_deleted_at_idx": {
+          "name": "store_menus_deleted_at_idx",
+          "columns": [
+            {
+              "expression": "deleted_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2508,6 +2731,63 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.transaction_logs": {
+      "name": "transaction_logs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "area_id": {
+          "name": "area_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "point": {
+          "name": "point",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.transactions": {
       "name": "transactions",
       "schema": "",
@@ -2683,6 +2963,12 @@
         "deleted_at": {
           "name": "deleted_at",
           "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider": {
+          "name": "provider",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false
         },

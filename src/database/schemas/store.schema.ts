@@ -33,6 +33,7 @@ export const stores = pgTable(
       mode: 'number',
     }).default(0),
     bestSeller: integer('best_seller'),
+    isRecommended: boolean('is_recommended').notNull().default(false),
     // locationMap: geometry('location_map', {
     //   type: 'point',
     //   mode: 'xy',
