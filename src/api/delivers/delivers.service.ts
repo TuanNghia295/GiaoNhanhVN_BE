@@ -426,7 +426,7 @@ export class DeliversService implements OnModuleInit {
                 WHEN ${orders.status} = ${OrderStatusEnum.CANCELED} THEN 0
                 ELSE (
                     COALESCE(SUM(${vouchers.value}), 0) - (
-                        ${orders.totalDelivery} - ${orders.incomeDeliver} +
+                        ${orders.totalDelivery} + ${orders.rainFee} + ${orders.nightFee} - ${orders.incomeDeliver} +
                         ${orders.userServiceFee} + ${orders.storeServiceFee}
                     )
                 )
