@@ -68,20 +68,20 @@ export class AnalyticsService {
         -
         ${orders.incomeDeliver}
         )`.mapWith(Number),
-        total_voucher_value: sql
-          .raw(
-            `
-          SUM(
-            CASE 
-              WHEN (vouchers.type = 'MANAGEMENT' OR vouchers.type = 'ADMIN')
-              AND vouchers_on_orders.order_id IS NOT NULL 
-              THEN vouchers.value
-              ELSE 0 
-            END
-          )
-        `,
-          )
-          .mapWith(Number),
+        // total_voucher_value: sql
+        //   .raw(
+        //     `
+        //   SUM(
+        //     CASE
+        //       WHEN (vouchers.type = 'MANAGEMENT' OR vouchers.type = 'ADMIN')
+        //       AND vouchers_on_orders.order_id IS NOT NULL
+        //       THEN vouchers.value
+        //       ELSE 0
+        //     END
+        //   )
+        // `,
+        //   )
+        //   .mapWith(Number),
 
         total_app_revenue: sql<number>`
           ( SUM (${orders.totalProduct}) - SUM (${orders.payforShop}) +
@@ -111,8 +111,8 @@ export class AnalyticsService {
         )`.mapWith(Number),
       })
       .from(orders)
-      .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
-      .leftJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
+      // .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
+      // .leftJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
       .where(
         and(
           ...(payload.role === RoleEnum.MANAGEMENT ? [eq(orders.areaId, payload.areaId)] : []),
@@ -124,8 +124,51 @@ export class AnalyticsService {
       )
       .groupBy(orders.status);
 
+    const totalVoucherValueResult = await this.db
+      .select({
+        status: orders.status,
+        total_voucher_value: sql<number>`
+          SUM(
+        CASE
+          WHEN
+          ${vouchers.type}
+          IN
+          (
+          'MANAGEMENT',
+          'ADMIN'
+          )
+          THEN
+          ${vouchers.value}
+          ELSE
+          0
+          END
+          )
+        `.mapWith(Number),
+      })
+      .from(vouchersOnOrders)
+      .leftJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
+      .leftJoin(orders, eq(vouchersOnOrders.orderId, orders.id))
+      .where(
+        and(
+          ...(payload.role === RoleEnum.MANAGEMENT ? [eq(orders.areaId, payload.areaId)] : []),
+          ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
+          ...(reqDto.from && reqDto.to
+            ? [between(orders.createdAt, startOfDay(reqDto.from), endOfDay(reqDto.to))]
+            : []),
+        ),
+      )
+      .groupBy(orders.status);
+
+    const mergedResults = results.map((item) => {
+      const voucherData = totalVoucherValueResult.find((v) => v.status === item.status);
+      return {
+        ...item,
+        total_voucher_value: voucherData?.total_voucher_value ?? 0,
+      };
+    });
+
     const result = statuses.map((status) => {
-      const filterData = results.find((r) => r.status === status) || {
+      const filterData = mergedResults.find((r) => r.status === status) || {
         total_order: 0,
         total_app_revenue_tax: 0,
         total_product_price: 0,
