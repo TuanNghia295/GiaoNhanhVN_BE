@@ -249,6 +249,8 @@ export class AnalyticsService {
   ): Promise<StoreRevenueResDto> {
     const statuses: OrderStatusEnum[] = Object.values(OrderStatusEnum);
 
+    console.log('reqDto', reqDto);
+
     const result = await this.db
       .select({
         status: orders.status,
@@ -259,20 +261,6 @@ export class AnalyticsService {
         total_store_service_fee: sum(sql`${orders.totalProduct}
         -
         ${orders.payforShop}`).mapWith(Number),
-        // total_voucher_value: sql
-        //   .raw(
-        //     `
-        //         SUM(
-        //           CASE
-        //             WHEN vouchers.type = 'STORE'
-        //             AND vouchers_on_orders.order_id IS NOT NULL
-        //             THEN vouchers.value
-        //             ELSE 0
-        //           END
-        //         )
-        //       `,
-        //   )
-        //   .mapWith(Number),
         total_store_revenue: sum(orders.payforShop).mapWith(Number),
         // thuế 1,5% trên tổng doanh thu cửa hàng
         total_product_tax: sum(orders.totalProductTax).mapWith(Number),
@@ -280,8 +268,6 @@ export class AnalyticsService {
       .from(orders)
       .leftJoin(stores, eq(orders.storeId, stores.id))
       .leftJoin(users, eq(users.id, stores.userId))
-      // .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.orderId, orders.id))
-      // .leftJoin(vouchers, eq(vouchers.id, vouchersOnOrders.voucherId))
       .groupBy(orders.status)
       .where(
         and(
@@ -300,21 +286,23 @@ export class AnalyticsService {
         total_voucher_value: sql
           .raw(
             `
-                SUM(
-                  CASE
-                    WHEN vouchers.type = 'STORE'
-                    AND vouchers_on_orders.order_id IS NOT NULL
-                    THEN vouchers.value
-                    ELSE 0
-                  END
-                )
-              `,
+        SUM(
+          CASE
+            WHEN vouchers.type = 'STORE'
+            AND vouchers_on_orders.order_id IS NOT NULL
+            THEN vouchers.value
+            ELSE 0
+          END
+        )
+      `,
           )
           .mapWith(Number),
       })
       .from(vouchersOnOrders)
       .leftJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
       .leftJoin(orders, eq(vouchersOnOrders.orderId, orders.id))
+      .leftJoin(stores, eq(orders.storeId, stores.id)) // thêm nếu dùng stores
+      .leftJoin(users, eq(orders.userId, users.id)) // thêm nếu dùng users
       .where(
         and(
           eq(orders.type, OrderTypeEnum.FOOD),
@@ -326,8 +314,6 @@ export class AnalyticsService {
         ),
       )
       .groupBy(orders.status);
-
-    // const orderFilterMap = new Map(result.map((item) => [item.status, item]));
 
     const mergedResults = result.map((item) => {
       const voucherData = totalVoucherValueResult.find((v) => v.status === item.status);
@@ -402,11 +388,6 @@ export class AnalyticsService {
   }
 
   async getMyStoreRevenue(reqDto: StoreRevenueReqDto, payload: JwtPayloadType) {
-    if (!reqDto.from || !reqDto.to) {
-      reqDto.from = new Date();
-      reqDto.to = new Date();
-    }
-
     const store = await this.storeService.existStoreByUserId(payload.id);
     if (!store) {
       throw new ValidationException(ErrorCode.S001, HttpStatus.NOT_FOUND);
