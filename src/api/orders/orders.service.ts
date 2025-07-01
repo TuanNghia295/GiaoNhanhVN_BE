@@ -756,7 +756,8 @@ export class OrdersService {
           ? _.round(
               Math.max(
                 totalProduct * ((serviceFeeWithType.pricePct ?? 0) / 100) +
-                  (serviceFeeWithType.price ?? 0),
+                  (serviceFeeWithType.price ?? 0) +
+                  totalProductTax,
                 0,
               ),
             )
