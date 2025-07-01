@@ -1230,7 +1230,7 @@ export class OrdersService {
       order.totalDelivery +
       order.nightFee +
       order.rainFee -
-      order.incomeDeliver -
+      order.incomeDeliver +
       order.userServiceFee +
       order.storeServiceFee +
       order.totalProductTax;
