@@ -83,7 +83,7 @@ export class OrdersEvent {
     const fcmTokens = activeDrivers.map((driver) => driver.fcmToken);
     await Promise.all([
       this.notifyNewOrderToStoreByFcmToken([store?.fcmToken]),
-      this.notifyNewOrderToDriverByTopic('new-order'),
+      this.notifyNewOrderToDriverByTopic(`new_order_${order.areaId}`),
     ]);
     this.logger.log(`FCM sent to ${fcmTokens.length} drivers`);
     // Emit socket to all drivers in the area
