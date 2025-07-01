@@ -59,15 +59,15 @@ export class AnalyticsService {
         total_store_service_fee: sum(orders.storeServiceFee).mapWith(Number),
         total_deliver_service_fee: sql<number>`SUM
           ((
-        ${orders.totalDelivery}
-        +
-        ${orders.nightFee}
-        +
-        ${orders.rainFee}
-        )
-        -
-        ${orders.incomeDeliver}
-        )`.mapWith(Number),
+                ${orders.totalDelivery}
+                +
+                ${orders.nightFee}
+                +
+                ${orders.rainFee}
+                )
+                -
+                ${orders.incomeDeliver}
+                )`.mapWith(Number),
         // total_voucher_value: sql
         //   .raw(
         //     `
@@ -84,31 +84,31 @@ export class AnalyticsService {
         //   .mapWith(Number),
 
         total_app_revenue: sql<number>`
-          ( SUM (${orders.totalProduct}) - SUM (${orders.payforShop}) +
-            SUM (${orders.userServiceFee}) +
-            (SUM (${orders.totalDelivery}) + SUM (${orders.rainFee}) + SUM (${orders.nightFee})- SUM (${orders.incomeDeliver})))
-        `.mapWith(Number),
+                    ( SUM (${orders.totalProduct}) - SUM (${orders.payforShop}) +
+                        SUM (${orders.userServiceFee}) +
+                        (SUM (${orders.totalDelivery}) + SUM (${orders.rainFee}) + SUM (${orders.nightFee})- SUM (${orders.incomeDeliver})))
+                `.mapWith(Number),
         // thuế 1,5% trên total_app_revenue
         total_app_revenue_tax: sql<number>`COALESCE
           ( SUM(
-        ${orders.totalProduct}
-        -
-        ${orders.payforShop}
-        +
-        ${orders.userServiceFee}
-        +
-        ${orders.totalDelivery}
-        +
-        ${orders.rainFee}
-        +
-        ${orders.nightFee}
-        -
-        ${orders.incomeDeliver}
-        )
-        *
-        0.015,
-        0
-        )`.mapWith(Number),
+                ${orders.totalProduct}
+                -
+                ${orders.payforShop}
+                +
+                ${orders.userServiceFee}
+                +
+                ${orders.totalDelivery}
+                +
+                ${orders.rainFee}
+                +
+                ${orders.nightFee}
+                -
+                ${orders.incomeDeliver}
+                )
+                *
+                0.015,
+                0
+                )`.mapWith(Number),
       })
       .from(orders)
       // .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
@@ -128,22 +128,22 @@ export class AnalyticsService {
       .select({
         status: orders.status,
         total_voucher_value: sql<number>`
-          SUM(
+                    SUM(
         CASE
           WHEN
-          ${vouchers.type}
-          IN
-          (
-          'MANAGEMENT',
-          'ADMIN'
-          )
-          THEN
-          ${vouchers.value}
-          ELSE
-          0
-          END
-          )
-        `.mapWith(Number),
+                    ${vouchers.type}
+                    IN
+                    (
+                    'MANAGEMENT',
+                    'ADMIN'
+                    )
+                    THEN
+                    ${vouchers.value}
+                    ELSE
+                    0
+                    END
+                    )
+                `.mapWith(Number),
       })
       .from(vouchersOnOrders)
       .leftJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
@@ -259,8 +259,8 @@ export class AnalyticsService {
         total_user_service_fee: sum(orders.userServiceFee).mapWith(Number),
         total_user_payment: sum(orders.total).mapWith(Number),
         total_store_service_fee: sum(sql`${orders.totalProduct}
-        -
-        ${orders.payforShop}`).mapWith(Number),
+                -
+                ${orders.payforShop}`).mapWith(Number),
         total_store_revenue: sum(orders.payforShop).mapWith(Number),
         // thuế 1,5% trên tổng doanh thu cửa hàng
         total_product_tax: sum(orders.totalProductTax).mapWith(Number),
@@ -401,8 +401,8 @@ export class AnalyticsService {
         total_order: count(orders.id).mapWith(Number).as('total_order'),
         total_product_price: sum(orders.totalProduct).mapWith(Number),
         total_store_service_fee: sum(sql`${orders.totalProduct}
-        -
-        ${orders.payforShop}`).mapWith(Number),
+                -
+                ${orders.payforShop}`).mapWith(Number),
         total_store_revenue: sum(orders.payforShop).mapWith(Number),
         // thuế
         total_product_tax: sum(orders.totalProductTax).mapWith(Number),
@@ -528,51 +528,66 @@ export class AnalyticsService {
         total_orders: count(orders.id).mapWith(Number),
         total_order_delivered: sql<number>`COALESCE
           ( COUNT(
-        ${orders.id}
-        )
-        FILTER
-        (
-        WHERE
-        ${orders.status}
-        =
-        'DELIVERED'
-        ),
-        0
-        )`
+                ${orders.id}
+                )
+                FILTER
+                (
+                WHERE
+                ${orders.status}
+                =
+                'DELIVERED'
+                ),
+                0
+                )`
           .mapWith(Number)
           .as('totalOrderDelivered'),
         total_order_canceled: sql<number>`COALESCE
           ( COUNT(
-        ${orders.id}
-        )
-        FILTER
-        (
-        WHERE
-        ${orders.status}
-        =
-        'CANCELED'
-        ),
-        0
-        )`
+                ${orders.id}
+                )
+                FILTER
+                (
+                WHERE
+                ${orders.status}
+                =
+                'CANCELED'
+                ),
+                0
+                )`
           .mapWith(Number)
           .as('totalOrderCanceled'),
         total_deliver_point: delivers.point,
         total_income: sql<number>`COALESCE
           ( SUM(
-        ${orders.incomeDeliver}
-        )
-        FILTER
-        (
-        WHERE
-        ${orders.status}
-        =
-        'DELIVERED'
-        ),
-        0
-        )`
+                ${orders.incomeDeliver}
+                )
+                FILTER
+                (
+                WHERE
+                ${orders.status}
+                =
+                'DELIVERED'
+                ),
+                0
+                )`
           .mapWith(Number)
           .as('totalIncome'),
-        total_income_tax: sum(orders.deliveryIncomeTax).mapWith(Number).as('totalIncomeTax'),
+        total_income_tax: sql<number>`
+                    SUM(
+    CASE
+      WHEN
+                    ${orders.status}
+                    =
+                    'DELIVERED'
+                    THEN
+                    ${orders.deliveryIncomeTax}
+                    ELSE
+                    0
+                    END
+                    )
+                `
+          .mapWith(Number)
+          .as('total_income_tax'),
       })
       .from(delivers)
       .leftJoin(orders, eq(orders.deliverId, delivers.id))
