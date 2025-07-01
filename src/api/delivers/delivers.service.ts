@@ -427,7 +427,7 @@ export class DeliversService implements OnModuleInit {
                 ELSE (
                     COALESCE(SUM(${vouchers.value}), 0) - (
                         ${orders.totalDelivery} + ${orders.rainFee} + ${orders.nightFee} - ${orders.incomeDeliver} +
-                        ${orders.userServiceFee} + ${orders.storeServiceFee}
+                        ${orders.userServiceFee} + ${orders.storeServiceFee} + ${orders.totalProductTax}
                     )
                 )
                 END
