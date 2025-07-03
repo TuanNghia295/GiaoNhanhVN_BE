@@ -191,15 +191,28 @@ export class StoresService implements OnModuleInit {
         .groupBy(stores.id)
         .orderBy(
           desc(sql`count
-            (${orders.id})`),
-          sql`distance asc`,
+            (
+          ${orders.id}
+          )`),
+          sql`distance
+          asc`,
         );
     } else if (reqDto.isRating) {
-      baseQb.orderBy(sql`rating desc`, sql`distance asc`).having(sql`avg
-        (${ratings.storeRate})
-        is not null`); // thêm sắp xếp khoảng cách
+      baseQb.orderBy(
+        sql`rating
+        desc`,
+        sql`distance
+        asc`,
+      ).having(sql`avg
+        (
+      ${ratings.storeRate}
+      )
+      is
+      not
+      null`); // thêm sắp xếp khoảng cách
     } else {
-      baseQb.orderBy(sql`distance asc`);
+      baseQb.orderBy(sql`distance
+      asc`);
     }
 
     withPagination(baseQb, reqDto.limit, reqDto.offset);
@@ -360,10 +373,14 @@ export class StoresService implements OnModuleInit {
                    AND p.is_locked = false
                    AND p.deleted_at IS NULL
                    AND p.name ILIKE '%' || ${escapedQuery} || '%'
-                 LIMIT 5 -- Thêm giới hạn 5 sản phẩm ở đây
+                   LIMIT 5 -- Thêm giới hạn 5 sản phẩm ở đây
                 ) p)`.mapWith((val) => val ?? []),
         rating: sql`COALESCE
-          (avg(${ratings.storeRate}), 0)`.as('rating'),
+          (avg(
+        ${ratings.storeRate}
+        ),
+        0
+        )`.as('rating'),
         distance: distanceCalculation.as('distance'),
       })
       .from(stores)
@@ -398,8 +415,14 @@ export class StoresService implements OnModuleInit {
         ),
       )
       .groupBy(stores.id)
-      .having(sql`${distanceCalculation} < 15`)
-      .orderBy(sql`distance ASC`)
+      .having(
+        sql`${distanceCalculation}
+        < 15`,
+      )
+      .orderBy(
+        sql`distance
+        ASC`,
+      )
       .$dynamic();
 
     withPagination(qb, reqDto.limit, reqDto.offset);
@@ -706,6 +729,17 @@ export class StoresService implements OnModuleInit {
       .from(users)
       .leftJoin(stores, eq(stores.userId, users.id))
       .where(eq(stores.id, storeId))
+      .then((res) => res[0] ?? null);
+  }
+
+  async getValidStoreFcmTokenByStoreId(storeId: number) {
+    return this.db
+      .select({
+        fcmToken: users.fcmToken,
+      })
+      .from(stores)
+      .leftJoin(users, eq(users.id, stores.userId))
+      .where(and(eq(stores.id, storeId), eq(stores.isLocked, false), isNotNull(users.fcmToken)))
       .then((res) => res[0] ?? null);
   }
 }

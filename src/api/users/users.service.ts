@@ -17,7 +17,7 @@ import { deleteIfExists, normalizeImagePath } from '@/utils/util';
 import { HttpStatus, Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { plainToInstance } from 'class-transformer';
-import { and, count, desc, eq, ilike, isNull, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import sharp from 'sharp';
@@ -226,6 +226,15 @@ export class UsersService implements OnModuleInit {
   async getValidUserFcmTokenById(userId: number) {
     return this.db.query.users.findFirst({
       where: and(eq(users.id, userId), isNull(users.deletedAt), eq(users.isLocked, false)),
+      columns: {
+        fcmToken: true,
+      },
+    });
+  }
+
+  async getValidUserFcmTokenByIds(userIds: number[]) {
+    return this.db.query.users.findFirst({
+      where: and(inArray(users.id, userIds), isNull(users.deletedAt), eq(users.isLocked, false)),
       columns: {
         fcmToken: true,
       },

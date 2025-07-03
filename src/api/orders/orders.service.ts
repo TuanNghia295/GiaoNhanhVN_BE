@@ -1251,13 +1251,23 @@ export class OrdersService {
 
       await this.deliversService.addPoint(existOrder.deliverId, subtractPoint, tx);
     }
+
+    //-------------------------------------------------
+    // láy fcm token  by storeId
+    //-------------------------------------------------
+    const validStoreFcmToken = await this.storesService.getValidStoreFcmTokenByStoreId(
+      existOrder.storeId,
+    );
     //-------------------------------------------------
     // Gửi thông báo FCM  cho người dùng về việc hủy đơn hàng
     //-------------------------------------------------
     const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(existOrder.userId);
     console.log('validUserFcmToken', validUserFcmToken);
-    if (validUserFcmToken.fcmToken) {
-      this.notifyOrderCanceled([validUserFcmToken.fcmToken]);
+    const mergeFcmTokens = [validUserFcmToken.fcmToken, validStoreFcmToken.fcmToken].filter(
+      (token) => token,
+    ); // Lọc các token hợp lệ
+    if (mergeFcmTokens.length > 0) {
+      this.notifyOrderCanceled(mergeFcmTokens);
     }
   }
 
@@ -1344,12 +1354,21 @@ export class OrdersService {
     });
 
     //-------------------------------------------------
+    // láy fcm token  by storeId
+    //-------------------------------------------------
+    const validStoreFcmToken = await this.storesService.getValidStoreFcmTokenByStoreId(
+      existOrder.storeId,
+    );
+    //-------------------------------------------------
     // Gửi thông báo FCM  cho người dùng về việc hủy đơn hàng
     //-------------------------------------------------
     const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(existOrder.userId);
     console.log('validUserFcmToken', validUserFcmToken);
-    if (validUserFcmToken.fcmToken) {
-      await this.notifyOrderCanceled([validUserFcmToken.fcmToken]);
+    const mergeFcmTokens = [validUserFcmToken.fcmToken, validStoreFcmToken.fcmToken].filter(
+      (token) => token,
+    ); // Lọc các token hợp lệ
+    if (mergeFcmTokens.length > 0) {
+      this.notifyOrderCanceled(mergeFcmTokens);
     }
   }
 
