@@ -1263,7 +1263,7 @@ export class OrdersService {
     //-------------------------------------------------
     const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(existOrder.userId);
     console.log('validUserFcmToken', validUserFcmToken);
-    const mergeFcmTokens = [validUserFcmToken.fcmToken, validStoreFcmToken.fcmToken].filter(
+    const mergeFcmTokens = [validUserFcmToken?.fcmToken, validStoreFcmToken?.fcmToken].filter(
       (token) => token,
     ); // Lọc các token hợp lệ
     if (mergeFcmTokens.length > 0) {
@@ -1364,7 +1364,7 @@ export class OrdersService {
     //-------------------------------------------------
     const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(existOrder.userId);
     console.log('validUserFcmToken', validUserFcmToken);
-    const mergeFcmTokens = [validUserFcmToken.fcmToken, validStoreFcmToken.fcmToken].filter(
+    const mergeFcmTokens = [validUserFcmToken?.fcmToken, validStoreFcmToken?.fcmToken].filter(
       (token) => token,
     ); // Lọc các token hợp lệ
     if (mergeFcmTokens.length > 0) {
