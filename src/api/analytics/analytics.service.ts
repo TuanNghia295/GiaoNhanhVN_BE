@@ -91,9 +91,7 @@ export class AnalyticsService {
         // thuế 1,5% trên total_app_revenue
         total_app_revenue_tax: sql<number>`COALESCE
           ( SUM(
-        ${orders.totalProduct}
-        -
-        ${orders.payforShop}
+        ${orders.storeServiceFee}
         +
         ${orders.userServiceFee}
         +
