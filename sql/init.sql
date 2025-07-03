@@ -4,6 +4,11 @@ CREATE DATABASE nestjs_boilerplate;
 -- Grant all privileges to the user on the database
 GRANT ALL PRIVILEGES ON DATABASE nestjs_boilerplate TO root;
 
+DELETE  FROM orders;
+
+DELETE FROM extras_to_order_details;
+DELETE FROM vouchers_on_orders;
+
 DELETE FROM locations
 WHERE deliver_id = 46
   AND ctid NOT IN (
@@ -11,6 +16,7 @@ WHERE deliver_id = 46
     FROM locations
     WHERE deliver_id = 46
 );
+SELECT  * from stores where area_id = 84;
 
 -- Connect to the database
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

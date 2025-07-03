@@ -251,4 +251,13 @@ export class UsersService implements OnModuleInit {
       .returning()
       .then((result) => plainToInstance(UserResDto, result[0]));
   }
+
+  async logout(userId: number) {
+    return this.db
+      .update(users)
+      .set({
+        refreshToken: null,
+      })
+      .where(eq(users.id, userId));
+  }
 }

@@ -43,6 +43,15 @@ export class UsersController {
     return await this.authService.loginUser(reqDto);
   }
 
+  @Roles(RoleEnum.USER)
+  @ApiAuth({
+    summary: 'Đăng xuất (user)',
+  })
+  @Patch('logout')
+  async logout(@CurrentUser() payload: JwtPayloadType) {
+    return await this.usersService.logout(payload.id);
+  }
+
   @ApiPublic({
     type: LoginResDto,
     summary: 'Đăng nhập [USER]',
