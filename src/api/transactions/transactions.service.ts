@@ -29,14 +29,17 @@ import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
+import { endOfDay, startOfDay } from 'date-fns';
 import {
   and,
   count,
   desc,
   eq,
   getTableColumns,
+  gte,
   ilike,
   isNotNull,
+  lte,
   not,
   or,
   SQL,
@@ -560,10 +563,26 @@ export class TransactionsService {
   }
 
   async getMyRecordTransaction(reqDto: PagingTransaction, payload: JwtPayloadType) {
-    const baseConfig: FindManyQueryConfig<typeof this.db.query.transactionLogs> = {};
+    const baseConfig: FindManyQueryConfig<typeof this.db.query.transactionLogs> = {
+      with: {
+        area: true,
+      },
+    };
+    console.log('reqDto', reqDto);
     switch (payload.role) {
+      case RoleEnum.ADMIN:
+        baseConfig.where = and(
+          ...(reqDto.from ? [gte(transactionLogs.createdAt, startOfDay(reqDto.from))] : []),
+          ...(reqDto.to ? [lte(transactionLogs.createdAt, endOfDay(reqDto.to))] : []),
+          ...(reqDto.areaId ? [eq(transactionLogs.areaId, reqDto.areaId)] : []),
+        );
+        break;
       case RoleEnum.MANAGEMENT:
-        baseConfig.where = and(eq(transactionLogs.areaId, payload.areaId));
+        baseConfig.where = and(
+          ...(reqDto.from ? [gte(transactionLogs.createdAt, reqDto.from)] : []),
+          ...(reqDto.to ? [lte(transactionLogs.createdAt, reqDto.to)] : []),
+          eq(transactionLogs.areaId, payload.areaId),
+        );
     }
 
     const qCount = this.db.query.transactionLogs.findMany({

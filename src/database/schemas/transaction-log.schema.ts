@@ -1,3 +1,5 @@
+import { areas } from '@/database/schemas/area.schema';
+import { relations } from 'drizzle-orm';
 import { integer, numeric, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const transactionLogs = pgTable('transaction_logs', {
@@ -14,3 +16,10 @@ export const transactionLogs = pgTable('transaction_logs', {
     .defaultNow()
     .$onUpdate(() => new Date()),
 });
+
+export const transactionLogsRelations = relations(transactionLogs, ({ one }) => ({
+  area: one(areas, {
+    fields: [transactionLogs.areaId],
+    references: [areas.id],
+  }),
+}));
