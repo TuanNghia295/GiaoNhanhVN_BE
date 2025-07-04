@@ -427,7 +427,7 @@ export class OrdersService {
     //--------------------------------------------------------------
     //Tính thuế thu nhập cá nhân
     //--------------------------------------------------------------
-    const deliveryIncomeTax = _.round(incomeDeliver * 0.015);
+    const deliveryIncomeTax = _.round(incomeDeliver * 0.015, 3);
 
     // phí dịch vụ người dùng
     const FIXED_USER_SERVICE_FEE = 2000; // Phí dịch vụ người dùng cố định
@@ -499,7 +499,7 @@ export class OrdersService {
     //--------------------------------------------------------------
     //Tính thuế thu nhập cá nhân
     //--------------------------------------------------------------
-    const deliveryIncomeTax = _.round(incomeDeliver * 0.015);
+    const deliveryIncomeTax = _.round(incomeDeliver * 0.015, 3);
 
     //--------------------------------------------------------------
     // phí dịch vụ người dùng
@@ -750,7 +750,7 @@ export class OrdersService {
       //-------------------------------------------------
       // Tiền thuế của sản phẩm 1.5%
       //-------------------------------------------------
-      const totalProductTax = _.round(totalProduct * 0.015);
+      const totalProductTax = _.round(totalProduct * 0.015, 3);
 
       const storeServiceFee =
         reqDto.type === OrderTypeEnum.FOOD
