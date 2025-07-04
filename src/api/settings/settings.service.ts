@@ -25,7 +25,9 @@ export class SettingsService {
       with: {
         serviceFees: {
           with: {
-            distance: true,
+            distance: {
+              orderBy: asc(distances.minDistance),
+            },
           },
         },
       },
@@ -36,7 +38,9 @@ export class SettingsService {
     const results = await this.db.query.serviceFees.findMany({
       where: eq(serviceFees.settingId, settingId),
       with: {
-        distance: true,
+        distance: {
+          orderBy: asc(distances.minDistance),
+        },
       },
     });
     return results.map((result) => plainToInstance(ServiceFeeResDto, result));

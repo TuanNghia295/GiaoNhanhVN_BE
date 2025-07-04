@@ -1262,6 +1262,13 @@ export class OrdersService {
       }
       const MAX_CANCEL_ORDER_PER_DAY = 3;
       const cancelOrderCountInDay = await this.getCancelOrderCountInDay(existDeliver.id, tx);
+      if (cancelOrderCountInDay >= MAX_CANCEL_ORDER_PER_DAY) {
+        await this.lockDeliver(existDeliver.id);
+        // bắn event out đăng nhập shipper
+        this.emitter.emit('deliver.locked', existDeliver);
+        tx.rollback();
+        throw new ValidationException(ErrorCode.OD003);
+      }
       const cancelOrderCount = MAX_CANCEL_ORDER_PER_DAY - cancelOrderCountInDay;
       return {
         ...updatedOrder,
@@ -1289,7 +1296,7 @@ export class OrdersService {
       .then((res) => res[0]?.count ?? 0);
   }
 
-  private async calculateSubtractPoint(order: Order): Promise<number> {
+  private async calculateSubtractPoint(order: Order, refundPoint: number = 0): Promise<number> {
     const value =
       order.totalDelivery +
       order.nightFee +
@@ -1297,7 +1304,8 @@ export class OrdersService {
       order.incomeDeliver +
       order.userServiceFee +
       order.storeServiceFee +
-      order.totalProductTax;
+      order.totalProductTax +
+      refundPoint; // trừ lại điểm voucher nếu có
 
     return _.round(Math.max(value, 0));
   }
@@ -1363,30 +1371,6 @@ export class OrdersService {
     if (!reason) {
       throw new ValidationException(ErrorCode.OD003);
     }
-    // Hủy quá 3 đơn trong ngày thì không cho hủy
-    const countOrder = await tx
-      .select({
-        count: count(reasonDeliverCancelOrders.id),
-      })
-      .from(reasonDeliverCancelOrders)
-      .where(
-        and(
-          eq(reasonDeliverCancelOrders.deliverId, existOrder.deliverId),
-          between(
-            reasonDeliverCancelOrders.createdAt,
-            startOfDay(new Date()),
-            endOfDay(new Date()),
-          ),
-        ),
-      )
-      .then((res) => res[0]);
-
-    if (countOrder.count > 3) {
-      await this.lockDeliver(existOrder.deliverId);
-      // bắn event out đăng nhập shipper
-      await this.emitter.emitAsync('deliver.locked', existDeliver);
-      throw new ValidationException(ErrorCode.OD003);
-    }
 
     const [refund] = await tx
       .select({
@@ -1407,7 +1391,7 @@ export class OrdersService {
     //---------------------------------------------------
     // Hoàn lại điểm cho người giao hàng
     //---------------------------------------------------
-    const subtractPoint = await this.calculateSubtractPoint(existOrder);
+    const subtractPoint = await this.calculateSubtractPoint(existOrder, refund.refundPoint || 0);
     await this.deliversService.addPoint(existOrder.deliverId, subtractPoint, tx);
 
     await tx.insert(reasonDeliverCancelOrders).values({
