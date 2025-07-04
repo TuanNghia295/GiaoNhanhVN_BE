@@ -653,6 +653,9 @@ export class OrdersService {
       //---------------------------------------------------------------
       // Kiểm tra xem cửa hàng có hoạt động hay không
       //---------------------------------------------------------------
+      if (!(await this.usersService.existsById(payload.id))) {
+        throw new ValidationException(ErrorCode.U001);
+      }
       if (reqDto.storeId) {
         await this.storesService.checkStoreActive(reqDto.storeId, tx);
       }
