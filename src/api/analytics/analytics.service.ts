@@ -68,21 +68,6 @@ export class AnalyticsService {
         -
         ${orders.incomeDeliver}
         )`.mapWith(Number),
-        // total_voucher_value: sql
-        //   .raw(
-        //     `
-        //   SUM(
-        //     CASE
-        //       WHEN (vouchers.type = 'MANAGEMENT' OR vouchers.type = 'ADMIN')
-        //       AND vouchers_on_orders.order_id IS NOT NULL
-        //       THEN vouchers.value
-        //       ELSE 0
-        //     END
-        //   )
-        // `,
-        //   )
-        //   .mapWith(Number),
-
         total_app_revenue: sql<number>`
           ( SUM (${orders.storeServiceFee}) +
             SUM (${orders.userServiceFee}) +
@@ -109,8 +94,6 @@ export class AnalyticsService {
         )`.mapWith(Number),
       })
       .from(orders)
-      // .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
-      // .leftJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
       .where(
         and(
           ...(payload.role === RoleEnum.MANAGEMENT ? [eq(orders.areaId, payload.areaId)] : []),
@@ -246,8 +229,6 @@ export class AnalyticsService {
     payload: JwtPayloadType,
   ): Promise<StoreRevenueResDto> {
     const statuses: OrderStatusEnum[] = Object.values(OrderStatusEnum);
-
-    console.log('reqDto', reqDto);
 
     const result = await this.db
       .select({
@@ -522,66 +503,50 @@ export class AnalyticsService {
         phone: delivers.phone,
         full_name: delivers.fullName,
         total_orders: count(orders.id).mapWith(Number),
-        total_order_delivered: sql<number>`COALESCE
-          ( COUNT(
-        ${orders.id}
+        total_order_delivered: sql
+          .raw(
+            `
+        COALESCE(
+          COUNT(orders.id) FILTER (WHERE orders.status = 'DELIVERED'),
+          0
         )
-        FILTER
-        (
-        WHERE
-        ${orders.status}
-        =
-        'DELIVERED'
-        ),
-        0
-        )`
+      `,
+          )
           .mapWith(Number)
           .as('totalOrderDelivered'),
-        total_order_canceled: sql<number>`COALESCE
-          ( COUNT(
-        ${orders.id}
+        total_order_canceled: sql
+          .raw(
+            `
+        COALESCE(
+          COUNT(orders.id) FILTER (WHERE orders.status = 'CANCELED'),
+          0
         )
-        FILTER
-        (
-        WHERE
-        ${orders.status}
-        =
-        'CANCELED'
-        ),
-        0
-        )`
-          .mapWith(Number)
-          .as('totalOrderCanceled'),
+      `,
+          )
+          .mapWith(Number),
         total_deliver_point: delivers.point,
-        total_income: sql<number>`COALESCE
-          ( SUM(
-        ${orders.incomeDeliver}
-        )
-        FILTER
-        (
-        WHERE
-        ${orders.status}
-        =
-        'DELIVERED'
-        ),
-        0
-        )`
+        total_income: sql
+          .raw(
+            `
+          COALESCE(
+            SUM(orders.income_deliver) FILTER (WHERE orders.status = 'DELIVERED'),
+            0
+          )
+        `,
+          )
           .mapWith(Number)
           .as('totalIncome'),
-        total_income_tax: sql<number>`
-          SUM(
-    CASE
-      WHEN
-          ${orders.status}
-          =
-          'DELIVERED'
-          THEN
-          ${orders.deliveryIncomeTax}
-          ELSE
-          0
-          END
+        total_income_tax: sql
+          .raw(
+            `
+              SUM(
+                CASE
+                  WHEN orders.status = 'DELIVERED' THEN orders.delivery_income_tax
+                  ELSE 0
+                END
+              )
+            `,
           )
-        `
           .mapWith(Number)
           .as('total_income_tax'),
       })
