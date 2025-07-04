@@ -10,7 +10,7 @@ import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto
 import { Order } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
-import { areas, RoleEnum, users } from '@/database/schemas';
+import { areas, ProviderEnum, RoleEnum, users } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { deleteIfExists, normalizeImagePath } from '@/utils/util';
@@ -58,6 +58,7 @@ export class UsersService implements OnModuleInit {
       .insert(users)
       .values({
         ...reqDto,
+        provider: ProviderEnum.PASSWORD,
         ...(payload.role === RoleEnum.MANAGEMENT ? { areaId: payload.areaId } : {}),
       })
       .returning()
