@@ -639,6 +639,7 @@ export class OrdersService {
   }
 
   async create(payload: JwtPayloadType, reqDto: OrderCreateReqDto) {
+    console.log('Creating order with payload:', reqDto);
     const calculateOrder = await this.cache.get<CalculateResponse>(reqDto.sessionId);
     if (!calculateOrder) {
       throw new ValidationException(
