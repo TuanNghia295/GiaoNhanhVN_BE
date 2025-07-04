@@ -256,9 +256,7 @@ export class AnalyticsService {
         total_product_price: sum(orders.totalProduct).mapWith(Number),
         total_user_service_fee: sum(orders.userServiceFee).mapWith(Number),
         total_user_payment: sum(orders.total).mapWith(Number),
-        total_store_service_fee: sum(sql`${orders.totalProduct}
-        -
-        ${orders.payforShop}`).mapWith(Number),
+        total_store_service_fee: sum(orders.storeServiceFee).mapWith(Number),
         total_store_revenue: sum(orders.payforShop).mapWith(Number),
         // thuế 1,5% trên tổng doanh thu cửa hàng
         total_product_tax: sum(orders.totalProductTax).mapWith(Number),
