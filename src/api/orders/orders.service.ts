@@ -513,7 +513,7 @@ export class OrdersService {
       distance: distanceRate,
       incomeDeliver: incomeDeliver,
       userServiceFee: userServiceFee,
-      totalDelivery,
+      totalDelivery: distanceFee,
       isRain: isRain,
       deliveryIncomeTax,
       isNight: isNight,
