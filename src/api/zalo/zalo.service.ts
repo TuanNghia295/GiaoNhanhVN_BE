@@ -6,7 +6,7 @@ import { VerifyZaloResDto } from '@/api/zalo/dto/verify-otp.res.dto';
 import { CacheKey } from '@/constants/cache.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
-import { RoleEnum, User, users, zalo } from '@/database/schemas';
+import { ProviderEnum, RoleEnum, User, users, zalo } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { createCacheKey } from '@/utils/cache.util';
@@ -198,6 +198,7 @@ export class ZaloService {
         .insert(users)
         .values({
           phone: phone,
+          provider: ProviderEnum.ZALO,
         })
         .returning()
         .then((res) => res[0]);
