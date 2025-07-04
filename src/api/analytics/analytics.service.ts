@@ -185,7 +185,8 @@ export class AnalyticsService {
     ];
     result.sort((a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status));
 
-    const DATA_FILTERED = result.filter((item) => item.status !== OrderStatusEnum.CANCELED);
+    // chỉ là đơn hoàn thành
+    const DATA_FILTERED = result.filter((item) => item.status === OrderStatusEnum.DELIVERED);
     const total_all: RevenueResult = {
       status: null, // Dòng tổng không có trạng thái
       total_order: DATA_FILTERED.reduce((acc, cur) => acc + cur.total_order, 0),
@@ -337,7 +338,7 @@ export class AnalyticsService {
 
     // ✅ Tính tổng trừ các đơn hàng đã hủy
     const DATA_FILTERED = formattedResult.filter(
-      (item) => item.status !== OrderStatusEnum.CANCELED,
+      (status) => status.status === OrderStatusEnum.DELIVERED,
     );
     const total_all_order = DATA_FILTERED.reduce((acc, cur) => acc + Number(cur.total_order), 0);
     const total_all_product_price =
