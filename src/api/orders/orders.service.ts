@@ -892,11 +892,20 @@ export class OrdersService {
   }
 
   async getDetailById(orderId: number) {
-    const order = await this.db.query.orders.findFirst({
+    const orderDetail = await this.db.query.orders.findFirst({
       where: eq(orders.id, orderId),
       with: {
-        store: true,
-        vouchers: true,
+        user: true,
+        store: {
+          with: {
+            user: true,
+          },
+        },
+        vouchers: {
+          with: {
+            voucher: true,
+          },
+        },
         orderDetails: {
           with: {
             product: true,
@@ -911,10 +920,16 @@ export class OrdersService {
       },
     });
 
-    if (!order) {
+    if (!orderDetail) {
       throw new ValidationException(ErrorCode.OD001, HttpStatus.NOT_FOUND);
     }
-    return order;
+    // flatten vouchers array
+    return {
+      ...orderDetail,
+      vouchers: Array.isArray(orderDetail.vouchers)
+        ? orderDetail.vouchers.map((v) => v.voucher)
+        : [],
+    };
   }
 
   async getPageByUserId(userId: number, reqDto: PageMyOrderReqDto) {
