@@ -1158,9 +1158,33 @@ export class OrdersService {
         .where(eq(orders.id, orderId))
         .returning();
 
+      const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(
+        updateOrder.userId,
+      );
+
+      if (validUserFcmToken.fcmToken) {
+        await this.notifyAboutAssignOrder([validUserFcmToken.fcmToken], updateOrder.code);
+      }
       this.emitter.emit('order.accepted', orderId);
       return updateOrder;
     });
+  }
+
+  private async notifyAboutAssignOrder(fcmTokens: string[], code: string) {
+    if (fcmTokens.length === 0) {
+      return;
+    }
+    try {
+      await this.admin.messaging().sendEachForMulticast(
+        buildMulticastMessage({
+          tokens: fcmTokens,
+          title: 'Đơn hàng đã được nhận',
+          body: `Đơn hàng sẽ được giao trong thời gian sớm nhất. Mã đơn hàng: ${code}`,
+        }),
+      );
+    } catch (error) {
+      this.logger.error('Error sending FCM notification', error);
+    }
   }
 
   async updateOrderStatusByDeliver(orderId: number, status: OrderStatusEnum, reason: string) {
@@ -1220,9 +1244,33 @@ export class OrdersService {
           await this.emitter.emitAsync('order.updated_status', updatedOrder);
           break;
       }
-
-      return updatedOrder;
+      const MAX_CANCEL_ORDER_PER_DAY = 3;
+      const cancelOrderCountInDay = await this.getCancelOrderCountInDay(existDeliver.id, tx);
+      const cancelOrderCount = MAX_CANCEL_ORDER_PER_DAY - cancelOrderCountInDay;
+      return {
+        ...updatedOrder,
+        cancelOrderCount: cancelOrderCount,
+      };
     });
+  }
+
+  private async getCancelOrderCountInDay(deliverId: number, tx: Transaction): Promise<number> {
+    return await tx
+      .select({
+        count: count(reasonDeliverCancelOrders.id),
+      })
+      .from(reasonDeliverCancelOrders)
+      .where(
+        and(
+          eq(reasonDeliverCancelOrders.deliverId, deliverId),
+          between(
+            reasonDeliverCancelOrders.createdAt,
+            startOfDay(new Date()),
+            endOfDay(new Date()),
+          ),
+        ),
+      )
+      .then((res) => res[0]?.count ?? 0);
   }
 
   private async calculateSubtractPoint(order: Order): Promise<number> {
