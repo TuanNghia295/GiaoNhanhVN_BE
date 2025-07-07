@@ -148,8 +148,17 @@ export class OrdersService {
     };
 
     // Date range
-    const fromDate = startOfDay(new Date(reqDto.from ?? Date.now()));
-    const toDate = endOfDay(new Date(reqDto.to ?? Date.now()));
+    const now = DateTime.now();
+
+    const fromDate = DateTime.fromJSDate(reqDto.from ?? now.toJSDate())
+      .setZone('Asia/Ho_Chi_Minh')
+      .startOf('day')
+      .toJSDate();
+
+    const toDate = DateTime.fromJSDate(reqDto.to ?? now.toJSDate())
+      .setZone('Asia/Ho_Chi_Minh')
+      .endOf('day')
+      .toJSDate();
 
     const whereClauses: SQL[] = [
       between(orders.createdAt, fromDate, toDate),

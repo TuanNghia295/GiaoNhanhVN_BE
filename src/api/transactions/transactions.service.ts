@@ -45,6 +45,7 @@ import {
   SQL,
   sql,
 } from 'drizzle-orm';
+import { DateTime } from 'luxon';
 
 @Injectable()
 export class TransactionsService {
@@ -579,8 +580,28 @@ export class TransactionsService {
         break;
       case RoleEnum.MANAGEMENT:
         baseConfig.where = and(
-          ...(reqDto.from ? [gte(transactionLogs.createdAt, reqDto.from)] : []),
-          ...(reqDto.to ? [lte(transactionLogs.createdAt, reqDto.to)] : []),
+          ...(reqDto.from
+            ? [
+                gte(
+                  transactionLogs.createdAt,
+                  DateTime.fromJSDate(reqDto.from)
+                    .setZone('Asia/Ho_Chi_Minh')
+                    .startOf('day')
+                    .toJSDate(),
+                ),
+              ]
+            : []),
+          ...(reqDto.to
+            ? [
+                lte(
+                  transactionLogs.createdAt,
+                  DateTime.fromJSDate(reqDto.to)
+                    .setZone('Asia/Ho_Chi_Minh')
+                    .endOf('day')
+                    .toJSDate(),
+                ),
+              ]
+            : []),
           eq(transactionLogs.areaId, payload.areaId),
         );
     }

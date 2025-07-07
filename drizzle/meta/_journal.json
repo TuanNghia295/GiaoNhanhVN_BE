@@ -43,6 +43,13 @@
       "when": 1751277122207,
       "tag": "0005_careless_blink",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1751851738220,
+      "tag": "0006_open_rafael_vega",
+      "breakpoints": true
     }
   ]
 }

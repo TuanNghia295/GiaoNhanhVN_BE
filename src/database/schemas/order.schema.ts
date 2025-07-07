@@ -45,21 +45,21 @@ export const orders = pgTable(
       .default(OrderStatusEnum.PENDING),
     deliveryIncomeTax: numeric('delivery_income_tax', {
       precision: 15,
-      scale: 2,
+      scale: 3,
       mode: 'number',
     })
       .notNull()
       .default(0),
     totalProductTax: numeric('total_product_tax', {
       precision: 15,
-      scale: 2,
+      scale: 3,
       mode: 'number',
     })
       .notNull()
       .default(0),
     isNight: boolean('is_night').notNull().default(false),
     isRain: boolean('is_rain').notNull().default(false),
-    nightFee: numeric('night_fee', { precision: 15, scale: 2, mode: 'number' })
+    nightFee: numeric('night_fee', { precision: 15, scale: 3, mode: 'number' })
       .notNull()
       .default(0),
     rainFee: numeric('rain_fee', { precision: 15, scale: 2, mode: 'number' }).notNull().default(0),
@@ -109,7 +109,7 @@ export const orders = pgTable(
       .default(0),
     payforShop: numeric('payfor_shop', {
       precision: 15,
-      scale: 2,
+      scale: 3,
       mode: 'number',
     })
       .notNull()

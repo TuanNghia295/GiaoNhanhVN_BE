@@ -4,7 +4,7 @@ CREATE DATABASE nestjs_boilerplate;
 -- Grant all privileges to the user on the database
 GRANT ALL PRIVILEGES ON DATABASE nestjs_boilerplate TO root;
 
-DELETE  FROM orders;
+DELETE  FROM orders ;
 
 DELETE FROM extras_to_order_details;
 DELETE FROM vouchers_on_orders;

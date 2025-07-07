@@ -24,8 +24,8 @@ import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { endOfDay, startOfDay } from 'date-fns';
 import { and, between, count, eq, inArray, isNull, or, sql, sum } from 'drizzle-orm';
+import { DateTime } from 'luxon';
 
 export type RevenueResult = {
   status: OrderStatusEnum | null; // null cho dòng tổng
@@ -48,6 +48,23 @@ export class AnalyticsService {
   ) {}
 
   async getAdminRevenue(reqDto: AdminRevenueReqDto, payload: JwtPayloadType) {
+    if (reqDto.from) {
+      reqDto.from = DateTime.fromJSDate(reqDto.from)
+        .setZone('Asia/Ho_Chi_Minh')
+        .startOf('day')
+        .toJSDate();
+    }
+
+    if (reqDto.to) {
+      reqDto.to = DateTime.fromJSDate(reqDto.to)
+        .setZone('Asia/Ho_Chi_Minh')
+        .endOf('day')
+        .toJSDate();
+    }
+
+    console.log('reqDto.from', reqDto.from);
+    console.log('reqDto.to', reqDto.to);
+
     const statuses: OrderStatusEnum[] = Object.values(OrderStatusEnum);
     const results = await this.db
       .select({
@@ -98,9 +115,7 @@ export class AnalyticsService {
         and(
           ...(payload.role === RoleEnum.MANAGEMENT ? [eq(orders.areaId, payload.areaId)] : []),
           ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
-          ...(reqDto.from && reqDto.to
-            ? [between(orders.createdAt, startOfDay(reqDto.from), endOfDay(reqDto.to))]
-            : []),
+          ...(reqDto.from && reqDto.to ? [between(orders.createdAt, reqDto.from, reqDto.to)] : []),
         ),
       )
       .groupBy(orders.status);
@@ -133,13 +148,10 @@ export class AnalyticsService {
         and(
           ...(payload.role === RoleEnum.MANAGEMENT ? [eq(orders.areaId, payload.areaId)] : []),
           ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
-          ...(reqDto.from && reqDto.to
-            ? [between(orders.createdAt, startOfDay(reqDto.from), endOfDay(reqDto.to))]
-            : []),
+          ...(reqDto.from && reqDto.to ? [between(orders.createdAt, reqDto.from, reqDto.to)] : []),
         ),
       )
       .groupBy(orders.status);
-
     const mergedResults = results.map((item) => {
       const voucherData = totalVoucherValueResult.find((v) => v.status === item.status);
       return {
@@ -253,7 +265,19 @@ export class AnalyticsService {
           ...(payload.role === RoleEnum.MANAGEMENT ? [eq(stores.areaId, payload.areaId)] : []),
           ...(reqDto.q ? [or(eq(users.phone, reqDto.q), eq(stores.name, reqDto.q))] : []),
           ...(reqDto.from && reqDto.to
-            ? [between(orders.createdAt, startOfDay(reqDto.from), endOfDay(reqDto.to))]
+            ? [
+                between(
+                  orders.createdAt,
+                  DateTime.fromJSDate(reqDto.from)
+                    .setZone('Asia/Ho_Chi_Minh')
+                    .startOf('day')
+                    .toJSDate(),
+                  DateTime.fromJSDate(reqDto.to)
+                    .setZone('Asia/Ho_Chi_Minh')
+                    .endOf('day')
+                    .toJSDate(),
+                ),
+              ]
             : []),
         ),
       );
@@ -287,7 +311,19 @@ export class AnalyticsService {
           ...(payload.role === RoleEnum.MANAGEMENT ? [eq(stores.areaId, payload.areaId)] : []),
           ...(reqDto.q ? [or(eq(users.phone, reqDto.q), eq(stores.name, reqDto.q))] : []),
           ...(reqDto.from && reqDto.to
-            ? [between(orders.createdAt, startOfDay(reqDto.from), endOfDay(reqDto.to))]
+            ? [
+                between(
+                  orders.createdAt,
+                  DateTime.fromJSDate(reqDto.from)
+                    .setZone('Asia/Ho_Chi_Minh')
+                    .startOf('day')
+                    .toJSDate(),
+                  DateTime.fromJSDate(reqDto.to)
+                    .setZone('Asia/Ho_Chi_Minh')
+                    .endOf('day')
+                    .toJSDate(),
+                ),
+              ]
             : []),
         ),
       )
@@ -392,7 +428,11 @@ export class AnalyticsService {
       .where(
         and(
           eq(stores.id, store.storeId),
-          between(orders.createdAt, startOfDay(reqDto.from), endOfDay(reqDto.to)),
+          between(
+            orders.createdAt,
+            DateTime.fromJSDate(reqDto.from).setZone('Asia/Ho_Chi_Minh').startOf('day').toJSDate(),
+            DateTime.fromJSDate(reqDto.to).setZone('Asia/Ho_Chi_Minh').endOf('day').toJSDate(),
+          ),
         ),
       )
       .groupBy(orders.status);
@@ -421,7 +461,11 @@ export class AnalyticsService {
       .where(
         and(
           eq(stores.id, store.storeId),
-          between(orders.createdAt, startOfDay(reqDto.from), endOfDay(reqDto.to)),
+          between(
+            orders.createdAt,
+            DateTime.fromJSDate(reqDto.from).setZone('Asia/Ho_Chi_Minh').startOf('day').toJSDate(),
+            DateTime.fromJSDate(reqDto.to).setZone('Asia/Ho_Chi_Minh').endOf('day').toJSDate(),
+          ),
         ),
       )
       .groupBy(orders.status);
@@ -560,7 +604,19 @@ export class AnalyticsService {
           ...(payload.role === RoleEnum.MANAGEMENT ? [eq(delivers.areaId, payload.areaId)] : []),
           ...(reqDto.phone ? [eq(delivers.phone, reqDto.phone)] : []),
           ...(reqDto.from && reqDto.to
-            ? [between(orders.createdAt, startOfDay(reqDto.from), endOfDay(reqDto.to))]
+            ? [
+                between(
+                  orders.createdAt,
+                  DateTime.fromJSDate(reqDto.from)
+                    .setZone('Asia/Ho_Chi_Minh')
+                    .startOf('day')
+                    .toJSDate(),
+                  DateTime.fromJSDate(reqDto.to)
+                    .setZone('Asia/Ho_Chi_Minh')
+                    .endOf('day')
+                    .toJSDate(),
+                ),
+              ]
             : []),
         ),
       )
