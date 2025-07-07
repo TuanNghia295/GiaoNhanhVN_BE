@@ -5,50 +5,22 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1751269919962,
-      "tag": "0000_wise_wonder_man",
+      "when": 1751900693250,
+      "tag": "0000_oval_red_skull",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1751271469583,
-      "tag": "0001_burly_mauler",
+      "when": 1751903149117,
+      "tag": "0001_flippant_makkari",
       "breakpoints": true
     },
     {
       "idx": 2,
       "version": "7",
-      "when": 1751271682893,
-      "tag": "0002_uneven_maelstrom",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1751271711153,
-      "tag": "0003_light_tusk",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1751271742453,
-      "tag": "0004_wonderful_doctor_doom",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1751277122207,
-      "tag": "0005_careless_blink",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1751851738220,
-      "tag": "0006_open_rafael_vega",
+      "when": 1751903186784,
+      "tag": "0002_fair_giant_girl",
       "breakpoints": true
     }
   ]

@@ -1,6 +1,6 @@
 {
-  "id": "a5e29845-a896-4705-b204-94ff023ce5ef",
-  "prevId": "abdf14ca-18c4-42a1-9edb-686c0c585495",
+  "id": "fbc49a9e-9596-4f0b-a302-381c447dfd99",
+  "prevId": "18c33415-6515-44fa-bd9e-81220ba98384",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -994,7 +994,15 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "locations_deliver_id_unique": {
+          "name": "locations_deliver_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "deliver_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1395,14 +1403,14 @@
         },
         "delivery_income_tax": {
           "name": "delivery_income_tax",
-          "type": "numeric(15, 2)",
+          "type": "numeric(15, 3)",
           "primaryKey": false,
           "notNull": true,
           "default": 0
         },
         "total_product_tax": {
           "name": "total_product_tax",
-          "type": "numeric(15, 2)",
+          "type": "numeric(15, 3)",
           "primaryKey": false,
           "notNull": true,
           "default": 0
@@ -1423,7 +1431,7 @@
         },
         "night_fee": {
           "name": "night_fee",
-          "type": "numeric(15, 2)",
+          "type": "numeric(15, 3)",
           "primaryKey": false,
           "notNull": true,
           "default": 0
@@ -1493,7 +1501,7 @@
         },
         "payfor_shop": {
           "name": "payfor_shop",
-          "type": "numeric(15, 2)",
+          "type": "numeric(15, 3)",
           "primaryKey": false,
           "notNull": true,
           "default": 0
@@ -2227,14 +2235,14 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "'2025-06-30 08:17:49.486'"
+          "default": "'2025-07-07 15:45:49.055'"
         },
         "end_night_time": {
           "name": "end_night_time",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "'2025-06-30 08:17:49.486'"
+          "default": "'2025-07-07 15:45:49.055'"
         },
         "hotline": {
           "name": "hotline",
@@ -2515,27 +2523,34 @@
           "primaryKey": false,
           "notNull": false
         },
+        "is_recommended": {
+          "name": "is_recommended",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "open_time": {
           "name": "open_time",
-          "type": "timestamp",
+          "type": "time",
           "primaryKey": false,
           "notNull": false
         },
         "close_time": {
           "name": "close_time",
-          "type": "timestamp",
+          "type": "time",
           "primaryKey": false,
           "notNull": false
         },
         "open_second_time": {
           "name": "open_second_time",
-          "type": "timestamp",
+          "type": "time",
           "primaryKey": false,
           "notNull": false
         },
         "close_second_time": {
           "name": "close_second_time",
-          "type": "timestamp",
+          "type": "time",
           "primaryKey": false,
           "notNull": false
         },

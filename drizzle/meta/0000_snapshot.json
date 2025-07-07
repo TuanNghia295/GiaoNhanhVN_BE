@@ -1,5 +1,5 @@
 {
-  "id": "abdf14ca-18c4-42a1-9edb-686c0c585495",
+  "id": "18c33415-6515-44fa-bd9e-81220ba98384",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1403,14 +1403,14 @@
         },
         "delivery_income_tax": {
           "name": "delivery_income_tax",
-          "type": "numeric(15, 2)",
+          "type": "numeric(15, 3)",
           "primaryKey": false,
           "notNull": true,
           "default": 0
         },
         "total_product_tax": {
           "name": "total_product_tax",
-          "type": "numeric(15, 2)",
+          "type": "numeric(15, 3)",
           "primaryKey": false,
           "notNull": true,
           "default": 0
@@ -1431,7 +1431,7 @@
         },
         "night_fee": {
           "name": "night_fee",
-          "type": "numeric(15, 2)",
+          "type": "numeric(15, 3)",
           "primaryKey": false,
           "notNull": true,
           "default": 0
@@ -1501,7 +1501,7 @@
         },
         "payfor_shop": {
           "name": "payfor_shop",
-          "type": "numeric(15, 2)",
+          "type": "numeric(15, 3)",
           "primaryKey": false,
           "notNull": true,
           "default": 0
@@ -2235,14 +2235,14 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "'2025-06-30 07:51:59.857'"
+          "default": "'2025-07-07 15:04:53.205'"
         },
         "end_night_time": {
           "name": "end_night_time",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "'2025-06-30 07:51:59.857'"
+          "default": "'2025-07-07 15:04:53.205'"
         },
         "hotline": {
           "name": "hotline",
@@ -2522,6 +2522,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_recommended": {
+          "name": "is_recommended",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "open_time": {
           "name": "open_time",

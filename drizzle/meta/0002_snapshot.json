@@ -1,6 +1,6 @@
 {
-  "id": "90eb38d7-1604-4edf-b3e4-6c5e2ec3d7be",
-  "prevId": "a5e29845-a896-4705-b204-94ff023ce5ef",
+  "id": "b81f7535-0813-441b-b98c-54f6f6aff274",
+  "prevId": "fbc49a9e-9596-4f0b-a302-381c447dfd99",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -994,7 +994,15 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "locations_deliver_id_unique": {
+          "name": "locations_deliver_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "deliver_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1395,14 +1403,14 @@
         },
         "delivery_income_tax": {
           "name": "delivery_income_tax",
-          "type": "numeric(15, 2)",
+          "type": "numeric(15, 3)",
           "primaryKey": false,
           "notNull": true,
           "default": 0
         },
         "total_product_tax": {
           "name": "total_product_tax",
-          "type": "numeric(15, 2)",
+          "type": "numeric(15, 3)",
           "primaryKey": false,
           "notNull": true,
           "default": 0
@@ -1423,7 +1431,7 @@
         },
         "night_fee": {
           "name": "night_fee",
-          "type": "numeric(15, 2)",
+          "type": "numeric(15, 3)",
           "primaryKey": false,
           "notNull": true,
           "default": 0
@@ -1493,7 +1501,7 @@
         },
         "payfor_shop": {
           "name": "payfor_shop",
-          "type": "numeric(15, 2)",
+          "type": "numeric(15, 3)",
           "primaryKey": false,
           "notNull": true,
           "default": 0
@@ -2227,14 +2235,14 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "'2025-06-30 08:21:22.831'"
+          "default": "'2025-07-07 15:46:26.730'"
         },
         "end_night_time": {
           "name": "end_night_time",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "'2025-06-30 08:21:22.831'"
+          "default": "'2025-07-07 15:46:26.730'"
         },
         "hotline": {
           "name": "hotline",
