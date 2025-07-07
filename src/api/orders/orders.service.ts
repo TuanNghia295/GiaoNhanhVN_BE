@@ -1276,7 +1276,7 @@ export class OrdersService {
       }
       const MAX_CANCEL_ORDER_PER_DAY = 3;
       const cancelOrderCountInDay = await this.getCancelOrderCountInDay(existDeliver.id, tx);
-      if (cancelOrderCountInDay >= MAX_CANCEL_ORDER_PER_DAY) {
+      if (cancelOrderCountInDay > MAX_CANCEL_ORDER_PER_DAY) {
         await this.lockDeliver(existDeliver.id);
         // bắn event out đăng nhập shipper
         this.emitter.emit('deliver.locked', existDeliver);
