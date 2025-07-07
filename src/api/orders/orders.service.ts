@@ -50,6 +50,7 @@ import { voucherUsages } from '@/database/schemas/voucher-usage.schema';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { GoongService } from '@/shared/goong.service';
+import { calculatePayForShop } from '@/utils/calculate.util';
 import { buildMulticastMessage } from '@/utils/firebase.util';
 import { allowedTransitions } from '@/utils/util';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -753,7 +754,7 @@ export class OrdersService {
       //-------------------------------------------------
       // Tiền thuế của sản phẩm 1.5%
       //-------------------------------------------------
-      const totalProductTax = _.round(totalProduct * 0.015, 3);
+      const totalProductTax = _.round(Number((totalProduct * 0.015).toFixed(10)), 3);
 
       const storeServiceFee =
         reqDto.type === OrderTypeEnum.FOOD
@@ -771,12 +772,13 @@ export class OrdersService {
       // Thu nhập cửa hàng = tiền sản phẩm - phí dịch vụ cửa hàng - thuế sản phẩm
       //-------------------------------------------------
       // thu lại shop
-      const payforShop =
-        reqDto.type === OrderTypeEnum.FOOD
-          ? _.round(
-              Math.max(totalProduct - storeServiceFee - totalVoucherStore, 0) - totalProductTax, // trừ thuế sản phẩm
-            )
-          : 0;
+      const payforShop = calculatePayForShop(
+        reqDto.type,
+        totalProduct,
+        storeServiceFee,
+        totalVoucherStore,
+        totalProductTax,
+      );
 
       const total = _.round(
         Math.max(
