@@ -1276,11 +1276,11 @@ export class OrdersService {
       }
       const MAX_CANCEL_ORDER_PER_DAY = 3;
       const cancelOrderCountInDay = await this.getCancelOrderCountInDay(existDeliver.id, tx);
+      console.log('cancelOrderCountInDay', cancelOrderCountInDay);
       if (cancelOrderCountInDay > MAX_CANCEL_ORDER_PER_DAY) {
         await this.lockDeliver(existDeliver.id);
         // bắn event out đăng nhập shipper
         this.emitter.emit('deliver.locked', existDeliver);
-        tx.rollback();
         throw new ValidationException(ErrorCode.OD003);
       }
       const cancelOrderCount = MAX_CANCEL_ORDER_PER_DAY - cancelOrderCountInDay;
