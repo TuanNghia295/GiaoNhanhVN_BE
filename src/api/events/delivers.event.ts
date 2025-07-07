@@ -19,16 +19,6 @@ export class DeliversEvent {
   private readonly logger = new Logger(DeliversEvent.name);
 
   @OnEvent('deliver.locked', { async: true })
-  async onDeliverLocked(deliver: typeof delivers.$inferSelect) {
-    this.logger.log(`User with ID ${deliver.id} has been locked.`);
-
-    //----------------------------------------------------------
-    // Emit an event to the user via WebSocket
-    //-----------------------------------------------------------
-    this.deliverGateway.server.to(String(deliver.id)).emit('account-locked');
-  }
-
-  @OnEvent('deliver.locked', { async: true })
   async onUserLocked(deliver: typeof delivers.$inferSelect) {
     this.logger.log(`Deliver locked: ${deliver.id}`);
 
