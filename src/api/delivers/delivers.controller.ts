@@ -209,7 +209,7 @@ export class DeliversController {
     @Param('status') status: OrderStatusEnum,
     @Body('reason') reason: string,
   ) {
-    return await this.ordersService.updateOrderStatusByDeliver(orderId, status, reason);
+    return await this.ordersService.updateOrderStatusByDeliver(orderId, status, 'abc');
   }
 
   @Roles(RoleEnum.DELIVER)

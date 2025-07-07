@@ -1274,10 +1274,11 @@ export class OrdersService {
           await this.emitter.emitAsync('order.updated_status', updatedOrder);
           break;
       }
-      const MAX_CANCEL_ORDER_PER_DAY = 4;
-      const cancelOrderCountInDay = await this.getCancelOrderCountInDay(existDeliver.id, tx);
+      const MAX_CANCEL_ORDER_PER_DAY = 3;
+      const cancelOrderCountInDay = await this.getCancelOrderCountInDay(existDeliver.id);
       console.log('cancelOrderCountInDay', cancelOrderCountInDay);
-      if (cancelOrderCountInDay >= MAX_CANCEL_ORDER_PER_DAY) {
+      if (cancelOrderCountInDay > MAX_CANCEL_ORDER_PER_DAY) {
+        console.log('Exceeded maximum cancel orders per day');
         await this.lockDeliver(existDeliver.id);
         await this.emitter.emitAsync('deliver.locked', existDeliver);
         throw new ValidationException(ErrorCode.OD003);
@@ -1291,8 +1292,8 @@ export class OrdersService {
     });
   }
 
-  private async getCancelOrderCountInDay(deliverId: number, tx: Transaction): Promise<number> {
-    return await tx
+  private async getCancelOrderCountInDay(deliverId: number): Promise<number> {
+    return await this.db
       .select({
         count: count(reasonDeliverCancelOrders.id),
       })
