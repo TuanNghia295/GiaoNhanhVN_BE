@@ -50,7 +50,7 @@ import { voucherUsages } from '@/database/schemas/voucher-usage.schema';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { GoongService } from '@/shared/goong.service';
-import { calculatePayForShop } from '@/utils/calculate.util';
+import { calculatePayForShop, roundUp } from '@/utils/calculate.util';
 import { buildMulticastMessage } from '@/utils/firebase.util';
 import { allowedTransitions } from '@/utils/util';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -754,7 +754,7 @@ export class OrdersService {
       //-------------------------------------------------
       // Tiền thuế của sản phẩm 1.5%
       //-------------------------------------------------
-      const totalProductTax = _.round(Number((totalProduct * 0.015).toFixed(10)), 3);
+      const totalProductTax = roundUp(totalProduct * 0.015, 3);
 
       const storeServiceFee =
         reqDto.type === OrderTypeEnum.FOOD
