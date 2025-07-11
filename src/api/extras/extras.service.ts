@@ -32,6 +32,8 @@ export class ExtrasService {
     await tx.update(extras).set({ productId: null }).where(eq(extras.productId, productId));
 
     // Thêm extras mới
-    await this.createForProduct(productId, items, tx);
+    if (items.length > 0) {
+      await this.createForProduct(productId, items, tx);
+    }
   }
 }

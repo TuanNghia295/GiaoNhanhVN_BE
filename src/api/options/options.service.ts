@@ -39,6 +39,8 @@ export class OptionsService {
       .execute();
 
     // Thêm options mới
-    await this.createForProduct(productId, items, tx);
+    if (items.length > 0) {
+      await this.createForProduct(productId, items, tx);
+    }
   }
 }

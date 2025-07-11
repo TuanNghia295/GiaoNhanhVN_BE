@@ -187,16 +187,12 @@ export class ProductsService implements OnModuleInit {
       //---------------------------------------------------
       // Update options if provided
       //---------------------------------------------------
-      if (reqDto.options && reqDto.options.length > 0) {
-        await this.optionsService.updateForProduct(productId, reqDto.options, tx);
-      }
+      await this.optionsService.updateForProduct(productId, reqDto.options, tx);
 
       //---------------------------------------------------
       // Update extras if provided
       //---------------------------------------------------
-      if (reqDto.extras && reqDto.extras.length > 0) {
-        await this.extrasService.updateForProduct(productId, reqDto.extras, tx);
-      }
+      await this.extrasService.updateForProduct(productId, reqDto.extras, tx);
 
       return plainToInstance(ProductResDto, updateProduct);
     });
