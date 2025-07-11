@@ -38,16 +38,7 @@ export class OptionsService {
       .where(eq(options.productId, productId))
       .execute();
 
-    // Thêm các tuỳ chọn mới
-    await tx
-      .insert(options)
-      .values(
-        items.map((option) => ({
-          productId: productId,
-          name: option.name,
-          price: option.price,
-        })),
-      )
-      .execute();
+    // Thêm options mới
+    await this.createForProduct(productId, items, tx);
   }
 }

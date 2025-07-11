@@ -39,7 +39,13 @@ export const serviceFees = pgTable('service_fees', {
   })
     .notNull()
     .default(0),
-  deliverFeePct: integer('deliver_percent').notNull().default(0),
+  deliverFeePct: numeric('deliver_percent', {
+    precision: 5,
+    scale: 2,
+    mode: 'number',
+  })
+    .notNull()
+    .default(0),
   distancePct: numeric('distance_percent', {
     precision: 5,
     scale: 2,
