@@ -308,7 +308,12 @@ export class OrdersService {
         `Calculated raw distance: ${rawDistance} km for origins: ${reqDto.origins} and destinations: ${reqDto.destinations}`,
       );
       console.log('Math.ceil(rawDistance * 2) / 2:', Math.round(rawDistance * 2) / 2);
-      distance = Math.floor(rawDistance * 2) / 2;
+      // distance = Math.floor(rawDistance * 2) / 2;
+      if (rawDistance <= 0.5) {
+        distance = 0.5;
+      } else {
+        distance = Math.floor(rawDistance * 2) / 2;
+      }
     }
 
     const setting = await this.db.query.settings.findFirst({
