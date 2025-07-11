@@ -309,8 +309,8 @@ export class OrdersService {
       );
       console.log('Math.ceil(rawDistance * 2) / 2:', Math.round(rawDistance * 2) / 2);
       // distance = Math.floor(rawDistance * 2) / 2;
-      if (rawDistance <= 0.5) {
-        distance = 0.5;
+      if (rawDistance < 1) {
+        distance = 1;
       } else {
         distance = Math.floor(rawDistance * 2) / 2;
       }
