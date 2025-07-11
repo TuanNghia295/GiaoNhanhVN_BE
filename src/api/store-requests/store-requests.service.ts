@@ -122,9 +122,7 @@ export class StoreRequestsService {
       .then((res) => res[0] ?? null);
   }
 
-  async existStoreRequestByUserId(
-    userId: number,
-  ): Promise<{ id: number; status: StoreRequestStatusEnum }> {
+  async existPendingStoreRequestByUserId(userId: number) {
     return await this.db
       .select({
         id: storeRequests.id,
@@ -147,11 +145,11 @@ export class StoreRequestsService {
     }
 
     // kiểm tra cửa hàng đã tồn tại hay chưa
-    if (await this.storesService.existById(payload.id)) {
+    if (await this.storesService.existStoreByUserId(payload.id)) {
       throw new ValidationException(ErrorCode.S002);
     }
     // mỗi người chỉ được đăng ký 1 cửa hàng
-    if (await this.existStoreRequestByUserId(payload.id)) {
+    if (await this.existPendingStoreRequestByUserId(payload.id)) {
       throw new ValidationException(ErrorCode.SR002);
     }
 

@@ -4,6 +4,9 @@ CREATE DATABASE nestjs_boilerplate;
 -- Grant all privileges to the user on the database
 GRANT ALL PRIVILEGES ON DATABASE nestjs_boilerplate TO root;
 
+Select  * from stores where name ilike '%MoMo Quán%';
+SELECT  * FROM users WHERE id = 5457
+SELECT * FROM products WHERE store_id = 3183
 DELETE  FROM orders ;
 
 DELETE FROM extras_to_order_details;

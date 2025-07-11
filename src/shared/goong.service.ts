@@ -28,6 +28,12 @@ export type DistanceMatrixParams = {
   vehicle: VehicleType | string;
 };
 
+export type DirectionParams = {
+  origin: string;
+  destination: string;
+  vehicle: VehicleType | string;
+};
+
 export enum VehicleType {
   BIKE = 'bike',
   CAR = 'car',
@@ -53,6 +59,27 @@ export class GoongService {
         params: {
           origins,
           destinations,
+          vehicle: vehicle ?? VehicleType.BIKE,
+          api_key: this.configService.get('goong.apiKey', {
+            infer: true,
+          }),
+        },
+      },
+    );
+    return response.data;
+  }
+
+  async getDirection({
+    origin,
+    vehicle,
+    destination,
+  }: DirectionParams): Promise<DistanceMatrixResponse> {
+    const response = await this.httpService.axiosRef.get(
+      `${this.configService.get('goong.apiUrl', { infer: true })}/direction`,
+      {
+        params: {
+          origin,
+          destination,
           vehicle: vehicle ?? VehicleType.BIKE,
           api_key: this.configService.get('goong.apiKey', {
             infer: true,

@@ -15,8 +15,8 @@ import {
 export const settings = pgTable('settings', {
   id: serial().primaryKey().notNull(),
   openFullTime: boolean('open_full_time').notNull().default(false),
-  startNightTime: timestamp('start_night_time').notNull().default(new Date()),
-  endNightTime: timestamp('end_night_time').notNull().default(new Date()),
+  startNightTime: timestamp('start_night_time').notNull().default(new Date('2023-01-01T00:00:00Z')),
+  endNightTime: timestamp('end_night_time').notNull().default(new Date('2023-01-01T23:59:59Z')),
   hotline: varchar('hotline', { length: 20 }).default(''),
   fanpage: text('fanpage').default(''),
   isRain: boolean('is_rain').notNull().default(false),

@@ -303,7 +303,12 @@ export class OrdersService {
         destinations: reqDto.destinations,
         vehicle: 'bike',
       });
-      distance = Math.ceil(response.rows[0].elements[0].distance.value / 1000);
+      const rawDistance = response.rows[0].elements[0].distance.value / 1000;
+      console.log(
+        `Calculated raw distance: ${rawDistance} km for origins: ${reqDto.origins} and destinations: ${reqDto.destinations}`,
+      );
+      console.log('Math.ceil(rawDistance * 2) / 2:', Math.round(rawDistance * 2) / 2);
+      distance = Math.floor(rawDistance * 2) / 2;
     }
 
     const setting = await this.db.query.settings.findFirst({
@@ -534,33 +539,38 @@ export class OrdersService {
   }
 
   //hàm tính khoảng cách phí giao hàng
-  private async calculateDistanceFee(
+  async calculateDistanceFee(
     totalDistance: number,
-    distances: TDistance[] = [],
+    sortedDistances: TDistance[] = [],
     distancePct: number = 0,
   ) {
     let baseRate = 0;
     const multiplier = 1 + distancePct / 100;
 
-    while (totalDistance > 0) {
-      const lastDistance = distances[distances.length - 1];
+    for (const range of sortedDistances) {
+      if (totalDistance <= range.minDistance) break;
 
-      if (totalDistance > (lastDistance?.maxDistance ?? 0)) {
-        const rate = lastDistance?.rate ?? 0;
-        baseRate += rate * multiplier;
-        totalDistance -= 1;
-      } else {
-        const matchedDistance = distances.find(
-          (distance) =>
-            totalDistance >= distance.minDistance && totalDistance <= distance.maxDistance,
-        );
-        const rate = matchedDistance?.rate ?? 0;
-        baseRate += rate * multiplier;
-        totalDistance -= 1;
-      }
+      const start = range.minDistance;
+      const end = range.maxDistance;
+      const rate = range.rate;
+
+      const applicableStart = Math.max(start, 0);
+      const applicableEnd = Math.min(end, totalDistance);
+
+      if (applicableEnd <= applicableStart) continue;
+
+      const applicableKm = applicableEnd - applicableStart;
+      baseRate += applicableKm * rate * multiplier;
     }
 
-    return _.round(baseRate); // Làm tròn 2 chữ số thập phân
+    // ✅ Xử lý phần vượt quá maxDistance cuối cùng
+    const lastRange = sortedDistances[sortedDistances.length - 1];
+    if (totalDistance > lastRange.maxDistance) {
+      const extraKm = totalDistance - lastRange.maxDistance;
+      baseRate += extraKm * lastRange.rate * multiplier;
+    }
+
+    return _.round(baseRate);
   }
 
   //hàm tính phí dịch vụ môi tường

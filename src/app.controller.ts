@@ -1,5 +1,7 @@
+import { OrdersService } from '@/api/orders/orders.service';
 import { CacheKey } from '@/constants/cache.constant';
 import { ApiPublic } from '@/decorators/http.decorators';
+import { GoongService } from '@/shared/goong.service';
 import { createCacheKey } from '@/utils/cache.util';
 import { buildTopicMessage } from '@/utils/firebase.util';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -15,6 +17,8 @@ export class AppController {
     private readonly appService: AppService,
     @Inject(FIREBASE_ADMIN) private readonly admin: admin.app.App,
     @Inject(CACHE_MANAGER) private readonly cache: Cache, // Replace with actual type
+    private readonly goongService: GoongService,
+    private orderService: OrdersService, // Assuming you have an order service for handling orders
   ) {}
 
   @Get()
@@ -26,6 +30,101 @@ export class AppController {
   @Get('/debug-sentry')
   getError() {
     throw new Error('My first Sentry error!');
+  }
+
+  @ApiPublic()
+  @Get('test-calculate')
+  async testCalculate() {
+    const sortDistances = [
+      {
+        id: 1281,
+        minDistance: 0,
+        maxDistance: 1,
+        rate: 10000,
+        serviceFeeId: 133,
+      },
+      {
+        id: 1282,
+        minDistance: 1,
+        maxDistance: 2,
+        rate: 3000,
+        serviceFeeId: 133,
+      },
+      {
+        id: 1283,
+        minDistance: 2,
+        maxDistance: 3,
+        rate: 5000,
+        serviceFeeId: 133,
+      },
+      {
+        id: 1284,
+        minDistance: 3,
+        maxDistance: 4,
+        rate: 5000,
+        serviceFeeId: 133,
+      },
+      {
+        id: 1285,
+        minDistance: 4,
+        maxDistance: 5,
+        rate: 5000,
+        serviceFeeId: 133,
+      },
+      {
+        id: 1286,
+        minDistance: 5,
+        maxDistance: 6,
+        rate: 5000,
+        serviceFeeId: 133,
+      },
+      {
+        id: 1287,
+        minDistance: 6,
+        maxDistance: 7,
+        rate: 5000,
+        serviceFeeId: 133,
+      },
+      {
+        id: 1288,
+        minDistance: 7,
+        maxDistance: 8,
+        rate: 5000,
+        serviceFeeId: 133,
+      },
+      {
+        id: 1289,
+        minDistance: 8,
+        maxDistance: 9,
+        rate: 5000,
+        serviceFeeId: 133,
+      },
+      {
+        id: 1290,
+        minDistance: 9,
+        maxDistance: 10,
+        rate: 12000,
+        serviceFeeId: 133,
+      },
+    ];
+
+    return await this.orderService.calculateDistanceFee(
+      1.5, // serviceFeeId
+      sortDistances as any, // distance in km
+      0,
+    );
+  }
+
+  @ApiPublic()
+  @Get('distance')
+  async getDistance() {
+    const response = await this.goongService.getDirection({
+      origin: '10.633287269384732, 107.72738040985809',
+      destination: '10.661207380024518, 107.77232834205587',
+      vehicle: 'car',
+    });
+    console.log('Distance response:', response);
+    return response;
   }
 
   // mỗi giây

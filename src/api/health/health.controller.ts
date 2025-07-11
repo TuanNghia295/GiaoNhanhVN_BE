@@ -1,4 +1,5 @@
 import { AllConfigType } from '@/config/config.type';
+import { ApiPublic } from '@/decorators/http.decorators';
 import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -21,6 +22,7 @@ export class HealthController {
   // @Public()
   @ApiOperation({ summary: 'Health check' })
   @Get()
+  @ApiPublic()
   @HealthCheck()
   async check(): Promise<HealthCheckResult> {
     const list = [

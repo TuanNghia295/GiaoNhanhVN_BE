@@ -1,7 +1,15 @@
 import { distances, TDistance } from '@/database/schemas/distance.schema';
 import { settings } from '@/database/schemas/setting.schema';
 import { relations } from 'drizzle-orm';
-import { decimal, integer, pgTable, serial, timestamp, varchar } from 'drizzle-orm/pg-core';
+import {
+  decimal,
+  integer,
+  numeric,
+  pgTable,
+  serial,
+  timestamp,
+  varchar,
+} from 'drizzle-orm/pg-core';
 
 export const serviceFees = pgTable('service_fees', {
   id: serial('id').primaryKey(),
@@ -13,7 +21,9 @@ export const serviceFees = pgTable('service_fees', {
   })
     .notNull()
     .default(0),
-  pricePct: integer('price_percent').notNull().default(0),
+  pricePct: numeric('price_percent', { precision: 5, scale: 2, mode: 'number' })
+    .notNull()
+    .default(0),
   userServiceFee: decimal('user_service_fee', {
     precision: 15,
     scale: 2,
@@ -30,7 +40,7 @@ export const serviceFees = pgTable('service_fees', {
     .notNull()
     .default(0),
   deliverFeePct: integer('deliver_percent').notNull().default(0),
-  distancePct: decimal('distance_percent', {
+  distancePct: numeric('distance_percent', {
     precision: 5,
     scale: 2,
     mode: 'number',

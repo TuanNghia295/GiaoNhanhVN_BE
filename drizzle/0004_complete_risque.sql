@@ -1,0 +1,2 @@
+ALTER TABLE "settings" ALTER COLUMN "start_night_time" SET DEFAULT '2023-01-01 00:00:00.000';--> statement-breakpoint
+ALTER TABLE "settings" ALTER COLUMN "end_night_time" SET DEFAULT '2023-01-01 23:59:59.000';
