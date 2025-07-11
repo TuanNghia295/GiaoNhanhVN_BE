@@ -81,26 +81,32 @@ export class ExcelsService {
           .returning();
 
         // console.log('Created product:', createdProduct);
-        if (Array.isArray(row.toppings) && Array.isArray(row.toppingPrices)) {
-          if (row.toppings.length !== row.toppingPrices.length) {
+
+        const toppings = row.toppings?.split(',') || [];
+        const toppingPrices = row.toppingPrices?.split(',').map(Number) || [];
+        if (toppings.length > 0 && toppingPrices.length > 0) {
+          if (toppings.length !== toppingPrices.length) {
             throw new ValidationException(ErrorCode.EX001);
           }
-          const extraValues = row.toppings.map((topping, idx) => ({
+          const extraValues = toppings.map((topping, idx) => ({
             name: topping.trim(),
-            price: Number(row.toppingPrices[idx]),
+            price: toppingPrices[idx], // Sửa chỗ này
             productId: createdProduct.id,
           }));
+          console.log('Creating extras:', extraValues);
           await tx.insert(extras).values(extraValues).returning();
           console.log('Created extras:', extraValues);
         }
 
-        if (Array.isArray(row.sizes) && Array.isArray(row.sizePrices)) {
-          if (row.sizes.length !== row.sizePrices.length) {
+        const sizes = row.sizes?.split(',') || [];
+        const sizePrices = row.sizePrices?.split(',').map(Number) || [];
+        if (sizes.length > 0 && sizePrices.length > 0) {
+          if (sizes.length !== sizePrices.length) {
             throw new ValidationException(ErrorCode.EX001);
           }
-          const optionValues = row.sizes.map((topping, idx) => ({
+          const optionValues = sizes.map((topping, idx) => ({
             name: topping.trim(),
-            price: Number(row.toppingPrices[idx]),
+            price: sizePrices[idx], // Sửa chỗ này
             productId: createdProduct.id,
           }));
 
