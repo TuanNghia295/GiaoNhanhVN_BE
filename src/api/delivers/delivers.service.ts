@@ -412,8 +412,14 @@ export class DeliversService implements OnModuleInit {
 
   async getRevenue(deliverId: number, reqDto: RevenueReqDto) {
     if (reqDto.to && reqDto.from) {
-      reqDto.from = DateTime.fromJSDate(reqDto.from).startOf('day').toJSDate();
-      reqDto.to = DateTime.fromJSDate(reqDto.to).endOf('day').toJSDate();
+      reqDto.from = DateTime.fromJSDate(reqDto.from)
+        .setZone('Asia/Ho_Chi_Minh')
+        .startOf('day')
+        .toJSDate();
+      reqDto.to = DateTime.fromJSDate(reqDto.to)
+        .setZone('Asia/Ho_Chi_Minh')
+        .endOf('day')
+        .toJSDate();
     }
 
     const [results, incomeResult] = await Promise.all([
@@ -422,16 +428,42 @@ export class DeliversService implements OnModuleInit {
           ...getTableColumns(orders),
           // eslint-disable-next-line
           subtractPoint: sql`
-                CASE
-                WHEN ${orders.status} = ${OrderStatusEnum.CANCELED} THEN 0
-                ELSE (
-                    COALESCE(SUM(${vouchers.value}), 0) - (
-                        ${orders.totalDelivery} + ${orders.rainFee} + ${orders.nightFee} - ${orders.incomeDeliver} +
-                        ${orders.userServiceFee} + ${orders.storeServiceFee} + ${orders.totalProductTax}
-                    )
-                )
-                END
-              `.mapWith(Number),
+            CASE
+                WHEN
+            ${orders.status}
+            =
+            ${OrderStatusEnum.CANCELED}
+            THEN
+            0
+            ELSE
+            (
+            COALESCE
+            (
+            SUM
+            (
+            ${vouchers.value}
+            ),
+            0
+            )
+            -
+            (
+            ${orders.totalDelivery}
+            +
+            ${orders.rainFee}
+            +
+            ${orders.nightFee}
+            -
+            ${orders.incomeDeliver}
+            +
+            ${orders.userServiceFee}
+            +
+            ${orders.storeServiceFee}
+            +
+            ${orders.totalProductTax}
+            )
+            )
+            END
+          `.mapWith(Number),
         })
         .from(orders)
         .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
@@ -460,9 +492,9 @@ export class DeliversService implements OnModuleInit {
           //Tổng thuế của đơn hàng
           totalTax: sum(orders.deliveryIncomeTax).mapWith(Number),
           // Thực lãnh
-          totalRealIncome: sum(sql`${orders.incomeDeliver} - ${orders.deliveryIncomeTax}`).mapWith(
-            Number,
-          ),
+          totalRealIncome: sum(sql`${orders.incomeDeliver}
+          -
+          ${orders.deliveryIncomeTax}`).mapWith(Number),
         })
         .from(orders)
         .where(
