@@ -479,7 +479,7 @@ export class DeliversService implements OnModuleInit {
             eq(orders.deliverId, deliverId),
             inArray(orders.status, [OrderStatusEnum.DELIVERED, OrderStatusEnum.CANCELED]),
             ...(reqDto.from && reqDto.to
-              ? [between(orders.updatedAt, reqDto.from, reqDto.to)]
+              ? [between(orders.createdAt, reqDto.from, reqDto.to)]
               : []),
           ),
         )
@@ -502,7 +502,7 @@ export class DeliversService implements OnModuleInit {
             eq(orders.deliverId, deliverId),
             eq(orders.status, OrderStatusEnum.DELIVERED),
             ...(reqDto.from && reqDto.to
-              ? [between(orders.updatedAt, reqDto.from, reqDto.to)]
+              ? [between(orders.createdAt, reqDto.from, reqDto.to)]
               : []),
           ),
         ),
