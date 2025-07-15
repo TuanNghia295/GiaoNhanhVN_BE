@@ -88,17 +88,12 @@ export function buildMulticastMessage({
     apns: {
       payload: {
         aps: {
-          alert: {
-            title: title,
-            body: body,
-          },
+          // badge: 1,
           sound: typeof sound === 'string' ? sound : sound.ios || 'default',
         },
       },
     },
     data: {
-      title: title,
-      body: body,
       ...data, // thêm dữ liệu bổ sung nếu có
       sound: typeof sound === 'string' ? sound : 'default',
     },
