@@ -304,8 +304,8 @@ export class DeliversService implements OnModuleInit {
   }
 
   async getInfoById(deliverId: number) {
-    const startOfDay = DateTime.now().startOf('day').toJSDate();
-    const endOfDay = DateTime.now().endOf('day').toJSDate();
+    const startOfDay = DateTime.now().setZone('Asia/Ho_Chi_Minh').startOf('day').toJSDate();
+    const endOfDay = DateTime.now().setZone('Asia/Ho_Chi_Minh').endOf('day').toJSDate();
 
     const info = await this.db.query.delivers.findFirst({
       where: and(eq(delivers.id, deliverId), isNull(delivers.deletedAt)),
@@ -428,42 +428,42 @@ export class DeliversService implements OnModuleInit {
           ...getTableColumns(orders),
           // eslint-disable-next-line
           subtractPoint: sql`
-            CASE
+                        CASE
                 WHEN
-            ${orders.status}
-            =
-            ${OrderStatusEnum.CANCELED}
-            THEN
-            0
-            ELSE
-            (
-            COALESCE
-            (
-            SUM
-            (
-            ${vouchers.value}
-            ),
-            0
-            )
-            -
-            (
-            ${orders.totalDelivery}
-            +
-            ${orders.rainFee}
-            +
-            ${orders.nightFee}
-            -
-            ${orders.incomeDeliver}
-            +
-            ${orders.userServiceFee}
-            +
-            ${orders.storeServiceFee}
-            +
-            ${orders.totalProductTax}
-            )
-            )
-            END
-          `.mapWith(Number),
+                        ${orders.status}
+                        =
+                        ${OrderStatusEnum.CANCELED}
+                        THEN
+                        0
+                        ELSE
+                        (
+                        COALESCE
+                        (
+                        SUM
+                        (
+                        ${vouchers.value}
+                        ),
+                        0
+                        )
+                        -
+                        (
+                        ${orders.totalDelivery}
+                        +
+                        ${orders.rainFee}
+                        +
+                        ${orders.nightFee}
+                        -
+                        ${orders.incomeDeliver}
+                        +
+                        ${orders.userServiceFee}
+                        +
+                        ${orders.storeServiceFee}
+                        +
+                        ${orders.totalProductTax}
+                        )
+                        )
+                        END
+                    `.mapWith(Number),
         })
         .from(orders)
         .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
@@ -493,8 +493,8 @@ export class DeliversService implements OnModuleInit {
           totalTax: sum(orders.deliveryIncomeTax).mapWith(Number),
           // Thực lãnh
           totalRealIncome: sum(sql`${orders.incomeDeliver}
-          -
-          ${orders.deliveryIncomeTax}`).mapWith(Number),
+                    -
+                    ${orders.deliveryIncomeTax}`).mapWith(Number),
         })
         .from(orders)
         .where(
