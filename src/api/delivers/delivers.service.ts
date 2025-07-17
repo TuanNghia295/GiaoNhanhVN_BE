@@ -18,7 +18,6 @@ import {
   RoleEnum,
   vouchers,
   vouchersOnOrders,
-  VouchersTypeEnum,
 } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
@@ -306,6 +305,8 @@ export class DeliversService implements OnModuleInit {
   async getInfoById(deliverId: number) {
     const startOfDay = DateTime.now().setZone('Asia/Ho_Chi_Minh').startOf('day').toJSDate();
     const endOfDay = DateTime.now().setZone('Asia/Ho_Chi_Minh').endOf('day').toJSDate();
+    console.log('startOfDay', startOfDay);
+    console.log('endOfDay', endOfDay);
 
     const info = await this.db.query.delivers.findFirst({
       where: and(eq(delivers.id, deliverId), isNull(delivers.deletedAt)),
@@ -321,15 +322,12 @@ export class DeliversService implements OnModuleInit {
       .select({
         totalOrders: count(orders.id).mapWith(Number),
         totalIncome: sum(orders.incomeDeliver).mapWith(Number),
-        // cancelOrderCount: count(orders.id)
-        //   .filter(eq(orders.status, OrderStatusEnum.CANCELED))
-        //   .mapWith(Number),
       })
       .from(orders)
       .where(
         and(
           eq(orders.deliverId, deliverId),
-          between(orders.updatedAt, startOfDay, endOfDay),
+          between(orders.createdAt, startOfDay, endOfDay),
           eq(orders.status, OrderStatusEnum.DELIVERED),
         ),
       )
@@ -422,58 +420,75 @@ export class DeliversService implements OnModuleInit {
         .toJSDate();
     }
 
+    console.log('reqDto', reqDto);
+    const voucherSums = this.db
+      .select({
+        orderId: vouchersOnOrders.orderId,
+        total_voucher_value: sql
+          .raw(
+            `
+                SUM(
+                  CASE 
+                  WHEN vouchers.type IN ('MANAGEMENT', 'ADMIN')
+                    AND vouchers_on_orders.order_id IS NOT NULL 
+                    THEN vouchers.value
+                    ELSE 0 
+                  END
+                )
+              `,
+          )
+          .mapWith(Number)
+          .as('total_voucher_value'),
+      })
+      .from(vouchersOnOrders)
+      .leftJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
+      .groupBy(vouchersOnOrders.orderId)
+      .as('voucher_sums');
+
     const [results, incomeResult] = await Promise.all([
       this.db
         .select({
           ...getTableColumns(orders),
-          // eslint-disable-next-line
           subtractPoint: sql`
-                        CASE
-                WHEN
-                        ${orders.status}
-                        =
-                        ${OrderStatusEnum.CANCELED}
-                        THEN
-                        0
-                        ELSE
-                        (
-                        COALESCE
-                        (
-                        SUM
-                        (
-                        ${vouchers.value}
-                        ),
-                        0
-                        )
-                        -
-                        (
-                        ${orders.totalDelivery}
-                        +
-                        ${orders.rainFee}
-                        +
-                        ${orders.nightFee}
-                        -
-                        ${orders.incomeDeliver}
-                        +
-                        ${orders.userServiceFee}
-                        +
-                        ${orders.storeServiceFee}
-                        +
-                        ${orders.totalProductTax}
-                        )
-                        )
-                        END
-                    `.mapWith(Number),
+            CASE
+            WHEN
+            ${orders.status}
+            =
+            ${OrderStatusEnum.CANCELED}
+            THEN
+            0
+            ELSE
+            (
+            COALESCE
+            (
+            MAX
+            (
+            ${voucherSums.total_voucher_value}
+            ),
+            0
+            )
+            -
+            (
+            ${orders.totalDelivery}
+            +
+            ${orders.rainFee}
+            +
+            ${orders.nightFee}
+            -
+            ${orders.incomeDeliver}
+            +
+            ${orders.userServiceFee}
+            +
+            ${orders.storeServiceFee}
+            +
+            ${orders.totalProductTax}
+            )
+            )
+            END
+          `.mapWith(Number),
         })
         .from(orders)
-        .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
-        .leftJoin(
-          vouchers,
-          and(
-            eq(vouchers.id, vouchersOnOrders.voucherId),
-            inArray(vouchers.type, [VouchersTypeEnum.MANAGEMENT, VouchersTypeEnum.ADMIN]),
-          ),
-        )
+        .leftJoin(voucherSums, eq(orders.id, voucherSums.orderId))
         .where(
           and(
             eq(orders.deliverId, deliverId),
@@ -493,8 +508,8 @@ export class DeliversService implements OnModuleInit {
           totalTax: sum(orders.deliveryIncomeTax).mapWith(Number),
           // Thực lãnh
           totalRealIncome: sum(sql`${orders.incomeDeliver}
-                    -
-                    ${orders.deliveryIncomeTax}`).mapWith(Number),
+          -
+          ${orders.deliveryIncomeTax}`).mapWith(Number),
         })
         .from(orders)
         .where(
