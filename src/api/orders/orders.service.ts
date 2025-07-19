@@ -1299,8 +1299,8 @@ export class OrdersService {
     if (cancelOrderCountInDay > MAX_CANCEL_ORDER_PER_DAY) {
       if (existOrder.status === OrderStatusEnum.CANCELED) {
         await this.lockDeliver(existDeliver.id);
+        await this.emitter.emitAsync('deliver.locked', existDeliver);
       }
-      await this.emitter.emitAsync('deliver.locked', existDeliver);
     }
     const cancelOrderCount = MAX_CANCEL_ORDER_PER_DAY - cancelOrderCountInDay;
 
