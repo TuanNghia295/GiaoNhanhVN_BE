@@ -1296,11 +1296,20 @@ export class OrdersService {
     const cancelOrderCountInDay = await this.getCancelOrderCountInDay(existDeliver.id);
     console.log('cancelOrderCountInDay', cancelOrderCountInDay);
     console.log(existDeliver.id, 'existDeliver.id');
-    if (cancelOrderCountInDay > MAX_CANCEL_ORDER_PER_DAY) {
-      if (existOrder.status === OrderStatusEnum.CANCELED) {
-        await this.lockDeliver(existDeliver.id);
-        await this.emitter.emitAsync('deliver.locked', existDeliver);
-      }
+    console.log('updatedOrder.status', updatedOrder.status);
+    console.log('cancelOrderCountInDay', cancelOrderCountInDay);
+    console.log(
+      ' updatedOrder.status === OrderStatusEnum.CANCELED &&\n' +
+        '      cancelOrderCountInDay > MAX_CANCEL_ORDER_PER_DAY',
+      updatedOrder.status === OrderStatusEnum.CANCELED &&
+        cancelOrderCountInDay > MAX_CANCEL_ORDER_PER_DAY,
+    );
+    if (
+      updatedOrder.status === OrderStatusEnum.CANCELED &&
+      cancelOrderCountInDay > MAX_CANCEL_ORDER_PER_DAY
+    ) {
+      await this.lockDeliver(existDeliver.id);
+      await this.emitter.emitAsync('deliver.locked', existDeliver);
     }
     const cancelOrderCount = MAX_CANCEL_ORDER_PER_DAY - cancelOrderCountInDay;
 
