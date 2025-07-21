@@ -1,3 +1,4 @@
+import { HotlineReqDto } from '@/api/settings/dto/hotline.req.dto';
 import { ServiceFeeResDto } from '@/api/settings/dto/service.fee.res.dto';
 import { SettingResDto } from '@/api/settings/dto/setting.res.dto';
 import { UpdateServiceFeeReqDto } from '@/api/settings/dto/update-service.fee.req.dto';
@@ -115,7 +116,7 @@ export class SettingsService {
     }
   }
 
-  async getHotline(provinceName: string) {
+  async getHotline(reqDto: HotlineReqDto) {
     const [setting] = await this.db
       .select({
         hotline: settings.hotline,
@@ -123,7 +124,12 @@ export class SettingsService {
       })
       .from(settings)
       .leftJoin(areas, eq(settings.areaId, areas.id))
-      .where(and(eq(areas.name, provinceName)))
+      .where(
+        and(
+          ...(reqDto.parentName ? [eq(areas.parent, reqDto.parentName)] : []),
+          eq(areas.name, reqDto.provinceName),
+        ),
+      )
       .execute();
 
     if (!setting) {

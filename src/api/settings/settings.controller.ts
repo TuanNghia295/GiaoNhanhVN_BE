@@ -1,4 +1,5 @@
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
+import { HotlineReqDto } from '@/api/settings/dto/hotline.req.dto';
 import { ServiceFeeResDto } from '@/api/settings/dto/service.fee.res.dto';
 import { SettingResDto } from '@/api/settings/dto/setting.res.dto';
 import { UpdateServiceFeeReqDto } from '@/api/settings/dto/update-service.fee.req.dto';
@@ -76,8 +77,8 @@ export class SettingsController {
     type: SettingResDto,
   })
   @Get('hotline')
-  async getHotline(@Query('provinceName') provinceName: string) {
-    return await this.settingsService.getHotline(provinceName);
+  async getHotline(@Query() reqDto: HotlineReqDto) {
+    return await this.settingsService.getHotline(reqDto);
   }
 
   @Roles(RoleEnum.MANAGEMENT)
