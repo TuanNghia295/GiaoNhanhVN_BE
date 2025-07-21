@@ -8,6 +8,9 @@ export class UpdateAreaReqDto {
   password?: string;
 
   @StringFieldOptional()
+  location?: string;
+
+  @StringFieldOptional()
   phone?: string;
 
   @StringFieldOptional()
