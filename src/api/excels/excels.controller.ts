@@ -59,9 +59,7 @@ export class ExcelsController {
     return await this.excelsService.importProduct(file);
   }
 
-  @ApiPublic({
-    summary: 'Lấy báo cáo doanh thu của admin',
-  })
+  @Roles(RoleEnum.MANAGEMENT)
   @Get('admin-report')
   async getAdminReport(
     @CurrentUser() payload: JwtPayloadType,
@@ -100,7 +98,7 @@ export class ExcelsController {
     res.send(buffer);
   }
 
-  @Roles(RoleEnum.ADMIN)
+  @Roles(RoleEnum.MANAGEMENT)
   @ApiAuth({
     summary: 'xuất báo cáo doanh thu của cửa hàng',
     description: 'xuất báo cáo doanh thu của cửa hàng',
