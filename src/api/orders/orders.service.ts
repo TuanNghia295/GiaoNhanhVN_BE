@@ -53,6 +53,7 @@ import { GoongService } from '@/shared/goong.service';
 import { calculatePayForShop, roundUp } from '@/utils/calculate.util';
 import { buildMulticastMessage } from '@/utils/firebase.util';
 import { allowedTransitions } from '@/utils/util';
+import { calculateVoucherDiscount } from '@/utils/voucher-utils';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { forwardRef, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -743,20 +744,19 @@ export class OrdersService {
         await this.applyCoupon(order.id, reqDto.voucherStoreId, payload, tx);
       }
 
-      const [totalVoucherStore, totalVoucherApp] = await Promise.all([
+      const [voucherStoreRecords, voucherAppRecords] = await Promise.all([
         tx
           .select({
-            total: sum(vouchers.value).mapWith(Number),
+            voucher: vouchers,
           })
           .from(vouchersOnOrders)
           .innerJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
           .where(
             and(eq(vouchersOnOrders.orderId, order.id), eq(vouchers.type, VouchersTypeEnum.STORE)),
-          )
-          .then((res) => res[0]?.total ?? 0),
+          ),
         tx
           .select({
-            total: sum(vouchers.value).mapWith(Number),
+            voucher: vouchers,
           })
           .from(vouchersOnOrders)
           .innerJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
@@ -765,9 +765,25 @@ export class OrdersService {
               eq(vouchersOnOrders.orderId, order.id),
               inArray(vouchers.type, [VouchersTypeEnum.ADMIN, VouchersTypeEnum.MANAGEMENT]),
             ),
-          )
-          .then((res) => res[0]?.total ?? 0),
+          ),
       ]);
+      if (this.configService.get('app.nodeEnv', { infer: true }) === Environment.DEVELOPMENT) {
+        console.group('📦 Order Details');
+        console.log('🛒 Total Product:', totalProduct);
+        console.log('🏪 Store Vouchers:', voucherStoreRecords);
+        console.log('📱 App Vouchers:', voucherAppRecords);
+        console.groupEnd();
+      }
+
+      const totalVoucherStore = calculateVoucherDiscount(
+        voucherStoreRecords.map((v) => v.voucher),
+        totalProduct,
+      );
+
+      const totalVoucherApp = calculateVoucherDiscount(
+        voucherAppRecords.map((v) => v.voucher),
+        calculateOrder.totalDelivery,
+      );
 
       console.group('🏷️ Voucher Totals');
       console.log('🛒 Total Product     :', totalProduct);

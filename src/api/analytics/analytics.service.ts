@@ -288,16 +288,26 @@ export class AnalyticsService {
         total_voucher_value: sql
           .raw(
             `
-        SUM(
-          CASE
-            WHEN vouchers.type = 'STORE'
-            AND vouchers_on_orders.order_id IS NOT NULL
-            THEN vouchers.value
-            ELSE 0
-          END
-        )
-      `,
+              SUM(
+                CASE
+                  WHEN vouchers.type = 'STORE'
+                  AND vouchers_on_orders.order_id IS NOT NULL
+                  THEN
+                    CASE
+                      WHEN vouchers.discount_type = 'FIXED_AMOUNT'
+                      THEN vouchers.value
+                      WHEN vouchers.discount_type = 'PERCENTAGE' AND vouchers.max_discount IS NOT NULL
+                      THEN LEAST(orders.total * vouchers.value / 100, vouchers.max_discount)
+                      WHEN vouchers.discount_type = 'PERCENTAGE'
+                      THEN orders.total * vouchers.value / 100
+                      ELSE 0
+                    END
+                  ELSE 0
+                END
+              )
+            `,
           )
+
           .mapWith(Number),
       })
       .from(vouchersOnOrders)
@@ -443,15 +453,24 @@ export class AnalyticsService {
         total_voucher_value: sql
           .raw(
             `
-                SUM(
-                  CASE
-                    WHEN vouchers.type = 'STORE'
-                    AND vouchers_on_orders.order_id IS NOT NULL
-                    THEN vouchers.value
-                    ELSE 0
-                  END
-                )
-              `,
+              SUM(
+                CASE
+                  WHEN vouchers.type = 'STORE'
+                  AND vouchers_on_orders.order_id IS NOT NULL
+                  THEN
+                    CASE
+                      WHEN vouchers.discount_type = 'FIXED_AMOUNT'
+                      THEN vouchers.value
+                      WHEN vouchers.discount_type = 'PERCENTAGE' AND vouchers.max_discount IS NOT NULL
+                      THEN LEAST(orders.total * vouchers.value / 100, vouchers.max_discount)
+                      WHEN vouchers.discount_type = 'PERCENTAGE'
+                      THEN orders.total * vouchers.value / 100
+                      ELSE 0
+                    END
+                  ELSE 0
+                END
+              )
+            `,
           )
           .mapWith(Number),
       })
@@ -469,8 +488,6 @@ export class AnalyticsService {
         ),
       )
       .groupBy(orders.status);
-
-    // const orderFilterMap = new Map(orderFilter.map((item) => [item.status, item]));
 
     // Kết hợp kết quả từ orderFilter và totalVoucherValueResult
 
