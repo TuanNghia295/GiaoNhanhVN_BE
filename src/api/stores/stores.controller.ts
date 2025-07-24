@@ -70,6 +70,17 @@ export class StoresController {
     return await this.storesService.getPageStoresByManager(reqDto, payload);
   }
 
+  @AuthOptional()
+  @ApiAuth({
+    summary:
+      'Lấy danh sách 15 cửa  hàng săp xếp từ gần đến xa và có số lượng voucher shop lớn nhất',
+    type: StoreResDto,
+  })
+  @Get('nearby/with-most-vouchers')
+  async getNearbyStoresWithMostVouchers(@Query('origins') origins: string) {
+    return await this.storesService.getNearbyStoresWithMostVouchers(origins);
+  }
+
   @Roles(RoleEnum.STORE)
   @ApiAuth({
     summary: 'Cập nhật trạng thái cửa hàng (STORE, ADMIN , MANAGEMENT)',

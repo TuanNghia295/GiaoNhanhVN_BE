@@ -18,6 +18,9 @@ import {
   RoleEnum,
   stores,
   users,
+  vouchers,
+  VouchersStatusEnum,
+  VouchersTypeEnum,
 } from '@/database/schemas';
 import { ratings } from '@/database/schemas/rating.schema';
 import { DrizzleDB } from '@/database/types/drizzle';
@@ -741,5 +744,65 @@ export class StoresService implements OnModuleInit {
       .leftJoin(users, eq(users.id, stores.userId))
       .where(and(eq(stores.id, storeId), eq(stores.isLocked, false), isNotNull(users.fcmToken)))
       .then((res) => res[0] ?? null);
+  }
+
+  async getNearbyStoresWithMostVouchers(origins: string) {
+    const [latitude, longitude] = origins.split(',').map(Number);
+
+    return this.db
+      .select({
+        ...getTableColumns(stores),
+        distance: sql
+          .raw(
+            `
+        6371 * acos(
+          cos(radians(${latitude})) *
+          cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+          cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+          sin(radians(${latitude})) *
+          sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
+        )
+      `,
+          )
+          .mapWith(Number)
+          .as('distance'),
+        voucherCount: count(vouchers.id).as('voucher_count'),
+      })
+      .from(stores)
+      .leftJoin(users, eq(users.id, stores.userId))
+      .leftJoin(
+        vouchers,
+        and(
+          eq(vouchers.userId, stores.userId),
+          eq(vouchers.type, VouchersTypeEnum.STORE),
+          eq(vouchers.status, VouchersStatusEnum.ACTIVE),
+          isNull(vouchers.deletedAt),
+        ),
+      )
+      .where(
+        and(
+          eq(stores.status, true),
+          eq(stores.isLocked, false),
+          isNotNull(stores.location),
+          sql.raw(
+            `
+        6371 * acos(
+          cos(radians(${latitude})) *
+          cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+          cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+          sin(radians(${latitude})) *
+          sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
+        ) < 15
+      `,
+          ),
+        ),
+      )
+      .groupBy(stores.id)
+      .limit(15)
+      .orderBy(
+        desc(sql`voucher_count`),
+        // sql`distance ASC`
+      )
+      .$dynamic();
   }
 }
