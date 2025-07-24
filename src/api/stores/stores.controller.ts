@@ -90,6 +90,27 @@ export class StoresController {
     return await this.storesService.lock(reqDto);
   }
 
+  @Roles(RoleEnum.USER)
+  @ApiAuth({
+    summary: 'Ghi nhận cửa hàng đã xem gần đây tối đa 15 cửa hàng',
+  })
+  @Put('recently-viewed')
+  async recentlyViewedStore(
+    @CurrentUser() payload: JwtPayloadType,
+    @Body('storeId', ParseIntPipe) storeId: number,
+  ) {
+    return await this.storesService.recentlyViewedStore(payload.id, storeId);
+  }
+
+  @Roles(RoleEnum.STORE)
+  @ApiAuth({
+    summary: 'Lấy danh sách 15 cửa hàng đã xem gần đây',
+  })
+  @Get('recently-viewed')
+  async getRecentlyViewedStores(@CurrentUser() payload: JwtPayloadType) {
+    return this.storesService.getRecentlyViewedStores(payload.id);
+  }
+
   @ApiPublic({
     summary: 'Lấy thông tin cửa hàng theo id (public)',
     type: StoreResDto,

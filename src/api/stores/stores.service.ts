@@ -23,6 +23,7 @@ import {
   VouchersTypeEnum,
 } from '@/database/schemas';
 import { ratings } from '@/database/schemas/rating.schema';
+import { viewedStores } from '@/database/schemas/viewed-stores.schema';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { deleteIfExists, formatDistance, normalizeImagePath } from '@/utils/util';
@@ -43,6 +44,7 @@ import {
   exists,
   getTableColumns,
   ilike,
+  inArray,
   isNotNull,
   isNull,
   not,
@@ -801,8 +803,51 @@ export class StoresService implements OnModuleInit {
       .limit(15)
       .orderBy(
         desc(sql`voucher_count`),
-        // sql`distance ASC`
+        sql`distance
+        ASC`,
       )
       .$dynamic();
+  }
+
+  async recentlyViewedStore(userId: number, storeId: number) {
+    return this.db.transaction(async (tx) => {
+      await tx
+        .insert(viewedStores)
+        .values({ userId, storeId, lastViewedAt: new Date() })
+        .onConflictDoUpdate({
+          target: [viewedStores.userId, viewedStores.storeId],
+          set: { lastViewedAt: new Date() },
+        });
+
+      const storeIdsToDelete = await tx
+        .select({ storeId: viewedStores.storeId })
+        .from(viewedStores)
+        .where(eq(viewedStores.userId, userId))
+        .orderBy(desc(viewedStores.lastViewedAt))
+        .offset(15); // Lấy các bản ghi thừa
+
+      if (storeIdsToDelete.length > 0) {
+        await tx.delete(viewedStores).where(
+          and(
+            eq(viewedStores.userId, userId),
+            inArray(
+              viewedStores.storeId,
+              storeIdsToDelete.map((s) => s.storeId),
+            ),
+          ),
+        );
+      }
+    });
+  }
+
+  async getRecentlyViewedStores(userId: number) {
+    return this.db.query.viewedStores.findMany({
+      where: eq(viewedStores.userId, userId),
+      with: {
+        store: true,
+      },
+      orderBy: desc(viewedStores.lastViewedAt),
+      limit: 15,
+    });
   }
 }

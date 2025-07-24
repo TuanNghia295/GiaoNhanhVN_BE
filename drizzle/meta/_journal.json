@@ -57,6 +57,13 @@
       "when": 1753318482229,
       "tag": "0007_fixed_wendell_rand",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1753331455989,
+      "tag": "0008_tearful_malice",
+      "breakpoints": true
     }
   ]
 }
