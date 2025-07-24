@@ -498,11 +498,14 @@ export class VouchersService {
     const voucher = await this.db
       .select({
         ...getTableColumns(vouchers),
+        usedCount: count(vouchersOnOrders.voucherId).mapWith(Number),
         user: users,
       })
       .from(vouchers)
       .leftJoin(users, eq(users.id, vouchers.userId))
+      .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
       .where(and(isNull(vouchers.deletedAt), eq(vouchers.id, voucherId)))
+      .groupBy(vouchers.id, users.id)
       .then((res) => res[0]);
     if (!voucher) {
       throw new ValidationException(ErrorCode.V001, HttpStatus.BAD_REQUEST);
