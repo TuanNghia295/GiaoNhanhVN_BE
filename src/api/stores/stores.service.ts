@@ -752,26 +752,47 @@ export class StoresService implements OnModuleInit {
   async getNearbyStoresWithMostVouchers(origins: string) {
     const [latitude, longitude] = origins.split(',').map(Number);
 
+    function storeIsOpenSql() {
+      return sql.raw(`
+    (
+      (
+        (stores."open_time" + INTERVAL '7 hour')::time < (stores."close_time" + INTERVAL '7 hour')::time AND 
+        (CURRENT_TIME + INTERVAL '7 hour')::time BETWEEN (stores."open_time" + INTERVAL '7 hour')::time AND (stores."close_time" + INTERVAL '7 hour')::time
+      ) OR (
+        (stores."open_time" + INTERVAL '7 hour')::time > (stores."close_time" + INTERVAL '7 hour')::time AND (
+          (CURRENT_TIME + INTERVAL '7 hour')::time >= (stores."open_time" + INTERVAL '7 hour')::time OR 
+          (CURRENT_TIME + INTERVAL '7 hour')::time <= (stores."close_time" + INTERVAL '7 hour')::time
+        )
+      ) OR (
+        (stores."open_second_time" + INTERVAL '7 hour')::time < (stores."close_second_time" + INTERVAL '7 hour')::time AND 
+        (CURRENT_TIME + INTERVAL '7 hour')::time BETWEEN (stores."open_second_time" + INTERVAL '7 hour')::time AND (stores."close_second_time" + INTERVAL '7 hour')::time
+      ) OR (
+        (stores."open_second_time" + INTERVAL '7 hour')::time > (stores."close_second_time" + INTERVAL '7 hour')::time AND (
+          (CURRENT_TIME + INTERVAL '7 hour')::time >= (stores."open_second_time" + INTERVAL '7 hour')::time OR 
+          (CURRENT_TIME + INTERVAL '7 hour')::time <= (stores."close_second_time" + INTERVAL '7 hour')::time
+        )
+      )
+    )
+  `);
+    }
+
     return this.db
       .select({
         ...getTableColumns(stores),
         // lấy ra voucher giá trị cao nhất
         topVoucher: sql`
-          (
-            SELECT json_build_object(
-                     'id', v.id,
-                     'code', v.code,
-                     'value', v.value
-                   )
-            FROM vouchers v
-            WHERE v.user_id = stores.user_id
-              AND v.type = ${VouchersTypeEnum.STORE}
-              AND v.status = ${VouchersStatusEnum.ACTIVE}
-              AND v.discount_type = ${DiscountTypeEnum.PERCENTAGE}
-              AND v.deleted_at IS NULL
-            ORDER BY v.value DESC
-              LIMIT 1
-          )`.mapWith((val) => val ?? null),
+          (SELECT json_build_object(
+                    'id', v.id,
+                    'code', v.code,
+                    'value', v.value
+                  )
+           FROM vouchers v
+           WHERE v.user_id = stores.user_id
+             AND v.type = ${VouchersTypeEnum.STORE}
+             AND v.status = ${VouchersStatusEnum.ACTIVE}
+             AND v.discount_type = ${DiscountTypeEnum.PERCENTAGE}
+             AND v.deleted_at IS NULL
+           ORDER BY v.value DESC LIMIT 1)`.mapWith((val) => val ?? null),
         distance: sql
           .raw(
             `
@@ -803,7 +824,9 @@ export class StoresService implements OnModuleInit {
         and(
           eq(stores.status, true),
           eq(stores.isLocked, false),
+          // kiểm tra đóng mở cửa hàng
           isNotNull(stores.location),
+          storeIsOpenSql(),
           sql.raw(
             `
         6371 * acos(
