@@ -12,6 +12,7 @@ import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE, Transaction, withPagination } from '@/database/global';
 import {
   areas,
+  DiscountTypeEnum,
   orders,
   OrderStatusEnum,
   products,
@@ -754,6 +755,23 @@ export class StoresService implements OnModuleInit {
     return this.db
       .select({
         ...getTableColumns(stores),
+        // lấy ra voucher giá trị cao nhất
+        topVoucher: sql`
+          (
+            SELECT json_build_object(
+                     'id', v.id,
+                     'code', v.code,
+                     'value', v.value
+                   )
+            FROM vouchers v
+            WHERE v.user_id = stores.user_id
+              AND v.type = ${VouchersTypeEnum.STORE}
+              AND v.status = ${VouchersStatusEnum.ACTIVE}
+              AND v.discount_type = ${DiscountTypeEnum.PERCENTAGE}
+              AND v.deleted_at IS NULL
+            ORDER BY v.value DESC
+              LIMIT 1
+          )`.mapWith((val) => val ?? null),
         distance: sql
           .raw(
             `
