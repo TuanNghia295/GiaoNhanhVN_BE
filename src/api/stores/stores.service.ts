@@ -9,7 +9,7 @@ import { UpdateStoreReqDto } from '@/api/stores/dto/update-store.req.dto';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { DRIZZLE, Transaction, withPagination } from '@/database/global';
+import { DRIZZLE, storeIsOpenSql, Transaction, withPagination } from '@/database/global';
 import {
   areas,
   DiscountTypeEnum,
@@ -750,31 +750,14 @@ export class StoresService implements OnModuleInit {
   }
 
   async getNearbyStoresWithMostVouchers(origins: string) {
-    const [latitude, longitude] = origins.split(',').map(Number);
-
-    function storeIsOpenSql() {
-      return sql.raw(`
-    (
-      (
-        (stores."open_time" + INTERVAL '7 hour')::time < (stores."close_time" + INTERVAL '7 hour')::time AND 
-        (CURRENT_TIME + INTERVAL '7 hour')::time BETWEEN (stores."open_time" + INTERVAL '7 hour')::time AND (stores."close_time" + INTERVAL '7 hour')::time
-      ) OR (
-        (stores."open_time" + INTERVAL '7 hour')::time > (stores."close_time" + INTERVAL '7 hour')::time AND (
-          (CURRENT_TIME + INTERVAL '7 hour')::time >= (stores."open_time" + INTERVAL '7 hour')::time OR 
-          (CURRENT_TIME + INTERVAL '7 hour')::time <= (stores."close_time" + INTERVAL '7 hour')::time
-        )
-      ) OR (
-        (stores."open_second_time" + INTERVAL '7 hour')::time < (stores."close_second_time" + INTERVAL '7 hour')::time AND 
-        (CURRENT_TIME + INTERVAL '7 hour')::time BETWEEN (stores."open_second_time" + INTERVAL '7 hour')::time AND (stores."close_second_time" + INTERVAL '7 hour')::time
-      ) OR (
-        (stores."open_second_time" + INTERVAL '7 hour')::time > (stores."close_second_time" + INTERVAL '7 hour')::time AND (
-          (CURRENT_TIME + INTERVAL '7 hour')::time >= (stores."open_second_time" + INTERVAL '7 hour')::time OR 
-          (CURRENT_TIME + INTERVAL '7 hour')::time <= (stores."close_second_time" + INTERVAL '7 hour')::time
-        )
-      )
-    )
-  `);
+    if (!origins || !origins.includes(',')) {
+      throw new ValidationException(
+        ErrorCode.S007,
+        HttpStatus.BAD_REQUEST,
+        'Invalid origins format. Expected format: "latitude,longitude"',
+      );
     }
+    const [latitude, longitude] = origins.split(',').map(Number);
 
     return this.db
       .select({
@@ -807,10 +790,12 @@ export class StoresService implements OnModuleInit {
           )
           .mapWith(Number)
           .as('distance'),
-        voucherCount: count(vouchers.id).as('voucher_count'),
+        // lượt đặt hàng
+        orderCount: count(orders.id).as('order_count'),
       })
       .from(stores)
       .leftJoin(users, eq(users.id, stores.userId))
+      .leftJoin(orders, eq(orders.storeId, stores.id))
       .leftJoin(
         vouchers,
         and(
@@ -843,7 +828,7 @@ export class StoresService implements OnModuleInit {
       .groupBy(stores.id)
       .limit(15)
       .orderBy(
-        desc(sql`voucher_count`),
+        desc(sql`order_count`),
         sql`distance
         ASC`,
       )
@@ -890,5 +875,88 @@ export class StoresService implements OnModuleInit {
       orderBy: desc(viewedStores.lastViewedAt),
       limit: 15,
     });
+  }
+
+  async getNearbyProductsWithMostVouchersRandom(origins: string) {
+    const randomProductIdsPerStore = await this.db.execute(
+      sql`
+        SELECT DISTINCT
+        ON (store_id) id
+        FROM products
+        WHERE is_locked = ${false} AND image IS NOT NULL
+        ORDER BY store_id, RANDOM()
+      `,
+    );
+
+    return this.db
+      .select({
+        ...getTableColumns(products),
+        store: {
+          id: stores.id,
+          name: stores.name,
+          location: stores.location,
+          avatar: stores.avatar,
+          background: stores.background,
+        },
+        topVoucher: sql`
+          (SELECT json_build_object(
+                    'id', v.id,
+                    'code', v.code,
+                    'value', v.value
+                  )
+           FROM vouchers v
+           WHERE v.user_id = stores.user_id
+             AND v.type = ${VouchersTypeEnum.STORE}
+             AND v.status = ${VouchersStatusEnum.ACTIVE}
+             AND v.discount_type = ${DiscountTypeEnum.PERCENTAGE}
+             AND v.deleted_at IS NULL
+           ORDER BY v.value DESC LIMIT 1)`.mapWith((val) => val ?? null),
+        voucherCount: sql`COALESCE(vc.count, 0)`.mapWith(Number).as('voucher_count'),
+      })
+      .from(products)
+      .leftJoin(stores, eq(stores.id, products.storeId))
+      .leftJoin(
+        // Subquery đếm số lượng vouchers theo user_id (tức là theo store)
+        sql`
+          (SELECT user_id, COUNT(*) AS count
+           FROM vouchers
+           WHERE type = ${VouchersTypeEnum.STORE}
+             AND status = ${VouchersStatusEnum.ACTIVE}
+             AND deleted_at IS NULL
+           GROUP BY user_id)
+          AS vc
+        `,
+        eq(
+          stores.userId,
+          sql`vc
+        .
+        user_id`,
+        ),
+      )
+      .where(
+        and(
+          inArray(
+            products.id,
+            randomProductIdsPerStore.rows.map((row) => row.id as number),
+          ),
+          eq(stores.status, true),
+          eq(stores.isLocked, false),
+          // isNotNull(stores.avatar),
+          isNotNull(stores.location),
+          storeIsOpenSql(),
+          sql.raw(
+            `
+          6371 * acos(
+            cos(radians(${origins.split(',')[0]})) *
+            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${origins.split(',')[1]})) +
+            sin(radians(${origins.split(',')[0]})) *
+            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
+          ) < 15
+        `,
+          ),
+        ),
+      )
+      .orderBy(desc(sql`voucher_count`));
   }
 }

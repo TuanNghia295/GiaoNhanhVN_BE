@@ -74,6 +74,8 @@ export enum ErrorCode {
   S005 = 'store.error.is_locked',
   // cập nhật time working không hợp lệ
   S006 = 'store.error.invalid_time_working',
+  //Invalid origins format. Expected format: "latitude,longitude"
+  S007 = 'store.error.invalid_origins_format',
 
   //Banner
   B001 = 'banner.error.not_found',

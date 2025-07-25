@@ -81,6 +81,17 @@ export class StoresController {
     return await this.storesService.getNearbyStoresWithMostVouchers(origins);
   }
 
+  @AuthOptional()
+  @ApiAuth({
+    summary:
+      'Random 15 sản phẩm từ 15 cửa hàng khác nhau, sắp xếp từ gần đến xa và có số lượng voucher shop lớn nhất',
+    type: StoreResDto,
+  })
+  @Get('nearby/products-with-most-vouchers-random')
+  async getNearbyProductsWithMostVouchersRandom(@Query('origins') origins: string) {
+    return await this.storesService.getNearbyProductsWithMostVouchersRandom(origins);
+  }
+
   @Roles(RoleEnum.STORE)
   @ApiAuth({
     summary: 'Cập nhật trạng thái cửa hàng (STORE, ADMIN , MANAGEMENT)',
