@@ -42,6 +42,14 @@ export class OrderResDto extends AbstractResDto {
   @Expose()
   isRain: boolean;
 
+  @NumberField()
+  @Expose()
+  totalVoucherStore: number;
+
+  @NumberField()
+  @Expose()
+  totalVoucherApp: number;
+
   @BooleanField()
   @Expose()
   isNight: boolean;
