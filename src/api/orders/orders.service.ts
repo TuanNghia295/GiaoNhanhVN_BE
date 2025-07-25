@@ -843,6 +843,8 @@ export class OrdersService {
         .set({
           totalProduct: totalProduct,
           totalVoucher: totalVoucherStore + totalVoucherApp,
+          totalVoucherStore: totalVoucherStore,
+          totalVoucherApp: totalVoucherApp,
           storeServiceFee: storeServiceFee,
           payforShop: payforShop,
           totalDelivery: calculateOrder.totalDelivery,
