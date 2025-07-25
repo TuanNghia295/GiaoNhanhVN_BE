@@ -889,13 +889,7 @@ export class StoresService implements OnModuleInit {
     return this.db
       .select({
         ...getTableColumns(products),
-        store: {
-          id: stores.id,
-          name: stores.name,
-          location: stores.location,
-          avatar: stores.avatar,
-          background: stores.background,
-        },
+        store: stores,
         topVoucher: sql`
           (SELECT json_build_object(
                     'id', v.id,
