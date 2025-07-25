@@ -19,7 +19,6 @@ import {
   RoleEnum,
   stores,
   users,
-  vouchers,
   VouchersStatusEnum,
   VouchersTypeEnum,
 } from '@/database/schemas';
@@ -790,21 +789,20 @@ export class StoresService implements OnModuleInit {
           )
           .mapWith(Number)
           .as('distance'),
-        // lượt đặt hàng
-        orderCount: count(orders.id).as('order_count'),
+        // số lượng vocuher
+        voucherCount: sql`
+          (SELECT COUNT(*)
+           FROM vouchers v
+           WHERE v.user_id = stores.user_id
+             AND v.type = ${VouchersTypeEnum.STORE}
+             AND v.status = ${VouchersStatusEnum.ACTIVE}
+             AND v.deleted_at IS NULL)`
+          .mapWith(Number)
+          .as('voucher_count'),
       })
       .from(stores)
       .leftJoin(users, eq(users.id, stores.userId))
       .leftJoin(orders, eq(orders.storeId, stores.id))
-      .leftJoin(
-        vouchers,
-        and(
-          eq(vouchers.userId, stores.userId),
-          eq(vouchers.type, VouchersTypeEnum.STORE),
-          eq(vouchers.status, VouchersStatusEnum.ACTIVE),
-          isNull(vouchers.deletedAt),
-        ),
-      )
       .where(
         and(
           eq(stores.status, true),
@@ -828,7 +826,7 @@ export class StoresService implements OnModuleInit {
       .groupBy(stores.id)
       .limit(15)
       .orderBy(
-        desc(sql`order_count`),
+        desc(sql`voucher_count`),
         sql`distance
         ASC`,
       )
@@ -877,7 +875,7 @@ export class StoresService implements OnModuleInit {
     });
   }
 
-  async getNearbyProductsWithMostVouchersRandom(origins: string) {
+  async getNearbyProductsWithMostOrdersRandom(origins: string) {
     const randomProductIdsPerStore = await this.db.execute(
       sql`
         SELECT DISTINCT
@@ -910,27 +908,25 @@ export class StoresService implements OnModuleInit {
              AND v.status = ${VouchersStatusEnum.ACTIVE}
              AND v.discount_type = ${DiscountTypeEnum.PERCENTAGE}
              AND v.deleted_at IS NULL
-           ORDER BY v.value DESC LIMIT 1)`.mapWith((val) => val ?? null),
-        voucherCount: sql`COALESCE(vc.count, 0)`.mapWith(Number).as('voucher_count'),
+           ORDER BY v.value DESC LIMIT 1)
+        `.mapWith((val) => val ?? null),
+        orderCount: sql`COALESCE(oc.order_count, 0)`.mapWith(Number).as('order_count'),
       })
       .from(products)
       .leftJoin(stores, eq(stores.id, products.storeId))
       .leftJoin(
-        // Subquery đếm số lượng vouchers theo user_id (tức là theo store)
+        // Subquery đếm số lượng đơn hàng theo product_id
         sql`
-          (SELECT user_id, COUNT(*) AS count
-           FROM vouchers
-           WHERE type = ${VouchersTypeEnum.STORE}
-             AND status = ${VouchersStatusEnum.ACTIVE}
-             AND deleted_at IS NULL
-           GROUP BY user_id)
-          AS vc
+          (SELECT product_id, COUNT(DISTINCT order_id) AS order_count
+           FROM order_details
+           GROUP BY product_id)
+          AS oc
         `,
         eq(
-          stores.userId,
-          sql`vc
-        .
-        user_id`,
+          products.id,
+          sql`oc
+          .
+          product_id`,
         ),
       )
       .where(
@@ -941,7 +937,6 @@ export class StoresService implements OnModuleInit {
           ),
           eq(stores.status, true),
           eq(stores.isLocked, false),
-          // isNotNull(stores.avatar),
           isNotNull(stores.location),
           storeIsOpenSql(),
           sql.raw(
@@ -957,6 +952,6 @@ export class StoresService implements OnModuleInit {
           ),
         ),
       )
-      .orderBy(desc(sql`voucher_count`));
+      .orderBy(desc(sql`order_count`));
   }
 }
