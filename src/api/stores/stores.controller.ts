@@ -108,7 +108,7 @@ export class StoresController {
   @Put('recently-viewed')
   async recentlyViewedStore(
     @CurrentUser() payload: JwtPayloadType,
-    @Body('storeId', ParseIntPipe) storeId: number,
+    @Query('storeId', ParseIntPipe) storeId: number,
   ) {
     return await this.storesService.recentlyViewedStore(payload.id, storeId);
   }
