@@ -2,7 +2,7 @@ import { CreateAreaReqDto } from '@/api/areas/dto/create-area.req.dto';
 import { UpdateAreaReqDto } from '@/api/areas/dto/update-area.req.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { decrement, DRIZZLE, increment, Transaction } from '@/database/global';
-import { areas } from '@/database/schemas';
+import { areas, managers } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
@@ -128,15 +128,19 @@ export class AreasService {
     return result;
   }
 
-  async update(areaId: number, reqDto: UpdateAreaReqDto) {
-    const result = await this.db
-      .update(areas)
-      .set({
-        ...reqDto,
-      })
-      .where(eq(areas.id, areaId))
-      .returning();
-    return result[0];
+  async update(managerId: number, reqDto: UpdateAreaReqDto) {
+    return this.db.transaction(async (tx) => {
+      const result = await tx
+        .update(managers)
+        .set({
+          ...reqDto,
+        })
+
+        .where(eq(managers.id, managerId))
+        .returning();
+
+      return result[0];
+    });
   }
 
   async remove(areaId: number) {
