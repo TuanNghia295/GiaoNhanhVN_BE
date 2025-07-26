@@ -479,7 +479,7 @@ export class AnalyticsService {
       .leftJoin(orders, eq(vouchersOnOrders.orderId, orders.id))
       .where(
         and(
-          eq(stores.id, store.storeId),
+          eq(orders.id, store.storeId),
           between(
             orders.createdAt,
             DateTime.fromJSDate(reqDto.from).setZone('Asia/Ho_Chi_Minh').startOf('day').toJSDate(),
