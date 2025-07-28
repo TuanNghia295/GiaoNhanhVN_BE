@@ -89,7 +89,7 @@ export class StoresController {
   })
   @Get('nearby/products-with-most-vouchers-random')
   async getNearbyProductsWithMostVouchersRandom(@Query('origins') origins: string) {
-    return await this.storesService.getNearbyProductsWithMostOrdersRandom(origins);
+    return await this.storesService.getNearbyProductsWithMostOrdersThisWeek(origins);
   }
 
   @Roles(RoleEnum.STORE)

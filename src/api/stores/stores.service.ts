@@ -885,17 +885,8 @@ export class StoresService implements OnModuleInit {
     });
   }
 
-  async getNearbyProductsWithMostOrdersRandom(origins: string) {
-    const randomProductIdsPerStore = await this.db.execute(
-      sql`
-        SELECT DISTINCT
-        ON (store_id) id
-        FROM products
-        WHERE is_locked = ${false} AND image IS NOT NULL
-        AND deleted_at IS NULL
-        ORDER BY store_id, RANDOM()
-      `,
-    );
+  async getNearbyProductsWithMostOrdersThisWeek(origins: string) {
+    const [lat, lng] = origins.split(',').map(Number);
 
     return this.db
       .select({
@@ -920,43 +911,38 @@ export class StoresService implements OnModuleInit {
       .from(products)
       .leftJoin(stores, eq(stores.id, products.storeId))
       .leftJoin(
-        // Subquery đếm số lượng đơn hàng theo product_id
         sql`
-          (SELECT product_id, COUNT(DISTINCT order_id) AS order_count
-           FROM order_details
-           GROUP BY product_id)
-          AS oc
+          (
+            SELECT od.product_id, COUNT(DISTINCT od.order_id) AS order_count
+            FROM order_details od
+                   JOIN orders o ON o.id = od.order_id
+            WHERE date_trunc('week', o.created_at) = date_trunc('week', now())
+            GROUP BY od.product_id
+          ) AS oc
         `,
-        eq(
-          products.id,
-          sql`oc
-          .
-          product_id`,
-        ),
+        eq(products.id, sql`oc.product_id`),
       )
       .where(
         and(
-          inArray(
-            products.id,
-            randomProductIdsPerStore.rows.map((row) => row.id as number),
-          ),
+          eq(products.isLocked, false),
+          isNotNull(products.image),
+          isNull(products.deletedAt),
           eq(stores.status, true),
           eq(stores.isLocked, false),
           isNotNull(stores.location),
           storeIsOpenSql(),
-          sql.raw(
-            `
+          sql.raw(`
           6371 * acos(
-            cos(radians(${origins.split(',')[0]})) *
+            cos(radians(${lat})) *
             cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${origins.split(',')[1]})) +
-            sin(radians(${origins.split(',')[0]})) *
+            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${lng})) +
+            sin(radians(${lat})) *
             sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
           ) < 15
-        `,
-          ),
+        `),
         ),
       )
-      .orderBy(desc(sql`order_count`));
+      .orderBy(desc(sql`order_count`))
+      .limit(15);
   }
 }
