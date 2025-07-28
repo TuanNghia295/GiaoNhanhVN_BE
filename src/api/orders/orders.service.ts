@@ -2,6 +2,7 @@ import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { DeliversService } from '@/api/delivers/delivers.service';
 import { CreateOrderDetailReqDto } from '@/api/order-details/dto/create-order-detail.req.dto';
 import { CalculateOrderReqDto } from '@/api/orders/dto/calculate-order.req.dto';
+import { CountOrderReqDto } from '@/api/orders/dto/count-order.req.dto';
 import { OrderCreateReqDto } from '@/api/orders/dto/order-create.req.dto';
 import { OrderResDto } from '@/api/orders/dto/order.res.dto';
 import { PageMyOrderReqDto } from '@/api/orders/dto/page-my-order.req.dto';
@@ -1529,5 +1530,61 @@ export class OrdersService {
         deliver: true,
       },
     });
+  }
+
+  async countOrdersByStatus(reqDto: CountOrderReqDto, payload: JwtPayloadType) {
+    // Date range
+    const now = DateTime.now();
+
+    const fromDate = DateTime.fromJSDate(reqDto.from ?? now.toJSDate())
+      .setZone('Asia/Ho_Chi_Minh')
+      .startOf('day')
+      .toJSDate();
+
+    const toDate = DateTime.fromJSDate(reqDto.to ?? now.toJSDate())
+      .setZone('Asia/Ho_Chi_Minh')
+      .endOf('day')
+      .toJSDate();
+
+    const statusCounts = await this.db
+      .select({ status: orders.status, count: count(orders.id) })
+      .from(orders)
+      .where(
+        and(
+          between(orders.createdAt, fromDate, toDate),
+          ...(reqDto.q ? [ilike(orders.code, `%${reqDto.q}%`)] : []),
+          ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
+          ...(reqDto.type ? [eq(orders.type, reqDto.type)] : []),
+          ...(payload.role === RoleEnum.MANAGEMENT ? [eq(orders.areaId, payload.areaId)] : []),
+          ...(payload.role === RoleEnum.STORE
+            ? [
+                inArray(
+                  orders.storeId,
+                  this.db
+                    .select({ id: stores.id })
+                    .from(stores)
+                    .where(eq(stores.userId, payload.id)),
+                ),
+              ]
+            : []),
+        ),
+      )
+      .groupBy(orders.status);
+
+    const totalsOrders = Object.fromEntries(
+      statusCounts.map(({ status, count }) => [status, count]),
+    );
+    const allCount = Object.values(totalsOrders).reduce((sum, val) => sum + val, 0);
+
+    const totalOrdersForPaginated: TOTAL_ORDERS_FOR_PAGINATED = {
+      totalOrders: allCount,
+      totalOrdersPending: totalsOrders[OrderStatusEnum.PENDING] ?? 0,
+      totalOrdersAccepted: totalsOrders[OrderStatusEnum.ACCEPTED] ?? 0,
+      totalOrdersDelivering: totalsOrders[OrderStatusEnum.DELIVERING] ?? 0,
+      totalOrdersDelivered: totalsOrders[OrderStatusEnum.DELIVERED] ?? 0,
+      totalOrdersCancelled: totalsOrders[OrderStatusEnum.CANCELED] ?? 0,
+    };
+
+    return totalOrdersForPaginated;
   }
 }

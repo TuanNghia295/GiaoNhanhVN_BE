@@ -892,6 +892,7 @@ export class StoresService implements OnModuleInit {
         ON (store_id) id
         FROM products
         WHERE is_locked = ${false} AND image IS NOT NULL
+        AND deleted_at IS NULL
         ORDER BY store_id, RANDOM()
       `,
     );
