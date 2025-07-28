@@ -811,6 +811,16 @@ export class StoresService implements OnModuleInit {
           isNotNull(stores.location),
           storeIsOpenSql(),
           sql.raw(
+            `EXISTS (
+        SELECT 1 FROM vouchers v
+        WHERE v.user_id = stores.user_id
+          AND v.type = '${VouchersTypeEnum.STORE}'
+          AND v.status = '${VouchersStatusEnum.ACTIVE}'
+          AND v.discount_type = '${DiscountTypeEnum.PERCENTAGE}'
+          AND v.deleted_at IS NULL
+      )`,
+          ),
+          sql.raw(
             `
         6371 * acos(
           cos(radians(${latitude})) *
