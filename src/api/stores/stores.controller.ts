@@ -113,7 +113,7 @@ export class StoresController {
     return await this.storesService.recentlyViewedStore(payload.id, storeId);
   }
 
-  @Roles(RoleEnum.STORE)
+  @Roles(RoleEnum.USER)
   @ApiAuth({
     summary: 'Lấy danh sách 15 cửa hàng đã xem gần đây',
   })
