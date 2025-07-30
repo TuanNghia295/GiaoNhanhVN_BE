@@ -43,6 +43,13 @@ export const orders = pgTable(
       .notNull()
       .$type<OrderStatusEnum>()
       .default(OrderStatusEnum.PENDING),
+    coinUsed: numeric('coin_used', {
+      precision: 15,
+      scale: 2,
+      mode: 'number',
+    })
+      .notNull()
+      .default(0),
     totalVoucherStore: numeric('total_voucher_store', {
       precision: 15,
       scale: 2,

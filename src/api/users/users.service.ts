@@ -9,7 +9,7 @@ import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagi
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { Order } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { DRIZZLE } from '@/database/global';
+import { DRIZZLE, increment, Transaction } from '@/database/global';
 import { areas, ProviderEnum, RoleEnum, users } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
@@ -269,5 +269,20 @@ export class UsersService implements OnModuleInit {
         refreshToken: null,
       })
       .where(eq(users.id, userId));
+  }
+
+  async addCoin(userId: number, coinUsed: number, tx?: Transaction) {
+    if (!(await this.existById(userId))) {
+      throw new ValidationException(ErrorCode.U001, HttpStatus.NOT_FOUND);
+    }
+    const db = tx || this.db;
+    return db
+      .update(users)
+      .set({
+        coin: increment(users.coin, coinUsed),
+      })
+      .where(eq(users.id, userId))
+      .returning()
+      .then((result) => plainToInstance(UserResDto, result[0]));
   }
 }

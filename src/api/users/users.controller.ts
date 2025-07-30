@@ -2,6 +2,7 @@ import { AuthService } from '@/api/auth/auth.service';
 import { LoginReqDto } from '@/api/auth/dto/login.req.dto';
 import { LoginResDto } from '@/api/auth/dto/login.res.dto';
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
+import { AddCoinReqDto } from '@/api/users/dto/add-coin.req.dto';
 import { ChangePasswordReqDto } from '@/api/users/dto/change-password.req.dto';
 import { CreateUserReqDto } from '@/api/users/dto/create-user.req.dto';
 import { LockUserReqDto } from '@/api/users/dto/lock-user.req.dto';
@@ -100,7 +101,7 @@ export class UsersController {
     type: UserResDto,
   })
   @Get('info')
-  async getInfo(@CurrentUser() payload: JwtPayloadType): Promise<UserResDto> {
+  async getInfo(@CurrentUser() payload: JwtPayloadType) {
     return await this.usersService.getUserById(payload.id);
   }
 
@@ -153,5 +154,16 @@ export class UsersController {
     @Body() reqDto: ChangePasswordReqDto,
   ) {
     return await this.usersService.changePassword(payload, reqDto);
+  }
+
+  // api add point
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'Thêm điểm cho người dùng [ADMIN, MANAGEMENT]',
+    type: UserResDto,
+  })
+  @Patch('point')
+  async addPoint(@CurrentUser() payload: JwtPayloadType, @Body() reqDto: AddCoinReqDto) {
+    return this.usersService.addCoin(reqDto.userId, reqDto.coin);
   }
 }

@@ -43,6 +43,7 @@ import {
   stores,
   TDistance,
   TServiceFee,
+  users,
   vouchers,
   vouchersOnOrders,
   VouchersTypeEnum,
@@ -786,6 +787,13 @@ export class OrdersService {
         calculateOrder.totalDelivery,
       );
 
+      const coinUsed = await this.applyUserCoin(
+        payload.id,
+        reqDto.isCoin,
+        calculateOrder.totalDelivery,
+        totalVoucherApp,
+      );
+
       console.group('🏷️ Voucher Totals');
       console.log('🛒 Total Product     :', totalProduct);
       console.log('🏪 Store Voucher     :', totalVoucherStore);
@@ -824,7 +832,7 @@ export class OrdersService {
       const total = _.round(
         Math.max(
           Math.max(totalProduct - totalVoucherStore, 0) +
-            Math.max(calculateOrder.totalDelivery - totalVoucherApp, 0) +
+            Math.max(calculateOrder.totalDelivery - totalVoucherApp - coinUsed, 0) +
             calculateOrder.userServiceFee + // phí dịch vụ người dùng
             calculateOrder.nightFee + // phí dịch vụ đêm
             calculateOrder.rainFee, // phí dịch vụ mưa
@@ -848,6 +856,7 @@ export class OrdersService {
           totalVoucherApp: totalVoucherApp,
           storeServiceFee: storeServiceFee,
           payforShop: payforShop,
+          coinUsed: coinUsed,
           totalDelivery: calculateOrder.totalDelivery,
           incomeDeliver: calculateOrder.incomeDeliver,
           totalProductTax: totalProductTax,
@@ -896,6 +905,27 @@ export class OrdersService {
       await this.cache.del(reqDto.sessionId);
       return plainToInstance(OrderResDto, mappedOrderDetail);
     });
+  }
+
+  async applyUserCoin(
+    userId: number,
+    isCoin: boolean,
+    totalDelivery: number,
+    totalVoucherApp: number,
+  ): Promise<number> {
+    if (!isCoin) return 0;
+
+    const user = await this.db
+      .select({ coin: users.coin })
+      .from(users)
+      .where(eq(users.id, userId))
+      .then((res) => res[0]);
+
+    if (!user) {
+      throw new ValidationException(ErrorCode.U001, HttpStatus.NOT_FOUND);
+    }
+
+    return Math.min(user.coin, totalDelivery - totalVoucherApp);
   }
 
   async createOrderDetails(orderId: number, items: CreateOrderDetailReqDto[], tx: Transaction) {
@@ -1313,16 +1343,7 @@ export class OrdersService {
 
     const MAX_CANCEL_ORDER_PER_DAY = 3;
     const cancelOrderCountInDay = await this.getCancelOrderCountInDay(existDeliver.id);
-    console.log('cancelOrderCountInDay', cancelOrderCountInDay);
-    console.log(existDeliver.id, 'existDeliver.id');
-    console.log('updatedOrder.status', updatedOrder.status);
-    console.log('cancelOrderCountInDay', cancelOrderCountInDay);
-    console.log(
-      ' updatedOrder.status === OrderStatusEnum.CANCELED &&\n' +
-        '      cancelOrderCountInDay > MAX_CANCEL_ORDER_PER_DAY',
-      updatedOrder.status === OrderStatusEnum.CANCELED &&
-        cancelOrderCountInDay > MAX_CANCEL_ORDER_PER_DAY,
-    );
+
     if (
       updatedOrder.status === OrderStatusEnum.CANCELED &&
       cancelOrderCountInDay > MAX_CANCEL_ORDER_PER_DAY
@@ -1366,7 +1387,7 @@ export class OrdersService {
       order.userServiceFee +
       order.storeServiceFee +
       order.totalProductTax +
-      refundPoint; // trừ lại điểm voucher nếu có
+      refundPoint; // Hoàn lại điểm cho người giao hàng
 
     return _.round(Math.max(value, 0));
   }
@@ -1380,7 +1401,8 @@ export class OrdersService {
       //-------------------------------------------------
       // Cộng lại điểm cho người giao hàng
       //-------------------------------------------------
-      const subtractPoint = await this.calculateSubtractPoint(existOrder);
+
+      const subtractPoint = await this.calculateSubtractPoint(existOrder, existOrder.coinUsed);
 
       await this.deliversService.addPoint(existOrder.deliverId, subtractPoint, tx);
     }
@@ -1454,6 +1476,13 @@ export class OrdersService {
     //---------------------------------------------------
     const subtractPoint = await this.calculateSubtractPoint(existOrder, refund.refundPoint || 0);
     await this.deliversService.addPoint(existOrder.deliverId, subtractPoint, tx);
+    //--------------------------------------------------
+    // Hoàn xu cho người dùng
+    //--------------------------------------------------
+    if (existOrder.coinUsed > 0) {
+      // không cần check user đã tônt tại vì đã check ở hàm create
+      await this.usersService.addCoin(existOrder.userId, existOrder.coinUsed, tx);
+    }
 
     await tx.insert(reasonDeliverCancelOrders).values({
       orderId: existOrder.id,
@@ -1515,7 +1544,11 @@ export class OrdersService {
       console.log('💰 Refund Point :', refund.refundPoint);
       console.groupEnd();
     }
-    await this.deliversService.addPoint(existDeliver.id, refund.refundPoint, tx);
+    //---------------------------------------------------
+    // Hoàn lại điểm cho người giao hàng
+    //---------------------------------------------------
+    const totalRefundPoint = existOrder.coinUsed + refund.refundPoint;
+    await this.deliversService.addPoint(existDeliver.id, totalRefundPoint, tx);
   }
 
   async getOrdersByDateRange(from: Date, to: Date, areaId?: number) {
