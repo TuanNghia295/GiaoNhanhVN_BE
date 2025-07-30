@@ -74,6 +74,7 @@ export class AnalyticsService {
         total_user_payment: sum(orders.total).mapWith(Number),
         total_user_service_fee: sum(orders.userServiceFee).mapWith(Number),
         total_store_service_fee: sum(orders.storeServiceFee).mapWith(Number),
+        total_voucher_value: sum(orders.totalVoucherApp).mapWith(Number),
         total_deliver_service_fee: sql<number>`SUM
           ((
         ${orders.totalDelivery}
@@ -120,43 +121,9 @@ export class AnalyticsService {
       )
       .groupBy(orders.status);
 
-    const totalVoucherValueResult = await this.db
-      .select({
-        status: orders.status,
-        total_voucher_value: sql<number>`
-          SUM(
-        CASE
-          WHEN
-          ${vouchers.type}
-          IN
-          (
-          'MANAGEMENT',
-          'ADMIN'
-          )
-          THEN
-          ${vouchers.value}
-          ELSE
-          0
-          END
-          )
-        `.mapWith(Number),
-      })
-      .from(vouchersOnOrders)
-      .leftJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
-      .leftJoin(orders, eq(vouchersOnOrders.orderId, orders.id))
-      .where(
-        and(
-          ...(payload.role === RoleEnum.MANAGEMENT ? [eq(orders.areaId, payload.areaId)] : []),
-          ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
-          ...(reqDto.from && reqDto.to ? [between(orders.createdAt, reqDto.from, reqDto.to)] : []),
-        ),
-      )
-      .groupBy(orders.status);
     const mergedResults = results.map((item) => {
-      const voucherData = totalVoucherValueResult.find((v) => v.status === item.status);
       return {
         ...item,
-        total_voucher_value: voucherData?.total_voucher_value ?? 0,
       };
     });
 
@@ -254,6 +221,7 @@ export class AnalyticsService {
         total_store_revenue: sum(orders.payforShop).mapWith(Number),
         // thuế 1,5% trên tổng doanh thu cửa hàng
         total_product_tax: sum(orders.totalProductTax).mapWith(Number),
+        total_voucher_value: sum(orders.totalVoucherStore).mapWith(Number),
       })
       .from(orders)
       .leftJoin(stores, eq(orders.storeId, stores.id))
@@ -282,58 +250,9 @@ export class AnalyticsService {
         ),
       );
 
-    const totalVoucherValueResult = await this.db
-      .select({
-        status: orders.status,
-        total_voucher_value: sql
-          .raw(
-            `
-        SUM(
-          CASE
-            WHEN vouchers.type = 'STORE'
-            AND vouchers_on_orders.order_id IS NOT NULL
-            THEN vouchers.value
-            ELSE 0
-          END
-        )
-      `,
-          )
-          .mapWith(Number),
-      })
-      .from(vouchersOnOrders)
-      .leftJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
-      .leftJoin(orders, eq(vouchersOnOrders.orderId, orders.id))
-      .leftJoin(stores, eq(orders.storeId, stores.id)) // thêm nếu dùng stores
-      .leftJoin(users, eq(orders.userId, users.id)) // thêm nếu dùng users
-      .where(
-        and(
-          eq(orders.type, OrderTypeEnum.FOOD),
-          ...(payload.role === RoleEnum.MANAGEMENT ? [eq(stores.areaId, payload.areaId)] : []),
-          ...(reqDto.q ? [or(eq(users.phone, reqDto.q), eq(stores.name, reqDto.q))] : []),
-          ...(reqDto.from && reqDto.to
-            ? [
-                between(
-                  orders.createdAt,
-                  DateTime.fromJSDate(reqDto.from)
-                    .setZone('Asia/Ho_Chi_Minh')
-                    .startOf('day')
-                    .toJSDate(),
-                  DateTime.fromJSDate(reqDto.to)
-                    .setZone('Asia/Ho_Chi_Minh')
-                    .endOf('day')
-                    .toJSDate(),
-                ),
-              ]
-            : []),
-        ),
-      )
-      .groupBy(orders.status);
-
     const mergedResults = result.map((item) => {
-      const voucherData = totalVoucherValueResult.find((v) => v.status === item.status);
       return {
         ...item,
-        total_voucher_value: voucherData?.total_voucher_value ?? 0,
       };
     });
 
@@ -420,6 +339,7 @@ export class AnalyticsService {
         total_store_revenue: sum(orders.payforShop).mapWith(Number),
         // thuế
         total_product_tax: sum(orders.totalProductTax).mapWith(Number),
+        total_voucher_value: sum(orders.totalVoucherStore).mapWith(Number),
       })
       .from(orders)
       .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
@@ -437,48 +357,9 @@ export class AnalyticsService {
       )
       .groupBy(orders.status);
 
-    const totalVoucherValueResult = await this.db
-      .select({
-        status: orders.status,
-        total_voucher_value: sql
-          .raw(
-            `
-                SUM(
-                  CASE
-                    WHEN vouchers.type = 'STORE'
-                    AND vouchers_on_orders.order_id IS NOT NULL
-                    THEN vouchers.value
-                    ELSE 0
-                  END
-                )
-              `,
-          )
-          .mapWith(Number),
-      })
-      .from(vouchersOnOrders)
-      .leftJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
-      .leftJoin(orders, eq(vouchersOnOrders.orderId, orders.id))
-      .where(
-        and(
-          eq(stores.id, store.storeId),
-          between(
-            orders.createdAt,
-            DateTime.fromJSDate(reqDto.from).setZone('Asia/Ho_Chi_Minh').startOf('day').toJSDate(),
-            DateTime.fromJSDate(reqDto.to).setZone('Asia/Ho_Chi_Minh').endOf('day').toJSDate(),
-          ),
-        ),
-      )
-      .groupBy(orders.status);
-
-    // const orderFilterMap = new Map(orderFilter.map((item) => [item.status, item]));
-
-    // Kết hợp kết quả từ orderFilter và totalVoucherValueResult
-
     const mergedResults = orderFilter.map((item) => {
-      const voucherData = totalVoucherValueResult.find((v) => v.status === item.status);
       return {
         ...item,
-        total_voucher_value: voucherData?.total_voucher_value ?? 0,
       };
     });
     const result = statuses.map((status) => {

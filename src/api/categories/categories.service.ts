@@ -15,7 +15,7 @@ export class CategoriesService {
       },
     });
     // sắp xếp theo thứ tự Đồ ăn, Vận chuyển , Shop lhacs , tiện ích
-    const codes = ['DA', 'VC', 'SK', 'TI'];
+    const codes = ['DA', 'XO', 'GH', 'LH'];
     const sortedResult = result.sort((a, b) => {
       return codes.indexOf(a.code) - codes.indexOf(b.code);
     });

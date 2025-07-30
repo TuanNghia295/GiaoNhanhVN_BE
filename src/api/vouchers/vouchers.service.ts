@@ -13,6 +13,7 @@ import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE, increment, Transaction, withPagination } from '@/database/global';
 import {
   areas,
+  DiscountTypeEnum,
   orders,
   RoleEnum,
   stores,
@@ -285,10 +286,13 @@ export class VouchersService {
               'Area ID is required for store vouchers',
             );
           }
+
+          // Đối với voucher cửa hàng mặt định sẽ là giảm giá theo %
           return tx
             .insert(vouchers)
             .values({
               ...reqDto,
+              discountType: DiscountTypeEnum.PERCENTAGE, // Mặc định là giảm giá theo %
               status, // Trạng thái voucher tự động được xác định dựa trên ngày bắt đầu và ngày kết thúc
               ...(reqDto.isHidden ? { isHidden: true } : {}),
               userId: payload.id,
@@ -494,11 +498,14 @@ export class VouchersService {
     const voucher = await this.db
       .select({
         ...getTableColumns(vouchers),
+        usedCount: count(vouchersOnOrders.voucherId).mapWith(Number),
         user: users,
       })
       .from(vouchers)
       .leftJoin(users, eq(users.id, vouchers.userId))
+      .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
       .where(and(isNull(vouchers.deletedAt), eq(vouchers.id, voucherId)))
+      .groupBy(vouchers.id, users.id)
       .then((res) => res[0]);
     if (!voucher) {
       throw new ValidationException(ErrorCode.V001, HttpStatus.BAD_REQUEST);

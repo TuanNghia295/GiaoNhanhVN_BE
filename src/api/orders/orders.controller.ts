@@ -1,5 +1,6 @@
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { CalculateOrderReqDto } from '@/api/orders/dto/calculate-order.req.dto';
+import { CountOrderReqDto } from '@/api/orders/dto/count-order.req.dto';
 import { OrderCreateReqDto } from '@/api/orders/dto/order-create.req.dto';
 import { OrderResDto } from '@/api/orders/dto/order.res.dto';
 import { PageMyOrderReqDto } from '@/api/orders/dto/page-my-order.req.dto';
@@ -23,6 +24,18 @@ export class OrdersController {
   })
   async calculate(@Body() reqDto: CalculateOrderReqDto) {
     return await this.ordersService.calculate(reqDto);
+  }
+
+  @Roles(RoleEnum.STORE)
+  @ApiAuth({
+    summary: 'Thống kê đếm số lượng đơn hàng theo trạng thái',
+  })
+  @Get('count-by-status')
+  async countOrdersByStatus(
+    @Query() reqDto: CountOrderReqDto,
+    @CurrentUser() payload: JwtPayloadType,
+  ) {
+    return await this.ordersService.countOrdersByStatus(reqDto, payload);
   }
 
   @Roles(RoleEnum.STORE)

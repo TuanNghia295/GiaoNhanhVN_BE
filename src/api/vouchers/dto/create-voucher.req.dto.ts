@@ -17,6 +17,9 @@ export class CreateVoucherReqDto {
   @DateField()
   startDate: Date;
 
+  @NumberFieldOptional()
+  maxDiscount?: number;
+
   @DateField()
   endDate: Date;
 

@@ -1,5 +1,4 @@
 import { AuthService } from '@/api/auth/auth.service';
-import { SettingsService } from '@/api/settings/settings.service';
 import { AllConfigType } from '@/config/config.type';
 import { Environment } from '@/constants/app.constant';
 import { AuthGuard } from '@/guards/auth.guard';
@@ -52,7 +51,7 @@ async function bootstrap() {
 
   app.useGlobalGuards(new AuthGuard(reflector, app.get(AuthService)));
   app.useGlobalGuards(
-    new RoleGuard(reflector, app.get(SettingsService), app.get(AccessControlService)),
+    new RoleGuard(reflector, app.get(AccessControlService), app.get(ConfigService)),
   );
 
   //************************************************************

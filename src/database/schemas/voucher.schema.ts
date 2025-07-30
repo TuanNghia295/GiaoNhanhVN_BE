@@ -4,6 +4,7 @@ import {
   boolean,
   decimal,
   integer,
+  numeric,
   pgTable,
   primaryKey,
   serial,
@@ -15,6 +16,11 @@ export enum VouchersTypeEnum {
   ADMIN = 'ADMIN',
   STORE = 'STORE',
   MANAGEMENT = 'MANAGEMENT',
+}
+
+export enum DiscountTypeEnum {
+  PERCENTAGE = 'PERCENTAGE',
+  FIXED_AMOUNT = 'FIXED_AMOUNT',
 }
 
 export enum VouchersStatusEnum {
@@ -32,12 +38,17 @@ export const vouchers = pgTable('vouchers', {
     scale: 2,
     mode: 'number',
   }).notNull(),
+  discountType: varchar('discount_type', { length: 50 })
+    .notNull()
+    .$type<DiscountTypeEnum>()
+    .default(DiscountTypeEnum.FIXED_AMOUNT),
+  maxDiscount: numeric('max_discount', { precision: 10, scale: 2, mode: 'number' }),
   type: varchar('type', { length: 50 }).notNull(),
   startDate: timestamp('start_date').notNull(),
   endDate: timestamp('end_date').notNull(),
   maxUses: integer('max_uses').notNull(),
   usePerUser: integer('use_per_user').notNull(),
-  usedCount: integer('used_count').default(0).notNull(),
+  // usedCount: integer('used_count').default(0).notNull(),
   status: varchar('status', { length: 50 })
     .notNull()
     .$type<VouchersStatusEnum>()
@@ -52,11 +63,11 @@ export const vouchers = pgTable('vouchers', {
     scale: 2,
     mode: 'number',
   }).default(0),
-  maxOrderValue: decimal('max_order_value', {
-    precision: 10,
-    scale: 2,
-    mode: 'number',
-  }).default(0),
+  // maxOrderValue: decimal('max_order_value', {
+  //   precision: 10,
+  //   scale: 2,
+  //   mode: 'number',
+  // }).default(0),
   areaId: integer('area_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at')
@@ -96,4 +107,4 @@ export const vouchersOnOrdersRelations = relations(vouchersOnOrders, ({ one }) =
   }),
 }));
 
-export type Voucher = typeof vouchers.type;
+export type Voucher = typeof vouchers.$inferSelect;

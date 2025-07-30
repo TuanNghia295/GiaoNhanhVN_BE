@@ -28,3 +28,27 @@ export const decrement = (column: AnyColumn, value = 1) => {
   return sql`${column} -
   ${value}`;
 };
+
+export function storeIsOpenSql() {
+  return sql.raw(`
+    (
+      (
+        (stores."open_time" + INTERVAL '7 hour')::time < (stores."close_time" + INTERVAL '7 hour')::time AND 
+        (CURRENT_TIME + INTERVAL '7 hour')::time BETWEEN (stores."open_time" + INTERVAL '7 hour')::time AND (stores."close_time" + INTERVAL '7 hour')::time
+      ) OR (
+        (stores."open_time" + INTERVAL '7 hour')::time > (stores."close_time" + INTERVAL '7 hour')::time AND (
+          (CURRENT_TIME + INTERVAL '7 hour')::time >= (stores."open_time" + INTERVAL '7 hour')::time OR 
+          (CURRENT_TIME + INTERVAL '7 hour')::time <= (stores."close_time" + INTERVAL '7 hour')::time
+        )
+      ) OR (
+        (stores."open_second_time" + INTERVAL '7 hour')::time < (stores."close_second_time" + INTERVAL '7 hour')::time AND 
+        (CURRENT_TIME + INTERVAL '7 hour')::time BETWEEN (stores."open_second_time" + INTERVAL '7 hour')::time AND (stores."close_second_time" + INTERVAL '7 hour')::time
+      ) OR (
+        (stores."open_second_time" + INTERVAL '7 hour')::time > (stores."close_second_time" + INTERVAL '7 hour')::time AND (
+          (CURRENT_TIME + INTERVAL '7 hour')::time >= (stores."open_second_time" + INTERVAL '7 hour')::time OR 
+          (CURRENT_TIME + INTERVAL '7 hour')::time <= (stores."close_second_time" + INTERVAL '7 hour')::time
+        )
+      )
+    )
+  `);
+}

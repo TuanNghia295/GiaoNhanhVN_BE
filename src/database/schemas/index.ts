@@ -28,5 +28,6 @@ export * from './store.schema';
 export * from './transaction-log.schema';
 export * from './transaction.schema';
 export * from './user.schema';
+export * from './viewed-stores.schema';
 export * from './voucher.schema';
 export * from './zalo.schema';

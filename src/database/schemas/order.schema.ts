@@ -43,6 +43,20 @@ export const orders = pgTable(
       .notNull()
       .$type<OrderStatusEnum>()
       .default(OrderStatusEnum.PENDING),
+    totalVoucherStore: numeric('total_voucher_store', {
+      precision: 15,
+      scale: 2,
+      mode: 'number',
+    })
+      .notNull()
+      .default(0),
+    totalVoucherApp: numeric('total_voucher_app', {
+      precision: 15,
+      scale: 2,
+      mode: 'number',
+    })
+      .notNull()
+      .default(0),
     deliveryIncomeTax: numeric('delivery_income_tax', {
       precision: 15,
       scale: 3,

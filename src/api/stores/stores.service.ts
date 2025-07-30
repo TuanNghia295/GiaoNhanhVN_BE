@@ -9,17 +9,21 @@ import { UpdateStoreReqDto } from '@/api/stores/dto/update-store.req.dto';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { DRIZZLE, Transaction, withPagination } from '@/database/global';
+import { DRIZZLE, storeIsOpenSql, Transaction, withPagination } from '@/database/global';
 import {
   areas,
+  DiscountTypeEnum,
   orders,
   OrderStatusEnum,
   products,
   RoleEnum,
   stores,
   users,
+  VouchersStatusEnum,
+  VouchersTypeEnum,
 } from '@/database/schemas';
 import { ratings } from '@/database/schemas/rating.schema';
+import { viewedStores } from '@/database/schemas/viewed-stores.schema';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { deleteIfExists, formatDistance, normalizeImagePath } from '@/utils/util';
@@ -40,6 +44,7 @@ import {
   exists,
   getTableColumns,
   ilike,
+  inArray,
   isNotNull,
   isNull,
   not,
@@ -741,5 +746,203 @@ export class StoresService implements OnModuleInit {
       .leftJoin(users, eq(users.id, stores.userId))
       .where(and(eq(stores.id, storeId), eq(stores.isLocked, false), isNotNull(users.fcmToken)))
       .then((res) => res[0] ?? null);
+  }
+
+  async getNearbyStoresWithMostVouchers(origins: string) {
+    if (!origins || !origins.includes(',')) {
+      throw new ValidationException(
+        ErrorCode.S007,
+        HttpStatus.BAD_REQUEST,
+        'Invalid origins format. Expected format: "latitude,longitude"',
+      );
+    }
+    const [latitude, longitude] = origins.split(',').map(Number);
+
+    return this.db
+      .select({
+        ...getTableColumns(stores),
+        // lấy ra voucher giá trị cao nhất
+        topVoucher: sql`
+          (SELECT json_build_object(
+                    'id', v.id,
+                    'code', v.code,
+                    'value', v.value
+                  )
+           FROM vouchers v
+           WHERE v.user_id = stores.user_id
+             AND v.type = ${VouchersTypeEnum.STORE}
+             AND v.status = ${VouchersStatusEnum.ACTIVE}
+             AND v.discount_type = ${DiscountTypeEnum.PERCENTAGE}
+             AND v.deleted_at IS NULL
+           ORDER BY v.value DESC LIMIT 1)`.mapWith((val) => val ?? null),
+        distance: sql
+          .raw(
+            `
+        6371 * acos(
+          cos(radians(${latitude})) *
+          cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+          cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+          sin(radians(${latitude})) *
+          sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
+        )
+      `,
+          )
+          .mapWith(Number)
+          .as('distance'),
+        // số lượng vocuher
+        voucherCount: sql`
+          (SELECT COUNT(*)
+           FROM vouchers v
+           WHERE v.user_id = stores.user_id
+             AND v.type = ${VouchersTypeEnum.STORE}
+             AND v.status = ${VouchersStatusEnum.ACTIVE}
+             AND v.deleted_at IS NULL)`
+          .mapWith(Number)
+          .as('voucher_count'),
+      })
+      .from(stores)
+      .leftJoin(users, eq(users.id, stores.userId))
+      .leftJoin(orders, eq(orders.storeId, stores.id))
+      .where(
+        and(
+          eq(stores.status, true),
+          eq(stores.isLocked, false),
+          // kiểm tra đóng mở cửa hàng
+          isNotNull(stores.location),
+          storeIsOpenSql(),
+          sql.raw(
+            `EXISTS (
+        SELECT 1 FROM vouchers v
+        WHERE v.user_id = stores.user_id
+          AND v.type = '${VouchersTypeEnum.STORE}'
+          AND v.status = '${VouchersStatusEnum.ACTIVE}'
+          AND v.discount_type = '${DiscountTypeEnum.PERCENTAGE}'
+          AND v.deleted_at IS NULL
+      )`,
+          ),
+          sql.raw(
+            `
+        6371 * acos(
+          cos(radians(${latitude})) *
+          cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+          cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+          sin(radians(${latitude})) *
+          sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
+        ) < 15
+      `,
+          ),
+        ),
+      )
+      .groupBy(stores.id)
+      .limit(15)
+      .orderBy(
+        desc(sql`voucher_count`),
+        sql`distance
+        ASC`,
+      )
+      .$dynamic();
+  }
+
+  async recentlyViewedStore(userId: number, storeId: number) {
+    return this.db.transaction(async (tx) => {
+      await tx
+        .insert(viewedStores)
+        .values({ userId, storeId, lastViewedAt: new Date() })
+        .onConflictDoUpdate({
+          target: [viewedStores.userId, viewedStores.storeId],
+          set: { lastViewedAt: new Date() },
+        });
+
+      const storeIdsToDelete = await tx
+        .select({ storeId: viewedStores.storeId })
+        .from(viewedStores)
+        .where(eq(viewedStores.userId, userId))
+        .orderBy(desc(viewedStores.lastViewedAt))
+        .offset(15); // Lấy các bản ghi thừa
+
+      if (storeIdsToDelete.length > 0) {
+        await tx.delete(viewedStores).where(
+          and(
+            eq(viewedStores.userId, userId),
+            inArray(
+              viewedStores.storeId,
+              storeIdsToDelete.map((s) => s.storeId),
+            ),
+          ),
+        );
+      }
+    });
+  }
+
+  async getRecentlyViewedStores(userId: number) {
+    return this.db.query.viewedStores.findMany({
+      where: eq(viewedStores.userId, userId),
+      with: {
+        store: true,
+      },
+      orderBy: desc(viewedStores.lastViewedAt),
+      limit: 15,
+    });
+  }
+
+  async getNearbyProductsWithMostOrdersThisWeek(origins: string) {
+    const [lat, lng] = origins.split(',').map(Number);
+
+    return this.db
+      .select({
+        ...getTableColumns(products),
+        store: stores,
+        topVoucher: sql`
+          (SELECT json_build_object(
+                    'id', v.id,
+                    'code', v.code,
+                    'value', v.value
+                  )
+           FROM vouchers v
+           WHERE v.user_id = stores.user_id
+             AND v.type = ${VouchersTypeEnum.STORE}
+             AND v.status = ${VouchersStatusEnum.ACTIVE}
+             AND v.discount_type = ${DiscountTypeEnum.PERCENTAGE}
+             AND v.deleted_at IS NULL
+           ORDER BY v.value DESC LIMIT 1)
+        `.mapWith((val) => val ?? null),
+        orderCount: sql`COALESCE(oc.order_count, 0)`.mapWith(Number).as('order_count'),
+      })
+      .from(products)
+      .leftJoin(stores, eq(stores.id, products.storeId))
+      .leftJoin(
+        sql`
+          (
+            SELECT od.product_id, COUNT(DISTINCT od.order_id) AS order_count
+            FROM order_details od
+                   JOIN orders o ON o.id = od.order_id
+            WHERE date_trunc('week', o.created_at) = date_trunc('week', now())
+            GROUP BY od.product_id
+          ) AS oc
+        `,
+        eq(products.id, sql`oc.product_id`),
+      )
+      .where(
+        and(
+          eq(products.isLocked, false),
+          isNotNull(products.image),
+          isNull(products.deletedAt),
+          eq(stores.status, true),
+          eq(stores.isLocked, false),
+          isNotNull(stores.location),
+          storeIsOpenSql(),
+          sql.raw(`
+          6371 * acos(
+            cos(radians(${lat})) *
+            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${lng})) +
+            sin(radians(${lat})) *
+            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
+          ) < 15
+        `),
+        ),
+      )
+      .orderBy(desc(sql`order_count`))
+      .limit(15);
   }
 }

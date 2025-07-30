@@ -70,6 +70,28 @@ export class StoresController {
     return await this.storesService.getPageStoresByManager(reqDto, payload);
   }
 
+  @AuthOptional()
+  @ApiAuth({
+    summary:
+      'Lấy danh sách 15 cửa  hàng săp xếp từ gần đến xa và có số lượng voucher shop lớn nhất',
+    type: StoreResDto,
+  })
+  @Get('nearby/with-most-vouchers')
+  async getNearbyStoresWithMostVouchers(@Query('origins') origins: string) {
+    return await this.storesService.getNearbyStoresWithMostVouchers(origins);
+  }
+
+  @AuthOptional()
+  @ApiAuth({
+    summary:
+      'Random 15 sản phẩm từ 15 cửa hàng khác nhau, sắp xếp từ gần đến xa và có số lượng voucher shop lớn nhất',
+    type: StoreResDto,
+  })
+  @Get('nearby/products-with-most-vouchers-random')
+  async getNearbyProductsWithMostVouchersRandom(@Query('origins') origins: string) {
+    return await this.storesService.getNearbyProductsWithMostOrdersThisWeek(origins);
+  }
+
   @Roles(RoleEnum.STORE)
   @ApiAuth({
     summary: 'Cập nhật trạng thái cửa hàng (STORE, ADMIN , MANAGEMENT)',
@@ -77,6 +99,27 @@ export class StoresController {
   @Put('lock')
   async lockStore(@Body() reqDto: LockStoreReqDto) {
     return await this.storesService.lock(reqDto);
+  }
+
+  @Roles(RoleEnum.USER)
+  @ApiAuth({
+    summary: 'Ghi nhận cửa hàng đã xem gần đây tối đa 15 cửa hàng',
+  })
+  @Put('recently-viewed')
+  async recentlyViewedStore(
+    @CurrentUser() payload: JwtPayloadType,
+    @Query('storeId', ParseIntPipe) storeId: number,
+  ) {
+    return await this.storesService.recentlyViewedStore(payload.id, storeId);
+  }
+
+  @Roles(RoleEnum.USER)
+  @ApiAuth({
+    summary: 'Lấy danh sách 15 cửa hàng đã xem gần đây',
+  })
+  @Get('recently-viewed')
+  async getRecentlyViewedStores(@CurrentUser() payload: JwtPayloadType) {
+    return this.storesService.getRecentlyViewedStores(payload.id);
   }
 
   @ApiPublic({
