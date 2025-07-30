@@ -156,14 +156,13 @@ export class UsersController {
     return await this.usersService.changePassword(payload, reqDto);
   }
 
-  // api add point
   @Roles(RoleEnum.MANAGEMENT)
   @ApiAuth({
     summary: 'Thêm điểm cho người dùng [ADMIN, MANAGEMENT]',
     type: UserResDto,
   })
-  @Patch('point')
-  async addPoint(@CurrentUser() payload: JwtPayloadType, @Body() reqDto: AddCoinReqDto) {
+  @Patch('add-coin')
+  async addPoint(@Body() reqDto: AddCoinReqDto) {
     return this.usersService.addCoin(reqDto.userId, reqDto.coin);
   }
 }
