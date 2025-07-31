@@ -758,45 +758,40 @@ export class StoresService implements OnModuleInit {
     }
     const [latitude, longitude] = origins.split(',').map(Number);
 
-    return this.db
+    // --- TRUY VẤN CHÍNH: có voucher
+    const storesWithVouchers = await this.db
       .select({
         ...getTableColumns(stores),
-        // lấy ra voucher giá trị cao nhất
         topVoucher: sql`
-          (SELECT json_build_object(
-                    'id', v.id,
-                    'code', v.code,
-                    'value', v.value
-                  )
-           FROM vouchers v
-           WHERE v.user_id = stores.user_id
-             AND v.type = ${VouchersTypeEnum.STORE}
-             AND v.status = ${VouchersStatusEnum.ACTIVE}
-             AND v.discount_type = ${DiscountTypeEnum.PERCENTAGE}
-             AND v.deleted_at IS NULL
-           ORDER BY v.value DESC LIMIT 1)`.mapWith((val) => val ?? null),
-        distance: sql
-          .raw(
-            `
+        (SELECT json_build_object(
+                  'id', v.id,
+                  'code', v.code,
+                  'value', v.value
+                )
+         FROM vouchers v
+         WHERE v.user_id = stores.user_id
+           AND v.type = ${VouchersTypeEnum.STORE}
+           AND v.status = ${VouchersStatusEnum.ACTIVE}
+           AND v.discount_type = ${DiscountTypeEnum.PERCENTAGE}
+           AND v.deleted_at IS NULL
+         ORDER BY v.value DESC LIMIT 1)`.mapWith((val) => val ?? null),
+        distance: sql`
         6371 * acos(
           cos(radians(${latitude})) *
           cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
           cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
           sin(radians(${latitude})) *
           sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
-        )
-      `,
-          )
+        )`
           .mapWith(Number)
           .as('distance'),
-        // số lượng vocuher
         voucherCount: sql`
-          (SELECT COUNT(*)
-           FROM vouchers v
-           WHERE v.user_id = stores.user_id
-             AND v.type = ${VouchersTypeEnum.STORE}
-             AND v.status = ${VouchersStatusEnum.ACTIVE}
-             AND v.deleted_at IS NULL)`
+        (SELECT COUNT(*)
+         FROM vouchers v
+         WHERE v.user_id = stores.user_id
+           AND v.type = ${VouchersTypeEnum.STORE}
+           AND v.status = ${VouchersStatusEnum.ACTIVE}
+           AND v.deleted_at IS NULL)`
           .mapWith(Number)
           .as('voucher_count'),
       })
@@ -807,39 +802,78 @@ export class StoresService implements OnModuleInit {
         and(
           eq(stores.status, true),
           eq(stores.isLocked, false),
-          // kiểm tra đóng mở cửa hàng
           isNotNull(stores.location),
           storeIsOpenSql(),
-          sql.raw(
-            `EXISTS (
-        SELECT 1 FROM vouchers v
-        WHERE v.user_id = stores.user_id
-          AND v.type = '${VouchersTypeEnum.STORE}'
-          AND v.status = '${VouchersStatusEnum.ACTIVE}'
-          AND v.discount_type = '${DiscountTypeEnum.PERCENTAGE}'
-          AND v.deleted_at IS NULL
-      )`,
-          ),
-          sql.raw(
-            `
-        6371 * acos(
-          cos(radians(${latitude})) *
-          cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-          cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
-          sin(radians(${latitude})) *
-          sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
-        ) < 15
-      `,
-          ),
+          sql.raw(`
+          EXISTS (
+            SELECT 1 FROM vouchers v
+            WHERE v.user_id = stores.user_id
+              AND v.type = '${VouchersTypeEnum.STORE}'
+              AND v.status = '${VouchersStatusEnum.ACTIVE}'
+              AND v.discount_type = '${DiscountTypeEnum.PERCENTAGE}'
+              AND v.deleted_at IS NULL
+          )
+        `),
+          sql.raw(`
+          6371 * acos(
+            cos(radians(${latitude})) *
+            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+            sin(radians(${latitude})) *
+            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
+          ) < 15
+        `),
         ),
       )
       .groupBy(stores.id)
+      .orderBy(desc(sql`voucher_count`), sql`distance ASC`)
       .limit(15)
-      .orderBy(
-        desc(sql`voucher_count`),
-        sql`distance
-        ASC`,
+      .$dynamic();
+
+    if (storesWithVouchers.length > 0) return storesWithVouchers;
+
+    // --- TRUY VẤN DỰ PHÒNG: random 15 cửa hàng gần nhất
+    return this.db
+      .select({
+        ...getTableColumns(stores),
+        distance: sql
+          .raw(
+            `
+          6371 * acos(
+            cos(radians(${latitude})) *
+            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+            sin(radians(${latitude})) *
+            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
+          ) < 15
+        `,
+          )
+          .mapWith(Number)
+          .as('distance'),
+      })
+      .from(stores)
+      .where(
+        and(
+          eq(stores.status, true),
+          eq(stores.isLocked, false),
+          isNotNull(stores.location),
+          storeIsOpenSql(),
+          sql.raw(`
+          6371 * acos(
+            cos(radians(${latitude})) *
+            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+            sin(radians(${latitude})) *
+            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
+          ) < 15
+        `),
+        ),
       )
+      .orderBy(
+        sql`RANDOM
+      ()`,
+      )
+      .limit(15)
       .$dynamic();
   }
 
