@@ -44,6 +44,10 @@ export class OrderResDto extends AbstractResDto {
 
   @NumberField()
   @Expose()
+  coinUsed: number;
+
+  @NumberField()
+  @Expose()
   totalVoucherStore: number;
 
   @NumberField()
