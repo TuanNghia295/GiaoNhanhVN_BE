@@ -20,7 +20,7 @@ import {
 import { AllConfigType } from '@/config/config.type';
 import { Environment } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { DRIZZLE, increment, Transaction } from '@/database/global';
+import { decrement, DRIZZLE, increment, Transaction } from '@/database/global';
 import {
   Area,
   areas,
@@ -793,6 +793,13 @@ export class OrdersService {
         calculateOrder.totalDelivery,
         totalVoucherApp,
       );
+
+      if (coinUsed > 0) {
+        await this.db
+          .update(users)
+          .set({ coin: decrement(users.coin, coinUsed) })
+          .where(eq(users.id, payload.id));
+      }
 
       console.group('🏷️ Voucher Totals');
       console.log('🛒 Total Product     :', totalProduct);
