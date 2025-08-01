@@ -9,11 +9,19 @@ import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagi
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { Order } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { DRIZZLE, increment, Transaction } from '@/database/global';
-import { areas, ProviderEnum, RoleEnum, users } from '@/database/schemas';
+import { decrement, DRIZZLE, increment, Transaction } from '@/database/global';
+import {
+  areas,
+  coinLogs,
+  ProviderEnum,
+  RoleEnum,
+  transactionLogs,
+  TransactionTypeEnum,
+  users,
+} from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
-import { deleteIfExists, normalizeImagePath } from '@/utils/util';
+import { deleteIfExists, formatNumber, normalizeImagePath } from '@/utils/util';
 import { HttpStatus, Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { plainToInstance } from 'class-transformer';
@@ -271,18 +279,78 @@ export class UsersService implements OnModuleInit {
       .where(eq(users.id, userId));
   }
 
-  async addCoin(userId: number, coinUsed: number, tx?: Transaction) {
+  async incrementCoin(userId: number, coin: number, payload: JwtPayloadType) {
+    return this.db.transaction(async (tx) => {
+      if (!(await this.existById(userId))) {
+        throw new ValidationException(ErrorCode.U001, HttpStatus.NOT_FOUND);
+      }
+
+      // Cập nhật coin của người dùng
+      const updatedUser = await tx
+        .update(users)
+        .set({
+          coin: increment(users.coin, coin),
+        })
+        .where(eq(users.id, userId))
+        .returning()
+        .then((result) => plainToInstance(UserResDto, result[0]));
+
+      // trừ ví khu vực nếu có
+      if (payload.role === RoleEnum.MANAGEMENT && payload.areaId) {
+        const area = await tx.query.areas.findFirst({
+          where: eq(areas.id, payload.areaId),
+          columns: {
+            id: true,
+            point: true,
+          },
+        });
+
+        if (!area) {
+          throw new ValidationException(ErrorCode.A001, HttpStatus.NOT_FOUND);
+        }
+
+        if (area.point < coin) {
+          throw new ValidationException(ErrorCode.A002, HttpStatus.BAD_REQUEST);
+        }
+
+        // Trừ coin của khu vực
+        await tx
+          .update(areas)
+          .set({
+            point: decrement(areas.point, coin),
+          })
+          .where(eq(areas.id, payload.areaId));
+      }
+
+      //---------------------------------------------------
+      // Log transaction
+      //---------------------------------------------------
+      await tx.insert(transactionLogs).values({
+        areaId: payload.areaId,
+        type: TransactionTypeEnum.DEPOSIT,
+        point: coin,
+        description: `Nạp ${formatNumber(coin)} xu vào tài khoản của người dùng ${updatedUser.fullName} (${updatedUser.phone})`,
+      });
+      // Ghi log coin
+      await tx.insert(coinLogs).values({
+        userId: userId,
+        coin: coin,
+        areaId: payload.areaId,
+      });
+
+      return updatedUser;
+    });
+  }
+
+  async refundCoin(userId: number, coinUsed: number, tx: Transaction) {
     if (!(await this.existById(userId))) {
       throw new ValidationException(ErrorCode.U001, HttpStatus.NOT_FOUND);
     }
-    const db = tx || this.db;
-    return db
+    await tx
       .update(users)
       .set({
         coin: increment(users.coin, coinUsed),
       })
-      .where(eq(users.id, userId))
-      .returning()
-      .then((result) => plainToInstance(UserResDto, result[0]));
+      .where(eq(users.id, userId));
   }
 }

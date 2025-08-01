@@ -1488,7 +1488,7 @@ export class OrdersService {
     //--------------------------------------------------
     if (existOrder.coinUsed > 0) {
       // không cần check user đã tônt tại vì đã check ở hàm create
-      await this.usersService.addCoin(existOrder.userId, existOrder.coinUsed, tx);
+      await this.usersService.refundCoin(existOrder.userId, existOrder.coinUsed, tx);
     }
 
     await tx.insert(reasonDeliverCancelOrders).values({

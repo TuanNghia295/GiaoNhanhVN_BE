@@ -162,7 +162,7 @@ export class UsersController {
     type: UserResDto,
   })
   @Patch('add-coin')
-  async addPoint(@Body() reqDto: AddCoinReqDto) {
-    return this.usersService.addCoin(reqDto.userId, reqDto.coin);
+  async addPoint(@CurrentUser() payload: JwtPayloadType, @Body() reqDto: AddCoinReqDto) {
+    return this.usersService.incrementCoin(reqDto.userId, reqDto.coin, payload);
   }
 }

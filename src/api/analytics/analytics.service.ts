@@ -9,6 +9,7 @@ import { StoresService } from '@/api/stores/stores.service';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
 import {
+  coinLogs,
   delivers,
   orders,
   OrderStatusEnum,
@@ -33,6 +34,7 @@ export type RevenueResult = {
   total_user_service_fee?: number; // Chỉ có trong kết quả tổng
   total_product_price: number;
   total_user_payment: number;
+  total_used_coin: number; // Chỉ có trong kết quả tổng
   total_store_service_fee: number;
   total_deliver_service_fee: number;
   total_voucher_value: number;
@@ -62,9 +64,6 @@ export class AnalyticsService {
         .toJSDate();
     }
 
-    console.log('reqDto.from', reqDto.from);
-    console.log('reqDto.to', reqDto.to);
-
     const statuses: OrderStatusEnum[] = Object.values(OrderStatusEnum);
     const results = await this.db
       .select({
@@ -73,6 +72,7 @@ export class AnalyticsService {
         total_product_price: sum(orders.totalProduct).mapWith(Number),
         total_user_payment: sum(orders.total).mapWith(Number),
         total_user_service_fee: sum(orders.userServiceFee).mapWith(Number),
+        total_used_coin: sum(orders.coinUsed).mapWith(Number),
         total_store_service_fee: sum(orders.storeServiceFee).mapWith(Number),
         total_voucher_value: sum(orders.totalVoucherApp).mapWith(Number),
         total_deliver_service_fee: sql<number>`SUM
@@ -121,21 +121,19 @@ export class AnalyticsService {
       )
       .groupBy(orders.status);
 
-    const mergedResults = results.map((item) => {
-      return {
-        ...item,
-      };
-    });
+    console.log('results', results);
 
     const result = statuses.map((status) => {
-      const filterData = mergedResults.find((r) => r.status === status) || {
+      const filterData = results.find((r) => r.status === status) || {
         total_order: 0,
         total_app_revenue_tax: 0,
         total_product_price: 0,
         total_user_payment: 0,
+        total_used_coin: 0,
         total_store_service_fee: 0,
         total_user_service_fee: 0,
         total_deliver_service_fee: 0,
+        total_issued_coin: 0,
         total_voucher_value: 0,
         total_app_revenue: 0,
       };
@@ -147,6 +145,7 @@ export class AnalyticsService {
         total_product_price: filterData.total_product_price,
         total_user_payment: filterData.total_user_payment,
         total_store_service_fee: filterData.total_store_service_fee,
+        total_used_coin: filterData.total_used_coin,
         total_deliver_service_fee: filterData.total_deliver_service_fee,
         total_voucher_value: filterData.total_voucher_value,
         total_app_revenue: filterData.total_app_revenue,
@@ -179,6 +178,7 @@ export class AnalyticsService {
         (acc, cur) => acc + cur.total_deliver_service_fee,
         0,
       ),
+      total_used_coin: DATA_FILTERED.reduce((acc, cur) => acc + (cur.total_used_coin || 0), 0),
       total_voucher_value: DATA_FILTERED.reduce((acc, cur) => acc + cur.total_voucher_value, 0),
       total_user_service_fee: DATA_FILTERED.reduce(
         (acc, cur) => acc + (cur.total_user_service_fee || 0),
@@ -188,18 +188,46 @@ export class AnalyticsService {
       total_app_revenue_tax: DATA_FILTERED.reduce((acc, cur) => acc + cur.total_app_revenue_tax, 0),
     };
 
-    console.log('total_all', total_all);
+    // lấy ra thống kê số xu phát hành
+    const total_issued_coin = await this.db
+      .select({
+        total_issued_coin: sum(coinLogs.coin).mapWith(Number),
+      })
+      .from(coinLogs)
+      .where(
+        and(
+          ...(reqDto.from && reqDto.to
+            ? [
+                between(
+                  coinLogs.createdAt,
+                  DateTime.fromJSDate(reqDto.from)
+                    .setZone('Asia/Ho_Chi_Minh')
+                    .startOf('day')
+                    .toJSDate(),
+                  DateTime.fromJSDate(reqDto.to)
+                    .setZone('Asia/Ho_Chi_Minh')
+                    .endOf('day')
+                    .toJSDate(),
+                ),
+              ]
+            : []),
+        ),
+      )
+      .then((data) => data[0]?.total_issued_coin || 0);
 
     return plainToInstance(AdminRevenueResDto, {
       all: result,
       total_user_service_fee: total_all.total_user_service_fee,
       total_all_order: total_all.total_order,
+
       total_all_product_price: total_all.total_product_price,
       total_all_user_payment: total_all.total_user_payment,
       total_all_store_service_fee: total_all.total_store_service_fee,
       total_all_deliver_service_fee: total_all.total_deliver_service_fee,
       total_all_voucher_value: total_all.total_voucher_value,
       total_all_app_revenue: total_all.total_app_revenue,
+      total_issued_coin,
+      total_used_coin: total_all.total_used_coin,
       total_all_app_revenue_tax: total_all.total_app_revenue_tax,
     });
   }
