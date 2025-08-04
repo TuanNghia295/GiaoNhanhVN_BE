@@ -196,6 +196,8 @@ export class AnalyticsService {
       .from(coinLogs)
       .where(
         and(
+          ...(payload.role === RoleEnum.MANAGEMENT ? [eq(coinLogs.areaId, payload.areaId)] : []),
+          ...(reqDto.areaId ? [eq(coinLogs.areaId, reqDto.areaId)] : []),
           ...(reqDto.from && reqDto.to
             ? [
                 between(
