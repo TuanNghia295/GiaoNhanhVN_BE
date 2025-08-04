@@ -1400,6 +1400,12 @@ export class OrdersService {
   }
 
   private async managerDoCancelOrder(existOrder: Order, tx: Transaction) {
+    // hoàn xu cho người dùng
+    if (existOrder.coinUsed > 0) {
+      console.log('Refunding coin to user:', existOrder.userId, existOrder.coinUsed);
+      // không
+      await this.usersService.refundCoin(existOrder.userId, existOrder.coinUsed, tx);
+    }
     if (existOrder.deliverId) {
       const existDeliver = await this.deliversService.findById(existOrder.deliverId);
       if (!existDeliver) {
@@ -1413,9 +1419,6 @@ export class OrdersService {
 
       // hoàn điểm cho shipper
       await this.deliversService.addPoint(existOrder.deliverId, subtractPoint, tx);
-
-      // hoàn xu cho người dùng
-      await this.usersService.refundCoin(existOrder.userId, existOrder.coinUsed, tx);
     }
 
     //-------------------------------------------------
