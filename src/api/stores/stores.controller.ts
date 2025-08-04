@@ -1,5 +1,6 @@
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { LockStoreReqDto } from '@/api/stores/dto/lock-store.req.dto';
+import { NearbyStoresReqDto } from '@/api/stores/dto/nearby-stores.req.dto';
 import { PageStoreManagerReqDto } from '@/api/stores/dto/page-store-manager.req.dto';
 import { PageStoreReqDto } from '@/api/stores/dto/page-store.req.dto';
 import { QueryListStore } from '@/api/stores/dto/query-list-store.req.dto';
@@ -77,8 +78,8 @@ export class StoresController {
     type: StoreResDto,
   })
   @Get('nearby/with-most-vouchers')
-  async getNearbyStoresWithMostVouchers(@Query('origins') origins: string) {
-    return await this.storesService.getNearbyStoresWithMostVouchers(origins);
+  async getNearbyStoresWithMostVouchers(@Query() reqDto: NearbyStoresReqDto) {
+    return await this.storesService.getNearbyStoresWithMostVouchers(reqDto);
   }
 
   @AuthOptional()
@@ -88,8 +89,8 @@ export class StoresController {
     type: StoreResDto,
   })
   @Get('nearby/products-with-most-vouchers-random')
-  async getNearbyProductsWithMostVouchersRandom(@Query('origins') origins: string) {
-    return await this.storesService.getNearbyProductsWithMostOrdersThisWeek(origins);
+  async getNearbyProductsWithMostVouchersRandom(@Query() reqDto: NearbyStoresReqDto) {
+    return await this.storesService.getNearbyProductsWithMostOrdersThisWeek(reqDto);
   }
 
   @Roles(RoleEnum.STORE)

@@ -1,5 +1,6 @@
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { LockStoreReqDto } from '@/api/stores/dto/lock-store.req.dto';
+import { NearbyStoresReqDto } from '@/api/stores/dto/nearby-stores.req.dto';
 import { PageStoreManagerReqDto } from '@/api/stores/dto/page-store-manager.req.dto';
 import { PageStoreReqDto } from '@/api/stores/dto/page-store.req.dto';
 import { QueryListStore } from '@/api/stores/dto/query-list-store.req.dto';
@@ -748,15 +749,15 @@ export class StoresService implements OnModuleInit {
       .then((res) => res[0] ?? null);
   }
 
-  async getNearbyStoresWithMostVouchers(origins: string) {
-    if (!origins || !origins.includes(',')) {
+  async getNearbyStoresWithMostVouchers(reqDto: NearbyStoresReqDto) {
+    if (!reqDto.origins || !reqDto.origins.includes(',')) {
       throw new ValidationException(
         ErrorCode.S007,
         HttpStatus.BAD_REQUEST,
         'Invalid origins format. Expected format: "latitude,longitude"',
       );
     }
-    const [latitude, longitude] = origins.split(',').map(Number);
+    const [latitude, longitude] = reqDto.origins.split(',').map(Number);
 
     return this.db
       .select({
@@ -805,6 +806,7 @@ export class StoresService implements OnModuleInit {
       .leftJoin(orders, eq(orders.storeId, stores.id))
       .where(
         and(
+          ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
           eq(stores.status, true),
           eq(stores.isLocked, false),
           // kiểm tra đóng mở cửa hàng
@@ -885,8 +887,15 @@ export class StoresService implements OnModuleInit {
     });
   }
 
-  async getNearbyProductsWithMostOrdersThisWeek(origins: string) {
-    const [lat, lng] = origins.split(',').map(Number);
+  async getNearbyProductsWithMostOrdersThisWeek(reqDto: NearbyStoresReqDto) {
+    if (!reqDto.origins || !reqDto.origins.includes(',')) {
+      throw new ValidationException(
+        ErrorCode.S007,
+        HttpStatus.BAD_REQUEST,
+        'Invalid origins format. Expected format: "latitude,longitude"',
+      );
+    }
+    const [lat, lng] = reqDto.origins.split(',').map(Number);
 
     return this.db
       .select({
@@ -912,15 +921,19 @@ export class StoresService implements OnModuleInit {
       .leftJoin(stores, eq(stores.id, products.storeId))
       .leftJoin(
         sql`
-          (
-            SELECT od.product_id, COUNT(DISTINCT od.order_id) AS order_count
-            FROM order_details od
-                   JOIN orders o ON o.id = od.order_id
-            WHERE date_trunc('week', o.created_at) = date_trunc('week', now())
-            GROUP BY od.product_id
-          ) AS oc
+          (SELECT od.product_id, COUNT(DISTINCT od.order_id) AS order_count
+           FROM order_details od
+                  JOIN orders o ON o.id = od.order_id
+           WHERE date_trunc('week', o.created_at) = date_trunc('week', now())
+           GROUP BY od.product_id)
+          AS oc
         `,
-        eq(products.id, sql`oc.product_id`),
+        eq(
+          products.id,
+          sql`oc
+          .
+          product_id`,
+        ),
       )
       .where(
         and(
@@ -928,6 +941,7 @@ export class StoresService implements OnModuleInit {
           isNotNull(products.image),
           isNull(products.deletedAt),
           eq(stores.status, true),
+          ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
           eq(stores.isLocked, false),
           isNotNull(stores.location),
           storeIsOpenSql(),
