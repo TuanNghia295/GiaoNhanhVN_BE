@@ -1409,9 +1409,13 @@ export class OrdersService {
       // Cộng lại điểm cho người giao hàng
       //-------------------------------------------------
 
-      const subtractPoint = await this.calculateSubtractPoint(existOrder, existOrder.coinUsed);
+      const subtractPoint = await this.calculateSubtractPoint(existOrder);
 
+      // hoàn điểm cho shipper
       await this.deliversService.addPoint(existOrder.deliverId, subtractPoint, tx);
+
+      // hoàn xu cho người dùng
+      await this.usersService.refundCoin(existOrder.userId, existOrder.coinUsed, tx);
     }
 
     //-------------------------------------------------
