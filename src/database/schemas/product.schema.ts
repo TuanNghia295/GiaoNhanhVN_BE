@@ -6,9 +6,9 @@ import { stores } from '@/database/schemas/store.schema';
 import { relations } from 'drizzle-orm';
 import {
   boolean,
-  decimal,
   index,
   integer,
+  numeric,
   pgTable,
   primaryKey,
   serial,
@@ -22,14 +22,18 @@ export const products = pgTable(
   {
     id: serial().primaryKey().notNull(),
     name: varchar('name'),
-    nameNormalized: varchar('name_normalized'),
-    price: decimal('price', {
+    price: numeric('price', {
       precision: 15,
       scale: 2,
       mode: 'number',
     }).notNull(),
     image: text('image'),
     description: text('description'),
+    salePrice: numeric('sale_price', {
+      precision: 15,
+      scale: 2,
+      mode: 'number',
+    }),
     isLocked: boolean('is_locked').default(false),
     categoryItemId: integer('category_item_id'),
     createdAt: timestamp('created_at').notNull().defaultNow(),

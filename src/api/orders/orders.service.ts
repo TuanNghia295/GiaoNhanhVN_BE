@@ -961,7 +961,7 @@ export class OrdersService {
       await tx.execute(sql`
         UPDATE order_details
         SET total = (
-          COALESCE(order_details.quantity * p.price, 0) +
+          COALESCE(order_details.quantity * COALESCE(p.salePrice, p.price), 0) +
           COALESCE(order_details.quantity * (SELECT o.price
                                              FROM options o
                                              WHERE o.id = order_details.option_id), 0) +

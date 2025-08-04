@@ -3,6 +3,7 @@ import { CreateOptionReqDto } from '@/api/options/dto/create-option.req.dto';
 import {
   ClassFieldOptional,
   NumberField,
+  NumberFieldOptional,
   StringField,
   StringFieldOptional,
 } from '@/decorators/field.decorators';
@@ -10,6 +11,9 @@ import {
 export class CreateProductReqDto {
   @NumberField()
   storeMenuId!: number;
+
+  @NumberFieldOptional()
+  salePrice?: number;
 
   @NumberField()
   storeId!: number;
