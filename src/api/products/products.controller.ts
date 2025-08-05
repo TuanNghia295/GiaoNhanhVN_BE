@@ -55,7 +55,6 @@ export class ProductsController {
   })
   @Post()
   async createProduct(@Body() reqDto: CreateProductReqDto): Promise<any> {
-    console.log('reqDto', reqDto);
     return await this.productsService.create(reqDto);
   }
 

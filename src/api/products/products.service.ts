@@ -20,6 +20,7 @@ import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
 import { existsSync, mkdirSync } from 'fs';
+import { DateTime } from 'luxon';
 import { join } from 'path';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
@@ -117,7 +118,19 @@ export class ProductsService implements OnModuleInit {
     const existCategoryItem = await this.categoryItemsService.existById(reqDto.categoryItemId);
     if (!existCategoryItem) throw new ValidationException(ErrorCode.CI001);
 
-    console.log('reqDto', reqDto);
+    if (reqDto.startDate) {
+      reqDto.startDate = DateTime.fromJSDate(reqDto.startDate)
+        .setZone('Asia/Ho_Chi_Minh')
+        .startOf('day')
+        .toJSDate();
+    }
+
+    if (reqDto.endDate) {
+      reqDto.endDate = DateTime.fromJSDate(reqDto.endDate)
+        .setZone('Asia/Ho_Chi_Minh')
+        .endOf('day')
+        .toJSDate();
+    }
 
     return this.db.transaction(async (tx) => {
       const product = await tx
@@ -146,8 +159,20 @@ export class ProductsService implements OnModuleInit {
   }
 
   async update(productId: number, reqDto: UpdateProductReqDto) {
-    console.log('reqDto', reqDto);
     return this.db.transaction(async (tx) => {
+      if (reqDto.startDate) {
+        reqDto.startDate = DateTime.fromJSDate(reqDto.startDate)
+          .setZone('Asia/Ho_Chi_Minh')
+          .startOf('day')
+          .toJSDate();
+      }
+
+      if (reqDto.endDate) {
+        reqDto.endDate = DateTime.fromJSDate(reqDto.endDate)
+          .setZone('Asia/Ho_Chi_Minh')
+          .endOf('day')
+          .toJSDate();
+      }
       //---------------------------------------------------
       // Check if the product exists
       //---------------------------------------------------

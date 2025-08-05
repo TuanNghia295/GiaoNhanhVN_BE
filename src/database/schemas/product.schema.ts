@@ -28,6 +28,9 @@ export const products = pgTable(
       mode: 'number',
     }).notNull(),
     image: text('image'),
+    quantity: integer('quantity').default(0),
+    startDate: timestamp('start_date'),
+    endDate: timestamp('end_date'),
     description: text('description'),
     salePrice: numeric('sale_price', {
       precision: 15,

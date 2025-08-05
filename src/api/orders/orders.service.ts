@@ -35,6 +35,7 @@ import {
   orders,
   OrderStatusEnum,
   OrderTypeEnum,
+  products,
   reasonDeliverCancelOrders,
   RoleEnum,
   serviceFees,
@@ -77,6 +78,7 @@ import {
   isNotNull,
   lt,
   lte,
+  not,
   SQL,
   sql,
   sum,
@@ -937,6 +939,19 @@ export class OrdersService {
 
   async createOrderDetails(orderId: number, items: CreateOrderDetailReqDto[], tx: Transaction) {
     for (const item of items) {
+      const [product] = await tx
+        .select({
+          id: products.id,
+          startDate: products.startDate,
+          endDate: products.endDate,
+          salePrice: products.salePrice,
+        })
+        .from(products)
+        .where(eq(products.id, item.productId))
+        .limit(1);
+      if (!product) {
+        throw new ValidationException(ErrorCode.P001, HttpStatus.NOT_FOUND);
+      }
       const [orderDetail] = await tx
         .insert(orderDetails)
         .values({
@@ -958,10 +973,42 @@ export class OrdersService {
           .returning();
       }
 
+      let totalIfThisOrderIncluded = 0;
+
+      if (product.salePrice && product.startDate) {
+        // lấy ra số lượng đơn hàng đã đặt cho sản phẩm này
+        const orderedDuringSale = await tx
+          .select({ total: sum(orderDetails.quantity).mapWith(Number) })
+          .from(orderDetails)
+          .where(
+            and(
+              eq(orderDetails.productId, item.productId),
+              gte(orderDetails.createdAt, product.startDate),
+              not(eq(orders.status, OrderStatusEnum.CANCELED)), // optional: lọc đơn huỷ
+            ),
+          )
+          .then((res) => res[0]?.total ?? 0);
+        console.log('Total product ordered for productId:', item.productId, orderedDuringSale);
+
+        totalIfThisOrderIncluded = orderedDuringSale + item.quantity;
+      }
+
       await tx.execute(sql`
         UPDATE order_details
         SET total = (
-          COALESCE(order_details.quantity * COALESCE(p.sale_price, p.price), 0) +
+          COALESCE(
+            order_details.quantity * (
+              CASE
+                WHEN
+                  p.sale_price IS NOT NULL AND
+                  p.start_date <= NOW() AND
+                  p.end_date >= NOW() AND
+                  p.quantity >= ${totalIfThisOrderIncluded}
+                  THEN p.sale_price
+                ELSE p.price
+                END
+              ), 0
+          ) +
           COALESCE(order_details.quantity * (SELECT o.price
                                              FROM options o
                                              WHERE o.id = order_details.option_id), 0) +
