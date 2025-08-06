@@ -44,7 +44,6 @@ export class StoreMenusService {
         break;
     }
 
-    console.log('reqDto', reqDto);
     const baseConfig: FindManyQueryConfig<typeof this.db.query.storeMenus> = {
       where: and(eq(storeMenus.storeId, reqDto.storeId), isNull(storeMenus.deletedAt)),
       with: {
@@ -56,9 +55,10 @@ export class StoreMenusService {
           },
           // lấy ra sản phẩm chưa soft delete
           where: and(
-            isNull(storeMenus.deletedAt),
+            isNull(products.deletedAt),
             ...(!reqDto.isShop ? [eq(products.isLocked, false)] : []),
           ),
+          orderBy: [asc(products.categoryItemId), asc(products.index), desc(products.createdAt)],
         },
       },
     };

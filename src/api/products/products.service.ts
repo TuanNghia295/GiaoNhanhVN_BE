@@ -5,6 +5,7 @@ import { CreateProductReqDto } from '@/api/products/dto/create-product.req.dto';
 import { LockProductReqDto } from '@/api/products/dto/lock-product.req.dto';
 import { PageProductReqDto } from '@/api/products/dto/page-product-req.dto';
 import { ProductResDto } from '@/api/products/dto/product.res.dto';
+import { SortProductReqDto } from '@/api/products/dto/sort-product.req.dto';
 import { UpdateProductReqDto } from '@/api/products/dto/update-product.req.dto';
 import { StoreMenusService } from '@/api/store-menus/store-menus.service';
 import { StoresService } from '@/api/stores/stores.service';
@@ -290,5 +291,18 @@ export class ProductsService implements OnModuleInit {
       .where(eq(products.id, productId))
       .returning()
       .then((result) => plainToInstance(ProductResDto, result[0]));
+  }
+
+  async sortProducts({ items }: SortProductReqDto) {
+    await this.db.transaction(async (tx) => {
+      for (const update of items) {
+        await tx
+          .update(products)
+          .set({
+            index: update.index,
+          })
+          .where(eq(products.id, update.productId));
+      }
+    });
   }
 }

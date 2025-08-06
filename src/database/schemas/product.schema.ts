@@ -22,6 +22,7 @@ export const products = pgTable(
   {
     id: serial().primaryKey().notNull(),
     name: varchar('name'),
+    index: integer('index'),
     price: numeric('price', {
       precision: 15,
       scale: 2,
