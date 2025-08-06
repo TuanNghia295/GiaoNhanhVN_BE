@@ -980,11 +980,12 @@ export class OrdersService {
         const orderedDuringSale = await tx
           .select({ total: sum(orderDetails.quantity).mapWith(Number) })
           .from(orderDetails)
+          .innerJoin(orders, eq(orderDetails.orderId, orders.id))
           .where(
             and(
               eq(orderDetails.productId, item.productId),
               gte(orderDetails.createdAt, product.startDate),
-              not(eq(orders.status, OrderStatusEnum.CANCELED)), // optional: lọc đơn huỷ
+              not(eq(orders.status, OrderStatusEnum.CANCELED)),
             ),
           )
           .then((res) => res[0]?.total ?? 0);
