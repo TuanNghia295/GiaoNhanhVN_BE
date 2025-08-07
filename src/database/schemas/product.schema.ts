@@ -50,15 +50,17 @@ export const products = pgTable(
     storeMenuId: integer('store_menu_id'),
   },
   (table) => [
-    index('products_name_idx').on(table.name),
-    index('products_store_id_idx').on(table.storeId),
-    index('products_category_item_id_idx').on(table.categoryItemId),
-    index('products_store_menu_id_deleted_at_locked_idx').on(
+    index('idx_products_store_id').on(table.storeId),
+    index('idx_products_category_item_id').on(table.categoryItemId),
+    index('idx_products_store_menu_id').on(table.storeMenuId),
+    index('idx_products_store_menu_id_deleted_at_locked').on(
       table.storeMenuId,
       table.deletedAt,
       table.isLocked,
     ),
-    index('products_store_menu_id_created_at_idx').on(table.storeMenuId, table.createdAt),
+    index('idx_products_index_created_at').on(table.index, table.createdAt),
+    // (Optional) nếu soft delete lọc nhiều chỗ khác
+    index('idx_products_deleted_at').on(table.deletedAt),
   ],
 );
 

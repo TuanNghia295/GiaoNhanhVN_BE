@@ -127,6 +127,34 @@
       "when": 1754534148316,
       "tag": "0017_smiling_adam_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1754551893174,
+      "tag": "0018_yummy_tomorrow_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1754552023086,
+      "tag": "0019_freezing_makkari",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1754552109143,
+      "tag": "0020_early_blink",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1754552243870,
+      "tag": "0021_misty_proudstar",
+      "breakpoints": true
     }
   ]
 }

@@ -1,9 +1,6 @@
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { CreateStoreMenuReqDto } from '@/api/store-menus/dto/create-store-menu-req.dto';
-import {
-  PageStoreMenuReqDto,
-  SortStoreMenuEnum,
-} from '@/api/store-menus/dto/page-store-menu-req.dto';
+import { PageStoreMenuReqDto } from '@/api/store-menus/dto/page-store-menu-req.dto';
 import { StoreMenuResDto } from '@/api/store-menus/dto/store-menu.res.dto';
 import { UpdateStoreMenuReqDto } from '@/api/store-menus/dto/update-store-menu-req.dto';
 import { StoresService } from '@/api/stores/stores.service';
@@ -16,7 +13,7 @@ import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { and, asc, count, desc, eq, isNull, SQL, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm';
 
 @Injectable()
 export class StoreMenusService {
@@ -26,24 +23,6 @@ export class StoreMenusService {
   ) {}
 
   async getPageStoreMenus(reqDto: PageStoreMenuReqDto) {
-    let orderBy: SQL | undefined;
-
-    switch (reqDto.sortBy) {
-      case SortStoreMenuEnum.NAME_ASC:
-        orderBy = asc(storeMenus.name);
-        break;
-      case SortStoreMenuEnum.NAME_DESC:
-        orderBy = desc(storeMenus.name);
-        break;
-      case SortStoreMenuEnum.OLDEST:
-        orderBy = asc(storeMenus.createdAt);
-        break;
-      case SortStoreMenuEnum.NEWEST:
-      default:
-        orderBy = desc(storeMenus.createdAt);
-        break;
-    }
-
     const baseConfig: FindManyQueryConfig<typeof this.db.query.storeMenus> = {
       where: and(eq(storeMenus.storeId, reqDto.storeId), isNull(storeMenus.deletedAt)),
       with: {
@@ -61,6 +40,7 @@ export class StoreMenusService {
           orderBy: [asc(products.index), desc(products.createdAt)],
         },
       },
+      orderBy: [desc(storeMenus.createdAt)],
     };
 
     const qCount = this.db.query.storeMenus.findMany({
@@ -71,26 +51,16 @@ export class StoreMenusService {
     const [entities, [{ totalCount }]] = await Promise.all([
       this.db.query.storeMenus.findMany({
         ...baseConfig,
-        orderBy,
-        ...(reqDto.limit !== 10
-          ? {
-              limit: reqDto.limit,
-              offset: reqDto.offset,
-            }
-          : {}),
+        limit: reqDto.limit,
+        offset: reqDto.offset,
       }),
       this.db.select({ totalCount: count() }).from(sql`${qCount}`),
     ]);
-
-    // check not limit and offset
-    if (reqDto.limit !== 10) {
-      const meta = new OffsetPaginationDto(totalCount, reqDto);
-      return new OffsetPaginatedDto(
-        entities.map((e) => plainToInstance(StoreMenuResDto, e)),
-        meta,
-      );
-    }
-    return entities.map((e) => plainToInstance(StoreMenuResDto, e));
+    const meta = new OffsetPaginationDto(totalCount, reqDto);
+    return new OffsetPaginatedDto(
+      entities.map((e) => plainToInstance(StoreMenuResDto, e)),
+      meta,
+    );
   }
 
   async create(storeId: number, dto: CreateStoreMenuReqDto) {

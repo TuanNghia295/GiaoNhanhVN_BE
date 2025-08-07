@@ -1,0 +1,1 @@
+CREATE INDEX "store_menus_store_id_deleted_at_idx" ON "store_menus" USING btree ("store_id","deleted_at");

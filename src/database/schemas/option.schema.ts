@@ -3,6 +3,7 @@ import { relations } from 'drizzle-orm';
 import {
   decimal,
   foreignKey,
+  index,
   integer,
   pgTable,
   serial,
@@ -32,6 +33,8 @@ export const options = pgTable(
     })
       .onUpdate('no action')
       .onDelete('cascade'),
+    // ✅ Thêm index vào productId
+    index('idx_options_product_id').on(table.productId),
   ],
 );
 
