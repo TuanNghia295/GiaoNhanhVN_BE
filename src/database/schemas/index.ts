@@ -4,6 +4,7 @@ export * from './bank.schema';
 export * from './banner.schema';
 export * from './category-item.schema';
 export * from './category.schema';
+export * from './coin-log.schema';
 export * from './comment.schema';
 export * from './comments-to-ratings.schema';
 export * from './deliver.schema';

@@ -46,6 +46,14 @@ export class AdminRevenueResDto {
 
   @NumberField()
   @Expose()
+  total_issued_coin: number;
+
+  @NumberField()
+  @Expose()
+  total_used_coin: number;
+
+  @NumberField()
+  @Expose()
   total_all_order: number;
 
   @NumberField()

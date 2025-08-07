@@ -1,0 +1,1 @@
+ALTER TABLE "coin_logs" ADD COLUMN "area_id" integer NOT NULL;

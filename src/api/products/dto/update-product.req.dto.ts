@@ -16,6 +16,9 @@ export class UpdateProductReqDto {
   @NumberFieldOptional()
   categoryItemId?: number;
 
+  @NumberFieldOptional()
+  salePrice?: number;
+
   @StringFieldOptional()
   name?: string;
 

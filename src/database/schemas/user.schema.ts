@@ -44,9 +44,6 @@ export const users = pgTable('users', {
   deletedAt: timestamp('deleted_at'),
   // phương thức đăng nhập
   provider: varchar('provider', { length: 255 }).$type<ProviderEnum>(),
-
-  // lượt quay
-  count: integer('count').notNull().default(0),
   // xu
   coin: integer().notNull().default(0),
 
