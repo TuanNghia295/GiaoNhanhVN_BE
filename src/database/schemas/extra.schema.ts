@@ -61,12 +61,7 @@ export const extrasToOrderDetails = pgTable(
       .notNull()
       .references(() => orderDetails.id),
   },
-  (t) => [
-    primaryKey({ columns: [t.extraId, t.orderDetailId] }),
-    // ✅ Thêm index riêng biệt nếu lọc theo từng cột nhiều
-    index('idx_etod_extra_id').on(t.extraId),
-    index('idx_etod_order_detail_id').on(t.orderDetailId),
-  ],
+  (t) => [primaryKey({ columns: [t.extraId, t.orderDetailId] })],
 );
 
 export const extrasToOrderDetailsRelations = relations(extrasToOrderDetails, ({ one }) => ({

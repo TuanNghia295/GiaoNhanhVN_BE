@@ -1,8 +1,16 @@
--- Create the database
-CREATE DATABASE nestjs_boilerplate;
 
--- Grant all privileges to the user on the database
-GRANT ALL PRIVILEGES ON DATABASE nestjs_boilerplate TO root;
+SELECT * FROM pg_stat_statements   LIMIT 10;
+
+
+
+SELECT
+    query,
+    calls,
+    rows
+FROM
+    pg_stat_statements
+LIMIT 10;
+
 
 Select  * from stores where user_id = 479;
 SELECT  * FROM users WHERE phone = '0966007345'

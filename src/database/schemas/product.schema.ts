@@ -51,16 +51,11 @@ export const products = pgTable(
   },
   (table) => [
     index('idx_products_store_id').on(table.storeId),
-    index('idx_products_category_item_id').on(table.categoryItemId),
-    index('idx_products_store_menu_id').on(table.storeMenuId),
     index('idx_products_store_menu_id_deleted_at_locked').on(
       table.storeMenuId,
       table.deletedAt,
       table.isLocked,
     ),
-    index('idx_products_index_created_at').on(table.index, table.createdAt),
-    // (Optional) nếu soft delete lọc nhiều chỗ khác
-    index('idx_products_deleted_at').on(table.deletedAt),
   ],
 );
 

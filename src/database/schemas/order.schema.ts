@@ -157,14 +157,11 @@ export const orders = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    index('orders_code_index').on(table.code),
     index('orders_user_id_idx').on(table.userId),
     index('orders_deliver_id_idx').on(table.deliverId),
     index('orders_area_status_created_idx').on(table.areaId, table.status, table.createdAt),
     index('orders_store_status_idx').on(table.storeId, table.status),
     index('orders_created_at_idx').on(table.createdAt),
-
-    index('orders_type_idx').on(table.type),
   ],
 );
 

@@ -16,12 +16,7 @@ export const storeMenus = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [
-    index('store_menus_name_idx').on(table.name),
-    index('store_menus_store_id_idx').on(table.storeId),
-    index('store_menus_deleted_at_idx').on(table.deletedAt),
-    index('store_menus_store_id_deleted_at_idx').on(table.storeId, table.deletedAt),
-  ],
+  (table) => [index('store_menus_name_idx').on(table.name)],
 );
 
 export const storeMenusRelations = relations(storeMenus, ({ one, many }) => ({

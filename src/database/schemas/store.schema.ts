@@ -56,7 +56,6 @@ export const stores = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    index('stores_name_idx').on(table.name),
     index('stores_location_idx').on(table.location),
     index('stores_user_id_idx').on(table.userId),
     index('stores_area_id_idx').on(table.areaId),

@@ -155,6 +155,27 @@
       "when": 1754552243870,
       "tag": "0021_misty_proudstar",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1754554695064,
+      "tag": "0022_useful_skreet",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1754556789641,
+      "tag": "0023_zippy_whiplash",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1754556818242,
+      "tag": "0024_ancient_lester",
+      "breakpoints": true
     }
   ]
 }
