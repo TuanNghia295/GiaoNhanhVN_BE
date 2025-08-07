@@ -56,7 +56,7 @@ export class StoreMenusService {
           },
           // lấy ra sản phẩm chưa soft delete
           where: and(
-            isNull(storeMenus.deletedAt),
+            isNull(products.deletedAt),
             ...(!reqDto.isShop ? [eq(products.isLocked, false)] : []),
           ),
         },
@@ -72,25 +72,15 @@ export class StoreMenusService {
       this.db.query.storeMenus.findMany({
         ...baseConfig,
         orderBy,
-        ...(reqDto.limit !== 10
-          ? {
-              limit: reqDto.limit,
-              offset: reqDto.offset,
-            }
-          : {}),
+        limit: reqDto.limit,
+        offset: reqDto.offset,
       }),
       this.db.select({ totalCount: count() }).from(sql`${qCount}`),
     ]);
 
     // check not limit and offset
-    if (reqDto.limit !== 10) {
-      const meta = new OffsetPaginationDto(totalCount, reqDto);
-      return new OffsetPaginatedDto(
-        entities.map((e) => plainToInstance(StoreMenuResDto, e)),
-        meta,
-      );
-    }
-    return entities.map((e) => plainToInstance(StoreMenuResDto, e));
+    const meta = new OffsetPaginationDto(totalCount, reqDto);
+    return new OffsetPaginatedDto(entities, meta);
   }
 
   async create(storeId: number, dto: CreateStoreMenuReqDto) {
