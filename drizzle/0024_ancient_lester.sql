@@ -1,0 +1,1 @@
+DROP INDEX "store_menus_deleted_at_idx";
