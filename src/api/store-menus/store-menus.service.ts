@@ -58,7 +58,7 @@ export class StoreMenusService {
             isNull(products.deletedAt),
             ...(!reqDto.isShop ? [eq(products.isLocked, false)] : []),
           ),
-          orderBy: [asc(products.index)],
+          orderBy: [asc(products.index), desc(products.createdAt)],
         },
       },
     };
