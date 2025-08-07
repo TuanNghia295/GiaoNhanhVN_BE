@@ -78,7 +78,6 @@ import {
   isNotNull,
   lt,
   lte,
-  not,
   SQL,
   sql,
   sum,
@@ -669,7 +668,6 @@ export class OrdersService {
   }
 
   async create(payload: JwtPayloadType, reqDto: OrderCreateReqDto) {
-    console.log('Creating order with payload:', reqDto);
     const calculateOrder = await this.cache.get<CalculateResponse>(reqDto.sessionId);
     if (!calculateOrder) {
       throw new ValidationException(
@@ -944,6 +942,7 @@ export class OrdersService {
           id: products.id,
           startDate: products.startDate,
           endDate: products.endDate,
+          quantity: products.quantity,
           salePrice: products.salePrice,
         })
         .from(products)
@@ -973,26 +972,47 @@ export class OrdersService {
           .returning();
       }
 
-      let totalIfThisOrderIncluded = 0;
+      const now = new Date();
+      const isSalePeriod =
+        product.salePrice &&
+        product.startDate &&
+        product.endDate &&
+        product.startDate <= now &&
+        product.endDate >= now;
+      console.log('isSalePeriod:', isSalePeriod);
+      console.log('product.salePrice:', product);
 
-      if (product.salePrice && product.startDate) {
-        // lấy ra số lượng đơn hàng đã đặt cho sản phẩm này
-        const orderedDuringSale = await tx
-          .select({ total: sum(orderDetails.quantity).mapWith(Number) })
-          .from(orderDetails)
-          .innerJoin(orders, eq(orderDetails.orderId, orders.id))
-          .where(
-            and(
-              eq(orderDetails.productId, item.productId),
-              gte(orderDetails.createdAt, product.startDate),
-              not(eq(orders.status, OrderStatusEnum.CANCELED)),
-            ),
-          )
-          .then((res) => res[0]?.total ?? 0);
-        console.log('Total product ordered for productId:', item.productId, orderedDuringSale);
-
-        totalIfThisOrderIncluded = orderedDuringSale + item.quantity;
+      if (isSalePeriod && product.quantity < item.quantity) {
+        throw new ValidationException(ErrorCode.P002, HttpStatus.BAD_REQUEST);
       }
+      // ✅ Trừ kho nếu đang trong thời gian sale, không cần check đủ hàng
+      if (isSalePeriod) {
+        await tx
+          .update(products)
+          .set({
+            quantity: decrement(products.quantity, item.quantity),
+          })
+          .where(eq(products.id, item.productId));
+      }
+
+      // if (product.salePrice && product.startDate) {
+      //   // lấy ra số lượng đơn hàng đã đặt cho sản phẩm này
+      //   const orderedDuringSale = await tx
+      //     .select({ total: sum(orderDetails.quantity).mapWith(Number) })
+      //     .from(orderDetails)
+      //     .innerJoin(orders, eq(orderDetails.orderId, orders.id))
+      //     .where(
+      //       and(
+      //         eq(orderDetails.productId, item.productId),
+      //         gte(orderDetails.createdAt, product.startDate),
+      //         not(eq(orders.status, OrderStatusEnum.CANCELED)),
+      //       ),
+      //     )
+      //     .then((res) => res[0]?.total ?? 0);
+      //   console.log('Total product ordered for productId:', item.productId, orderedDuringSale);
+      //
+      //   totalIfThisOrderIncluded = orderedDuringSale + item.quantity;
+      // }
 
       await tx.execute(sql`
         UPDATE order_details
@@ -1004,7 +1024,7 @@ export class OrdersService {
                   p.sale_price IS NOT NULL AND
                   p.start_date <= NOW() AND
                   p.end_date >= NOW() AND
-                  p.quantity >= ${totalIfThisOrderIncluded}
+                  p.quantity >= order_details.quantity
                   THEN p.sale_price
                 ELSE p.price
                 END
@@ -1447,13 +1467,38 @@ export class OrdersService {
     return _.round(Math.max(value, 0));
   }
 
+  // hoàn lượt sale
+  // private async refundSale(orderId: number, tx: Transaction) {
+  //   const orderDetail = await tx
+  //     .select()
+  //     .from(orderDetails)
+  //     .where(eq(orderDetails.orderId, orderId));
+  //
+  //   for (const detail of orderDetail) {
+  //     const product = await tx
+  //       .select()
+  //       .from(products)
+  //       .where(eq(products.id, detail.productId))
+  //       .then((res) => res[0]);
+  //
+  //     if (detail.isSale && product) {
+  //       // cộng lại số lượng sản phẩm đã bán
+  //       await tx
+  //         .update(products)
+  //         .set({
+  //           quantity: increment(products.quantity, detail.quantity),
+  //         })
+  //         .where(eq(products.id, detail.productId));
+  //     }
+  //   }
+  // }
+
   private async managerDoCancelOrder(existOrder: Order, tx: Transaction) {
     // hoàn xu cho người dùng
     if (existOrder.coinUsed > 0) {
-      console.log('Refunding coin to user:', existOrder.userId, existOrder.coinUsed);
-      // không
       await this.usersService.refundCoin(existOrder.userId, existOrder.coinUsed, tx);
     }
+    // hoàn lại số lượt giảm giá nếu có
     if (existOrder.deliverId) {
       const existDeliver = await this.deliversService.findById(existOrder.deliverId);
       if (!existDeliver) {

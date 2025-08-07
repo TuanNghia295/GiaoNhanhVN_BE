@@ -120,6 +120,13 @@
       "when": 1754441347969,
       "tag": "0016_wide_gauntlet",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1754534148316,
+      "tag": "0017_smiling_adam_warlock",
+      "breakpoints": true
     }
   ]
 }
