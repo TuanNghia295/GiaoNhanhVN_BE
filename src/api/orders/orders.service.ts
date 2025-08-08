@@ -1041,6 +1041,13 @@ export class OrdersService {
             quantity: decrement(products.quantity, item.quantity),
           })
           .where(eq(products.id, item.productId));
+        // cập nhật detail này sale
+        await tx
+          .update(orderDetails)
+          .set({
+            isSale: true,
+          })
+          .where(eq(orderDetails.id, orderDetail.id));
       }
     }
   }
@@ -1469,36 +1476,31 @@ export class OrdersService {
   }
 
   // hoàn lượt sale
-  // private async refundSale(orderId: number, tx: Transaction) {
-  //   const orderDetail = await tx
-  //     .select()
-  //     .from(orderDetails)
-  //     .where(eq(orderDetails.orderId, orderId));
-  //
-  //   for (const detail of orderDetail) {
-  //     const product = await tx
-  //       .select()
-  //       .from(products)
-  //       .where(eq(products.id, detail.productId))
-  //       .then((res) => res[0]);
-  //
-  //     if (detail.isSale && product) {
-  //       // cộng lại số lượng sản phẩm đã bán
-  //       await tx
-  //         .update(products)
-  //         .set({
-  //           quantity: increment(products.quantity, detail.quantity),
-  //         })
-  //         .where(eq(products.id, detail.productId));
-  //     }
-  //   }
-  // }
+  private async refundSale(orderId: number, tx: Transaction) {
+    const orderDetail = await tx
+      .select()
+      .from(orderDetails)
+      .where(eq(orderDetails.orderId, orderId));
+
+    for (const detail of orderDetail) {
+      if (detail.isSale) {
+        // cộng lại số lượng sản phẩm đã bán
+        await tx
+          .update(products)
+          .set({
+            quantity: increment(products.quantity, detail.quantity),
+          })
+          .where(eq(products.id, detail.productId));
+      }
+    }
+  }
 
   private async managerDoCancelOrder(existOrder: Order, tx: Transaction) {
     // hoàn xu cho người dùng
     if (existOrder.coinUsed > 0) {
       await this.usersService.refundCoin(existOrder.userId, existOrder.coinUsed, tx);
     }
+    await this.refundSale(existOrder.id, tx);
     // hoàn lại số lượt giảm giá nếu có
     if (existOrder.deliverId) {
       const existDeliver = await this.deliversService.findById(existOrder.deliverId);
@@ -1591,6 +1593,10 @@ export class OrdersService {
       // không cần check user đã tônt tại vì đã check ở hàm create
       await this.usersService.refundCoin(existOrder.userId, existOrder.coinUsed, tx);
     }
+    //--------------------------------------
+    // Hoàn lại lượt sale
+    //---------------------------------
+    await this.refundSale(existOrder.id, tx);
 
     await tx.insert(reasonDeliverCancelOrders).values({
       orderId: existOrder.id,
