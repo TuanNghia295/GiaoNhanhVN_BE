@@ -86,12 +86,9 @@ export class StoreMenusService {
     // check not limit and offset
     if (reqDto.limit !== 10) {
       const meta = new OffsetPaginationDto(totalCount, reqDto);
-      return new OffsetPaginatedDto(
-        entities.map((e) => plainToInstance(StoreMenuResDto, e)),
-        meta,
-      );
+      return new OffsetPaginatedDto(entities, meta);
     }
-    return entities.map((e) => plainToInstance(StoreMenuResDto, e));
+    return entities;
   }
 
   async create(storeId: number, dto: CreateStoreMenuReqDto) {
