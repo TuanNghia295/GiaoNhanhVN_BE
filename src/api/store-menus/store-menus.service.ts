@@ -72,15 +72,26 @@ export class StoreMenusService {
       this.db.query.storeMenus.findMany({
         ...baseConfig,
         orderBy,
-        limit: reqDto.limit,
-        offset: reqDto.offset,
+        ...(reqDto.limit !== 10
+          ? {
+              limit: reqDto.limit,
+              offset: reqDto.offset,
+            }
+          : {}),
       }),
       this.db.select({ totalCount: count() }).from(sql`${qCount}`),
     ]);
 
     // check not limit and offset
-    const meta = new OffsetPaginationDto(totalCount, reqDto);
-    return new OffsetPaginatedDto(entities, meta);
+    // check not limit and offset
+    if (reqDto.limit !== 10) {
+      const meta = new OffsetPaginationDto(totalCount, reqDto);
+      return new OffsetPaginatedDto(
+        entities.map((e) => plainToInstance(StoreMenuResDto, e)),
+        meta,
+      );
+    }
+    return entities.map((e) => plainToInstance(StoreMenuResDto, e));
   }
 
   async create(storeId: number, dto: CreateStoreMenuReqDto) {
