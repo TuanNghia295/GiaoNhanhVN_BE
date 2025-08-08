@@ -985,15 +985,6 @@ export class OrdersService {
       if (isSalePeriod && product.quantity < item.quantity) {
         throw new ValidationException(ErrorCode.P002, HttpStatus.BAD_REQUEST);
       }
-      // ✅ Trừ kho nếu đang trong thời gian sale, không cần check đủ hàng
-      if (isSalePeriod) {
-        await tx
-          .update(products)
-          .set({
-            quantity: decrement(products.quantity, item.quantity),
-          })
-          .where(eq(products.id, item.productId));
-      }
 
       // if (product.salePrice && product.startDate) {
       //   // lấy ra số lượng đơn hàng đã đặt cho sản phẩm này
@@ -1041,6 +1032,16 @@ export class OrdersService {
         WHERE order_details.id = ${orderDetail.id}
           AND order_details.product_id = p.id
       `);
+
+      // ✅ Trừ kho nếu đang trong thời gian sale, không cần check đủ hàng
+      if (isSalePeriod) {
+        await tx
+          .update(products)
+          .set({
+            quantity: decrement(products.quantity, item.quantity),
+          })
+          .where(eq(products.id, item.productId));
+      }
     }
   }
 
