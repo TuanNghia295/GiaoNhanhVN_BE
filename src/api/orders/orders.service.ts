@@ -973,10 +973,12 @@ export class OrdersService {
       }
 
       const now = new Date();
+      const hasSalePrice = product.salePrice !== null && product.salePrice !== undefined;
+      console.log('hasSalePrice:', hasSalePrice);
       const isSalePeriod =
-        product.salePrice &&
-        product.startDate &&
-        product.endDate &&
+        hasSalePrice &&
+        !!product.startDate &&
+        !!product.endDate &&
         product.startDate <= now &&
         product.endDate >= now;
       console.log('isSalePeriod:', isSalePeriod);
