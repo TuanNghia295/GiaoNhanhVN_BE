@@ -124,8 +124,6 @@ export class StoresService implements OnModuleInit {
     // Parse latitude and longitude from origins
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
 
-    console.log('abacascascas', reqDto);
-
     // Base query builder
     const baseQb = this.db
       .select({

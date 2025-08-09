@@ -1,3 +1,4 @@
+import { areas } from '@/database/schemas/area.schema';
 import { categoryItems } from '@/database/schemas/category-item.schema';
 import { orders } from '@/database/schemas/order.schema';
 import { products } from '@/database/schemas/product.schema';
@@ -66,6 +67,10 @@ export const storesRelations = relations(stores, ({ one, many }) => ({
   user: one(users, {
     fields: [stores.userId],
     references: [users.id],
+  }),
+  area: one(areas, {
+    fields: [stores.areaId],
+    references: [areas.id],
   }),
   storeMenus: many(storeMenus),
   products: many(products),
