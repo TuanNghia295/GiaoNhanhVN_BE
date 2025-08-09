@@ -51,16 +51,16 @@ export class StoreMenusService {
     const [entities, [{ totalCount }]] = await Promise.all([
       this.db.query.storeMenus.findMany({
         ...baseConfig,
-        limit: reqDto.limit,
-        offset: reqDto.offset,
+        ...(reqDto.limit !== 10 ? { limit: reqDto.limit, offset: reqDto.offset } : {}),
       }),
       this.db.select({ totalCount: count() }).from(sql`${qCount}`),
     ]);
-    const meta = new OffsetPaginationDto(totalCount, reqDto);
-    return new OffsetPaginatedDto(
-      entities.map((e) => plainToInstance(StoreMenuResDto, e)),
-      meta,
-    );
+    if (reqDto.limit !== 10) {
+      const meta = new OffsetPaginationDto(totalCount, reqDto);
+      return new OffsetPaginatedDto(entities, meta);
+    } else {
+      return entities as unknown as StoreMenuResDto[];
+    }
   }
 
   async create(storeId: number, dto: CreateStoreMenuReqDto) {
