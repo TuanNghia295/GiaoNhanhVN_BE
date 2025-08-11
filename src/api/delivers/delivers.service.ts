@@ -342,6 +342,7 @@ export class DeliversService implements OnModuleInit {
       .where(eq(ratings.deliverId, deliverId))
       .then((res) => res[0]?.rating || 0);
 
+    console.log('info', info);
     return {
       ...info,
       rating: rating || 0,

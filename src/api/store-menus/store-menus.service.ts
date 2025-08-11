@@ -1,4 +1,5 @@
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
+import { SortStoreMenuReqDto } from '@/api/products/dto/sort-store-menu.req.dto';
 import { CreateStoreMenuReqDto } from '@/api/store-menus/dto/create-store-menu-req.dto';
 import { PageStoreMenuReqDto } from '@/api/store-menus/dto/page-store-menu-req.dto';
 import { StoreMenuResDto } from '@/api/store-menus/dto/store-menu.res.dto';
@@ -40,7 +41,7 @@ export class StoreMenusService {
           orderBy: [asc(products.index), desc(products.createdAt)],
         },
       },
-      orderBy: [desc(storeMenus.createdAt)],
+      orderBy: [asc(storeMenus.index), desc(storeMenus.createdAt)],
     };
 
     const qCount = this.db.query.storeMenus.findMany({
@@ -164,5 +165,23 @@ export class StoreMenusService {
       .from(storeMenus)
       .where(and(eq(storeMenus.id, storeMenuId), isNull(storeMenus.deletedAt)))
       .then((result) => result[0] ?? null);
+  }
+
+  async sort(storeId: number, { items }: SortStoreMenuReqDto) {
+    const existStore = await this.storesService.existById(storeId);
+    if (!existStore) {
+      throw new ValidationException(ErrorCode.S001);
+    }
+
+    await this.db.transaction(async (tx) => {
+      for (const update of items) {
+        await tx
+          .update(storeMenus)
+          .set({
+            index: update.index,
+          })
+          .where(eq(storeMenus.id, update.storeMenuId));
+      }
+    });
   }
 }

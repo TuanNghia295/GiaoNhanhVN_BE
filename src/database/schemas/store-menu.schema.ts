@@ -11,6 +11,7 @@ export const storeMenus = pgTable(
     deletedAt: timestamp('deleted_at'),
     storeId: integer('store_id'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
+    index: integer('index'),
     updatedAt: timestamp('updated_at')
       .notNull()
       .defaultNow()
