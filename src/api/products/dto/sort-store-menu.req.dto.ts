@@ -1,6 +1,6 @@
 import { ClassField, NumberField } from '@/decorators/field.decorators';
 
-export class SortItemReqDto {
+export class SortMenuStoreItemReqDto {
   @NumberField()
   storeMenuId: number;
 
@@ -9,6 +9,6 @@ export class SortItemReqDto {
 }
 
 export class SortStoreMenuReqDto {
-  @ClassField(() => SortItemReqDto, { isArray: true })
-  items: SortItemReqDto[];
+  @ClassField(() => SortMenuStoreItemReqDto, { isArray: true })
+  items: SortMenuStoreItemReqDto[];
 }
