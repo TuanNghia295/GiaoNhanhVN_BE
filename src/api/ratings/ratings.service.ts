@@ -3,8 +3,8 @@ import { OrdersService } from '@/api/orders/orders.service';
 import { CreateRatingReqDto } from '@/api/ratings/dto/create-rating.req.dto';
 import { StoresService } from '@/api/stores/stores.service';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { DRIZZLE } from '@/database/global';
-import { orders } from '@/database/schemas';
+import { DRIZZLE, increment } from '@/database/global';
+import { orders, users } from '@/database/schemas';
 import { commentsToRatings } from '@/database/schemas/comments-to-ratings.schema';
 import { ratings } from '@/database/schemas/rating.schema';
 import { DrizzleDB } from '@/database/types/drizzle';
@@ -59,6 +59,14 @@ export class RatingsService {
         }));
         await tx.insert(commentsToRatings).values(comments);
       }
+
+      // đánh giá sẽ + 500 điểm
+      await tx
+        .update(users)
+        .set({
+          coin: increment(users.coin, 500),
+        })
+        .where(eq(users.id, payload.id));
 
       // cập nhật lại trạng thái  đánh giá của đơn hàng
       await tx
