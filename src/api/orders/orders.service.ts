@@ -1041,6 +1041,9 @@ export class OrdersService {
           .update(products)
           .set({
             quantity: decrement(products.quantity, item.quantity),
+            ...(product.quantity - item.quantity <= 0
+              ? { salePrice: null, startDate: null, endDate: null }
+              : {}),
           })
           .where(eq(products.id, item.productId));
         // cập nhật detail này sale
