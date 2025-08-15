@@ -102,16 +102,6 @@ export class DeliversService implements OnModuleInit {
     return new OffsetPaginatedDto(entities, meta);
   }
 
-  private async checkActiveDeliver(deliverId: number) {
-    return this.db
-      .select({
-        id: delivers.id,
-      })
-      .from(delivers)
-      .where(and(eq(delivers.id, deliverId), eq(delivers.activated, true)))
-      .then((res) => res[0]);
-  }
-
   async getPendingOrders(payload: JwtPayloadType) {
     if (!(await this.checkStatusActive(payload.id))) {
       return [];

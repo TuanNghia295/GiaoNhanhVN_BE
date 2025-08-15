@@ -1,4 +1,5 @@
 import { CreateProductReqDto } from '@/api/products/dto/create-product.req.dto';
+import { FlashSaleProductReqDto } from '@/api/products/dto/flash-sale-product.req.dto';
 import { LockProductReqDto } from '@/api/products/dto/lock-product.req.dto';
 import { PageProductReqDto } from '@/api/products/dto/page-product-req.dto';
 import { ProductResDto } from '@/api/products/dto/product.res.dto';
@@ -38,6 +39,17 @@ export class ProductsController {
   @Get()
   async getProducts(@Query() reqDto: PageProductReqDto) {
     return await this.productsService.getPageProducts(reqDto);
+  }
+
+  // flash sale
+  @ApiPublic({
+    summary: 'Lấy danh sách sản phẩm flash sale',
+    isPaginated: true,
+    type: ProductResDto,
+  })
+  @Get('flash-sale')
+  async getFlashSaleProducts(@Query() reqDto: FlashSaleProductReqDto) {
+    return await this.productsService.getFlashSaleProducts(reqDto);
   }
 
   @ApiPublic({

@@ -2,6 +2,7 @@ import { CategoryItemsService } from '@/api/category-items/category-items.servic
 import { ExtrasService } from '@/api/extras/extras.service';
 import { OptionsService } from '@/api/options/options.service';
 import { CreateProductReqDto } from '@/api/products/dto/create-product.req.dto';
+import { FlashSaleProductReqDto } from '@/api/products/dto/flash-sale-product.req.dto';
 import { LockProductReqDto } from '@/api/products/dto/lock-product.req.dto';
 import { PageProductReqDto } from '@/api/products/dto/page-product-req.dto';
 import { ProductResDto } from '@/api/products/dto/product.res.dto';
@@ -12,14 +13,28 @@ import { StoresService } from '@/api/stores/stores.service';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { DRIZZLE } from '@/database/global';
-import { products } from '@/database/schemas';
+import { DRIZZLE, storeIsOpenSql } from '@/database/global';
+import { areas, orderDetails, orders, OrderStatusEnum, products, stores } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { deleteIfExists, normalizeImagePath } from '@/utils/util';
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  gt,
+  gte,
+  isNotNull,
+  isNull,
+  lt,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { existsSync, mkdirSync } from 'fs';
 import { DateTime } from 'luxon';
 import { join } from 'path';
@@ -138,6 +153,9 @@ export class ProductsService implements OnModuleInit {
         .insert(products)
         .values({
           ...reqDto,
+          // nếu fe có cập nhật quantity thì cập nhật saleQuantity
+          // cứng để làm thành slider
+          ...(reqDto.quantity && { saleQuantity: reqDto.quantity }),
           storeMenuId: reqDto.storeMenuId,
           storeId: reqDto.storeId,
         })
@@ -206,7 +224,10 @@ export class ProductsService implements OnModuleInit {
 
       const [updateProduct] = await tx
         .update(products)
-        .set({ ...reqDto })
+        .set({
+          ...reqDto,
+          ...(reqDto.quantity && { saleQuantity: reqDto.quantity }),
+        })
         .where(eq(products.id, productId))
         .returning();
 
@@ -304,5 +325,100 @@ export class ProductsService implements OnModuleInit {
           .where(eq(products.id, update.productId));
       }
     });
+  }
+
+  async getNearestAreaId(latitude: number, longitude: number): Promise<number | null> {
+    // Lấy area gần nhất
+    const nearestArea = await this.db
+      .select({
+        id: areas.id,
+        distance: sql<number>`
+        6371 * acos(
+          cos(radians(${latitude})) *
+          cos(radians(CAST(split_part(${areas.location}, ',', 1) AS double precision))) *
+          cos(radians(CAST(split_part(${areas.location}, ',', 2) AS double precision)) - radians(${longitude})) +
+          sin(radians(${latitude})) *
+          sin(radians(CAST(split_part(${areas.location}, ',', 1) AS double precision)))
+        )
+      `.as('distance'),
+      })
+      .from(areas)
+      .where(isNotNull(areas.location))
+      .orderBy(sql`distance ASC`)
+      .limit(1);
+
+    return nearestArea.length > 0 ? nearestArea[0].id : null;
+  }
+
+  async getFlashSaleProducts(reqDto: FlashSaleProductReqDto) {
+    const [latitude, longitude] = reqDto.origins.split(',').map(Number);
+    if (isNaN(latitude) || isNaN(longitude)) {
+      throw new ValidationException(ErrorCode.CV002);
+    }
+
+    //---------------------------------------------------
+    // Lấy area gần nhất
+    //---------------------------------------------------
+    const nearestAreaId = await this.getNearestAreaId(latitude, longitude);
+    console.log(`Nearest area ID: ${nearestAreaId}`);
+
+    // Subquery tính usedSaleQty
+    const usedSaleSubquery = this.db
+      .select({
+        productId: orderDetails.productId,
+        usedSaleQty: sql<number>`SUM(${orderDetails.quantity})`.as('used_sale_qty'),
+      })
+      .from(orderDetails)
+      .innerJoin(orders, eq(orderDetails.orderId, orders.id))
+      .where(
+        and(
+          ne(orders.status, OrderStatusEnum.CANCELED), // loại đơn hủy
+          // Nếu muốn chỉ tính đơn đã giao / accepted thì:
+          // inArray(orders.status, [OrderStatusEnum.DELIVERED, OrderStatusEnum.ACCEPTED])
+        ),
+      )
+      .groupBy(orderDetails.productId)
+      .as('used_sales');
+
+    return this.db
+      .select({
+        ...getTableColumns(products),
+        usedSaleQuantity: sql<number>`COALESCE(${usedSaleSubquery.usedSaleQty}, 0)`.as(
+          'used_sale_quantity',
+        ),
+      })
+      .from(products)
+      .innerJoin(stores, eq(products.storeId, stores.id))
+      .leftJoin(usedSaleSubquery, eq(products.id, usedSaleSubquery.productId))
+      .where(
+        and(
+          isNotNull(products.salePrice),
+          // Có sale price hợp lệ nhỏ hơn giá gốc
+          lt(products.salePrice, products.price),
+          // sản phẩm phải có thời gian bắt đầu và kết thúc
+          or(isNull(products.startDate), gte(products.startDate, new Date())),
+          or(isNull(products.endDate), lt(products.endDate, new Date())),
+          ...(nearestAreaId ? [eq(stores.areaId, nearestAreaId)] : []),
+          // cửa hàng còn hoạt động
+          storeIsOpenSql(),
+          // số lượng sale phải lớn hơn 0
+          gt(products.quantity, 0),
+        ),
+      )
+      .orderBy(
+        // sắp xếp gần nhất
+        sql.raw(
+          `
+        6371 * acos(
+          cos(radians(${latitude})) *
+          cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+          cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+          sin(radians(${latitude})) *
+          sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
+        ) < 15
+      `,
+        ),
+      )
+      .limit(15);
   }
 }

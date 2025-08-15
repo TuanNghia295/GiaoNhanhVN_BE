@@ -3,6 +3,7 @@ export enum ErrorCode {
 
   CV000 = 'common.validation.is_empty',
   CV001 = 'common.out_time_working',
+  CV002 = 'common.validation.is_invalid_lat_lng',
 
   // Auth
   A001 = 'auth.error.invalid_credentials',
