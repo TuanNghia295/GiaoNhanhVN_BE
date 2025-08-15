@@ -7,6 +7,7 @@ import {
   boolean,
   decimal,
   foreignKey,
+  index,
   integer,
   pgTable,
   serial,
@@ -34,6 +35,9 @@ export const orderDetails = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
+    index('order_details_order_id_idx').on(table.orderId),
+    index('order_details_product_id_idx').on(table.productId),
+    index('order_details_option_id_idx').on(table.optionId),
     foreignKey({
       // managers_areaId_areas_fk
       name: 'order_details_order_id_orders_pk',

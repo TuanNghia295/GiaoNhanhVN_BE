@@ -170,13 +170,13 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
     fields: [orders.areaId],
     references: [areas.id],
   }),
-  user: one(users, {
-    fields: [orders.userId],
-    references: [users.id],
-  }),
   deliver: one(delivers, {
     fields: [orders.deliverId],
     references: [delivers.id],
+  }),
+  user: one(users, {
+    fields: [orders.userId],
+    references: [users.id],
   }),
   orderDetails: many(orderDetails),
   store: one(stores, {

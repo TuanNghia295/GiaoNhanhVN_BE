@@ -1100,8 +1100,14 @@ export class OrdersService {
 
   async getPageByUserId(userId: number, reqDto: PageMyOrderReqDto) {
     if (reqDto.startDate && reqDto.endDate) {
-      reqDto.startDate = DateTime.fromJSDate(new Date(reqDto.startDate)).startOf('day').toJSDate();
-      reqDto.endDate = DateTime.fromJSDate(new Date(reqDto.endDate)).endOf('day').toJSDate();
+      reqDto.startDate = DateTime.fromJSDate(reqDto.startDate)
+        .setZone('Asia/Ho_Chi_Minh')
+        .startOf('day')
+        .toJSDate();
+      reqDto.endDate = DateTime.fromJSDate(reqDto.endDate)
+        .setZone('Asia/Ho_Chi_Minh')
+        .endOf('day')
+        .toJSDate();
     }
     const baseConfig: FindManyQueryConfig<typeof this.db.query.orders> = {
       with: {
@@ -1111,6 +1117,7 @@ export class OrdersService {
             voucher: true,
           },
         },
+        deliver: true,
         user: true,
         reasonDeliverCancelOrder: true,
         orderDetails: {
@@ -1155,6 +1162,7 @@ export class OrdersService {
       ...entity,
       vouchers: Array.isArray(entity.vouchers) ? entity.vouchers.map((v) => v.voucher) : [],
     }));
+    console.log('Mapped Entities:', mappedEntities);
 
     const totalsOrders = Object.fromEntries(
       (
@@ -1184,11 +1192,7 @@ export class OrdersService {
     };
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
-    return new OrdersOffsetPaginatedResDto(
-      mappedEntities.map((order) => plainToInstance(OrderResDto, order)),
-      meta,
-      totalOrdersForPaginated,
-    );
+    return new OrdersOffsetPaginatedResDto(mappedEntities, meta, totalOrdersForPaginated);
   }
 
   async updateOrderStatus(

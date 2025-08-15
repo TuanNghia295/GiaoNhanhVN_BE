@@ -60,7 +60,7 @@ export class RatingsService {
         await tx.insert(commentsToRatings).values(comments);
       }
 
-      // đánh giá sẽ + 500 điểm
+      // đánh giá sẽ + 500 xu
       await tx
         .update(users)
         .set({
