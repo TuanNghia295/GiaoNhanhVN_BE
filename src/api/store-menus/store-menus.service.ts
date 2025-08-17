@@ -1,9 +1,7 @@
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
+import { SortStoreMenuReqDto } from '@/api/products/dto/sort-store-menu.req.dto';
 import { CreateStoreMenuReqDto } from '@/api/store-menus/dto/create-store-menu-req.dto';
-import {
-  PageStoreMenuReqDto,
-  SortStoreMenuEnum,
-} from '@/api/store-menus/dto/page-store-menu-req.dto';
+import { PageStoreMenuReqDto } from '@/api/store-menus/dto/page-store-menu-req.dto';
 import { StoreMenuResDto } from '@/api/store-menus/dto/store-menu.res.dto';
 import { UpdateStoreMenuReqDto } from '@/api/store-menus/dto/update-store-menu-req.dto';
 import { StoresService } from '@/api/stores/stores.service';
@@ -16,7 +14,7 @@ import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { and, asc, count, desc, eq, isNull, SQL, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm';
 
 @Injectable()
 export class StoreMenusService {
@@ -26,25 +24,6 @@ export class StoreMenusService {
   ) {}
 
   async getPageStoreMenus(reqDto: PageStoreMenuReqDto) {
-    let orderBy: SQL | undefined;
-
-    switch (reqDto.sortBy) {
-      case SortStoreMenuEnum.NAME_ASC:
-        orderBy = asc(storeMenus.name);
-        break;
-      case SortStoreMenuEnum.NAME_DESC:
-        orderBy = desc(storeMenus.name);
-        break;
-      case SortStoreMenuEnum.OLDEST:
-        orderBy = asc(storeMenus.createdAt);
-        break;
-      case SortStoreMenuEnum.NEWEST:
-      default:
-        orderBy = desc(storeMenus.createdAt);
-        break;
-    }
-
-    console.log('reqDto', reqDto);
     const baseConfig: FindManyQueryConfig<typeof this.db.query.storeMenus> = {
       where: and(eq(storeMenus.storeId, reqDto.storeId), isNull(storeMenus.deletedAt)),
       with: {
@@ -59,8 +38,10 @@ export class StoreMenusService {
             isNull(products.deletedAt),
             ...(!reqDto.isShop ? [eq(products.isLocked, false)] : []),
           ),
+          orderBy: [asc(products.index), desc(products.createdAt)],
         },
       },
+      orderBy: [asc(storeMenus.index), desc(storeMenus.createdAt)],
     };
 
     const qCount = this.db.query.storeMenus.findMany({
@@ -71,24 +52,16 @@ export class StoreMenusService {
     const [entities, [{ totalCount }]] = await Promise.all([
       this.db.query.storeMenus.findMany({
         ...baseConfig,
-        orderBy,
-        ...(reqDto.limit !== 10
-          ? {
-              limit: reqDto.limit,
-              offset: reqDto.offset,
-            }
-          : {}),
+        ...(reqDto.limit !== 10 ? { limit: reqDto.limit, offset: reqDto.offset } : {}),
       }),
       this.db.select({ totalCount: count() }).from(sql`${qCount}`),
     ]);
-
-    // check not limit and offset
-    // check not limit and offset
     if (reqDto.limit !== 10) {
       const meta = new OffsetPaginationDto(totalCount, reqDto);
       return new OffsetPaginatedDto(entities, meta);
+    } else {
+      return entities as unknown as StoreMenuResDto[];
     }
-    return entities;
   }
 
   async create(storeId: number, dto: CreateStoreMenuReqDto) {
@@ -192,5 +165,23 @@ export class StoreMenusService {
       .from(storeMenus)
       .where(and(eq(storeMenus.id, storeMenuId), isNull(storeMenus.deletedAt)))
       .then((result) => result[0] ?? null);
+  }
+
+  async sort(storeId: number, { items }: SortStoreMenuReqDto) {
+    const existStore = await this.storesService.existById(storeId);
+    if (!existStore) {
+      throw new ValidationException(ErrorCode.S001);
+    }
+
+    await this.db.transaction(async (tx) => {
+      for (const update of items) {
+        await tx
+          .update(storeMenus)
+          .set({
+            index: update.index,
+          })
+          .where(eq(storeMenus.id, update.storeMenuId));
+      }
+    });
   }
 }

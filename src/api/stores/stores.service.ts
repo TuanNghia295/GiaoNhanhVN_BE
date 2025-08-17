@@ -124,8 +124,6 @@ export class StoresService implements OnModuleInit {
     // Parse latitude and longitude from origins
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
 
-    console.log('abacascascas', reqDto);
-
     // Base query builder
     const baseQb = this.db
       .select({
@@ -345,7 +343,16 @@ export class StoresService implements OnModuleInit {
 
   async searchStore(reqDto: SearchPageStoresReqDto) {
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
-    const escapedQuery = reqDto.q?.replace(/[%_]/g, '\\$&');
+    if (isNaN(latitude) || isNaN(longitude)) {
+      throw new ValidationException(
+        ErrorCode.S007,
+        HttpStatus.BAD_REQUEST,
+        'Invalid origins format. Expected format: "latitude,longitude"',
+      );
+    }
+    const escapedQuery = reqDto.q
+      ? reqDto.q.replace(/'/g, "''") // Escape single quotes for SQL
+      : '';
 
     const distanceCalculation = sql
       .raw(
@@ -370,10 +377,14 @@ export class StoresService implements OnModuleInit {
                       'id', p.id,
                       'name', p.name,
                       'price', p.price,
+                      'quantity', p.quantity,
+                      'startDate', p.start_date,
+                      'endDate', p.end_date,
+                      'salePrice', p.sale_price,
                       'image', p.image
                     )
                   )
-           FROM (SELECT id, name, price, image
+           FROM (SELECT id, name, price, image , quantity, start_date , end_date, sale_price
                  FROM products p
                  WHERE p.store_id = ${stores.id}
                    AND p.is_locked = false

@@ -1,3 +1,4 @@
+import { areas } from '@/database/schemas/area.schema';
 import { categoryItems } from '@/database/schemas/category-item.schema';
 import { orders } from '@/database/schemas/order.schema';
 import { products } from '@/database/schemas/product.schema';
@@ -56,7 +57,6 @@ export const stores = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    index('stores_name_idx').on(table.name),
     index('stores_location_idx').on(table.location),
     index('stores_user_id_idx').on(table.userId),
     index('stores_area_id_idx').on(table.areaId),
@@ -67,6 +67,10 @@ export const storesRelations = relations(stores, ({ one, many }) => ({
   user: one(users, {
     fields: [stores.userId],
     references: [users.id],
+  }),
+  area: one(areas, {
+    fields: [stores.areaId],
+    references: [areas.id],
   }),
   storeMenus: many(storeMenus),
   products: many(products),

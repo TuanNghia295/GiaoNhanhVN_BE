@@ -46,6 +46,7 @@ export enum ErrorCode {
 
   //Product
   P001 = 'product.error.not_found',
+  P002 = 'product.error.product_not_enough_sale_quantity',
 
   // Voucher
   V000 = 'voucher.unique.code',

@@ -22,12 +22,16 @@ export const products = pgTable(
   {
     id: serial().primaryKey().notNull(),
     name: varchar('name'),
+    index: integer('index'),
     price: numeric('price', {
       precision: 15,
       scale: 2,
       mode: 'number',
     }).notNull(),
     image: text('image'),
+    quantity: integer('quantity').default(0),
+    startDate: timestamp('start_date'),
+    endDate: timestamp('end_date'),
     description: text('description'),
     salePrice: numeric('sale_price', {
       precision: 15,
@@ -46,15 +50,12 @@ export const products = pgTable(
     storeMenuId: integer('store_menu_id'),
   },
   (table) => [
-    index('products_name_idx').on(table.name),
-    index('products_store_id_idx').on(table.storeId),
-    index('products_category_item_id_idx').on(table.categoryItemId),
-    index('products_store_menu_id_deleted_at_locked_idx').on(
+    index('idx_products_store_id').on(table.storeId),
+    index('idx_products_store_menu_id_deleted_at_locked').on(
       table.storeMenuId,
       table.deletedAt,
       table.isLocked,
     ),
-    index('products_store_menu_id_created_at_idx').on(table.storeMenuId, table.createdAt),
   ],
 );
 

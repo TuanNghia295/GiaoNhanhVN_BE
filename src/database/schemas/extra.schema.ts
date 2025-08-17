@@ -4,6 +4,7 @@ import { relations } from 'drizzle-orm';
 import {
   decimal,
   foreignKey,
+  index,
   integer,
   pgTable,
   primaryKey,
@@ -37,6 +38,7 @@ export const extras = pgTable(
     })
       .onUpdate('no action')
       .onDelete('cascade'),
+    index('idx_extras_product_id').on(table.productId),
   ],
 );
 

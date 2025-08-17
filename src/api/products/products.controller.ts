@@ -2,6 +2,7 @@ import { CreateProductReqDto } from '@/api/products/dto/create-product.req.dto';
 import { LockProductReqDto } from '@/api/products/dto/lock-product.req.dto';
 import { PageProductReqDto } from '@/api/products/dto/page-product-req.dto';
 import { ProductResDto } from '@/api/products/dto/product.res.dto';
+import { SortProductReqDto } from '@/api/products/dto/sort-product.req.dto';
 import { UpdateProductReqDto } from '@/api/products/dto/update-product.req.dto';
 import { UploadImageReqDto } from '@/api/products/dto/upload-image.req.dto';
 import { RoleEnum } from '@/database/schemas';
@@ -48,6 +49,17 @@ export class ProductsController {
     return await this.productsService.getProductById(productId);
   }
 
+  // api sắp xếp sản phẩm index
+  @Roles(RoleEnum.STORE)
+  @ApiAuth({
+    summary: 'Sắp xếp sản phẩm [STORE]',
+    type: ProductResDto,
+  })
+  @Patch('sort')
+  async sortProducts(@Body() reqDto: SortProductReqDto) {
+    return await this.productsService.sortProducts(reqDto);
+  }
+
   @Roles(RoleEnum.STORE)
   @ApiAuth({
     summary: 'Tạo sản phẩm [STORE]',
@@ -55,7 +67,6 @@ export class ProductsController {
   })
   @Post()
   async createProduct(@Body() reqDto: CreateProductReqDto): Promise<any> {
-    console.log('reqDto', reqDto);
     return await this.productsService.create(reqDto);
   }
 

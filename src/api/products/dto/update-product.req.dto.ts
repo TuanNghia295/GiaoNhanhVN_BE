@@ -2,6 +2,7 @@ import { CreateExtraReqDto } from '@/api/extras/dto/create-extra.req.dto';
 import { CreateOptionReqDto } from '@/api/options/dto/create-option.req.dto';
 import {
   ClassFieldOptional,
+  DateFieldOptional,
   NumberFieldOptional,
   StringFieldOptional,
 } from '@/decorators/field.decorators';
@@ -12,6 +13,15 @@ export class UpdateProductReqDto {
 
   @NumberFieldOptional()
   storeId?: number;
+
+  @NumberFieldOptional()
+  quantity?: number;
+
+  @DateFieldOptional()
+  startDate?: Date;
+
+  @DateFieldOptional()
+  endDate?: Date;
 
   @NumberFieldOptional()
   categoryItemId?: number;

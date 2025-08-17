@@ -11,16 +11,13 @@ export const storeMenus = pgTable(
     deletedAt: timestamp('deleted_at'),
     storeId: integer('store_id'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
+    index: integer('index'),
     updatedAt: timestamp('updated_at')
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [
-    index('store_menus_name_idx').on(table.name),
-    index('store_menus_store_id_idx').on(table.storeId),
-    index('store_menus_deleted_at_idx').on(table.deletedAt),
-  ],
+  (table) => [index('store_menus_name_idx').on(table.name)],
 );
 
 export const storeMenusRelations = relations(storeMenus, ({ one, many }) => ({

@@ -3,7 +3,15 @@ import { options } from '@/database/schemas/option.schema';
 import { orders } from '@/database/schemas/order.schema';
 import { products } from '@/database/schemas/product.schema';
 import { relations } from 'drizzle-orm';
-import { decimal, foreignKey, integer, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  decimal,
+  foreignKey,
+  integer,
+  pgTable,
+  serial,
+  timestamp,
+} from 'drizzle-orm/pg-core';
 
 export const orderDetails = pgTable(
   'order_details',
@@ -14,6 +22,8 @@ export const orderDetails = pgTable(
       .$type<number>()
       .notNull()
       .default(0),
+    // check sale
+    isSale: boolean('is_sale').default(false),
     optionId: integer('option_id'),
     productId: integer('product_id'),
     orderId: integer('order_id'),

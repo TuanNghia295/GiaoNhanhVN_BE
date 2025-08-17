@@ -106,6 +106,83 @@
       "when": 1754268561042,
       "tag": "0014_sleepy_lightspeed",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1754373906965,
+      "tag": "0015_opposite_iron_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1754441347969,
+      "tag": "0016_wide_gauntlet",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1754534148316,
+      "tag": "0017_smiling_adam_warlock",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1754551893174,
+      "tag": "0018_yummy_tomorrow_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1754552023086,
+      "tag": "0019_freezing_makkari",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1754552109143,
+      "tag": "0020_early_blink",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1754552243870,
+      "tag": "0021_misty_proudstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1754554695064,
+      "tag": "0022_useful_skreet",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1754556789641,
+      "tag": "0023_zippy_whiplash",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1754556818242,
+      "tag": "0024_ancient_lester",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1754880466383,
+      "tag": "0025_dapper_squadron_sinister",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,5 @@
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
+import { SortStoreMenuReqDto } from '@/api/products/dto/sort-store-menu.req.dto';
 import { CreateStoreMenuReqDto } from '@/api/store-menus/dto/create-store-menu-req.dto';
 import { PageStoreMenuReqDto } from '@/api/store-menus/dto/page-store-menu-req.dto';
 import { StoreMenuResDto } from '@/api/store-menus/dto/store-menu.res.dto';
@@ -44,6 +45,18 @@ export class StoreMenusController {
     @Body() dto: CreateStoreMenuReqDto,
   ) {
     return await this.storeMenusService.create(storeId, dto);
+  }
+
+  @Roles(RoleEnum.STORE)
+  @ApiAuth({
+    summary: 'Sắp xếp lại thứ tự menu của cửa hàng [STORE]',
+  })
+  @Patch('sort')
+  async sortStoreMenus(
+    @Query('storeId', ParseIntPipe) storeId: number,
+    @Body() reqDto: SortStoreMenuReqDto,
+  ) {
+    return await this.storeMenusService.sort(storeId, reqDto);
   }
 
   @Roles(RoleEnum.USER)
