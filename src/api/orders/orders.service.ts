@@ -1062,12 +1062,9 @@ export class OrdersService {
     const orderDetail = await this.db.query.orders.findFirst({
       where: eq(orders.id, orderId),
       with: {
+        store: true,
         user: true,
-        store: {
-          with: {
-            user: true,
-          },
-        },
+        deliver: true,
         vouchers: {
           with: {
             voucher: true,
@@ -1086,7 +1083,6 @@ export class OrdersService {
         },
       },
     });
-
     if (!orderDetail) {
       throw new ValidationException(ErrorCode.OD001, HttpStatus.NOT_FOUND);
     }
