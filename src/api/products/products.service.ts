@@ -383,6 +383,7 @@ export class ProductsService implements OnModuleInit {
     return this.db
       .select({
         ...getTableColumns(products),
+        store: stores,
         usedSaleQuantity: sql<number>`COALESCE(${usedSaleSubquery.usedSaleQty}, 0)`.as(
           'used_sale_quantity',
         ),
