@@ -58,18 +58,6 @@ import { join } from 'path';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
 
-export enum VehicleType {
-  BIKE = 'bike',
-  CAR = 'car',
-  TRUCK = 'truck',
-  Taxi = 'taxi',
-}
-
-interface DistanceInfo {
-  text: string;
-  value: any;
-}
-
 @Injectable()
 export class StoresService implements OnModuleInit {
   private basePath = `uploads/stores`;
@@ -124,25 +112,28 @@ export class StoresService implements OnModuleInit {
     // Parse latitude and longitude from origins
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
 
+    const distanceSql = sql.raw(`
+    6371 * acos(
+      least(
+        greatest(
+          cos(radians(${latitude})) *
+          cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+          cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+          sin(radians(${latitude})) *
+          sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision))),
+          -1
+        ),
+        1
+      )
+    )
+  `);
+
     // Base query builder
     const baseQb = this.db
       .select({
         ...getTableColumns(stores),
         rating: avg(ratings.storeRate).mapWith(String).as('rating'),
-        distance: sql
-          .raw(
-            `
-        6371 * acos(
-          cos(radians(${latitude})) *
-          cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-          cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
-          sin(radians(${latitude})) *
-          sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
-        )
-      `,
-          )
-          .mapWith(Number)
-          .as('distance'),
+        distance: distanceSql.mapWith(Number).as('distance'),
       })
       .from(stores)
       .leftJoin(ratings, eq(ratings.storeId, stores.id))
@@ -171,17 +162,7 @@ export class StoresService implements OnModuleInit {
           eq(stores.isLocked, false),
           isNotNull(stores.location),
           ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
-          sql.raw(
-            `
-          6371 * acos(
-            cos(radians(${latitude})) *
-            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
-            sin(radians(${latitude})) *
-            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
-          ) < ${15}
-        `,
-          ),
+          sql`${distanceSql} < 15`,
         ),
       )
       .$dynamic();
@@ -354,19 +335,22 @@ export class StoresService implements OnModuleInit {
       ? reqDto.q.replace(/'/g, "''") // Escape single quotes for SQL
       : '';
 
-    const distanceCalculation = sql
-      .raw(
-        `
-      6371 * acos(
-        cos(radians(${latitude})) *
-        cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-        cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
-        sin(radians(${latitude})) *
-        sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
+    // Công thức distance có clamp [-1,1]
+    const distanceSql = sql.raw(`
+    6371 * acos(
+      least(
+        greatest(
+          cos(radians(${latitude})) *
+          cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+          cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+          sin(radians(${latitude})) *
+          sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision))),
+          -1
+        ),
+        1
       )
-    `,
-      )
-      .mapWith(Number);
+    )
+  `);
 
     const qb = this.db
       .select({
@@ -398,13 +382,14 @@ export class StoresService implements OnModuleInit {
         ),
         0
         )`.as('rating'),
-        distance: distanceCalculation.as('distance'),
+        distance: distanceSql.mapWith(Number).as('distance'),
       })
       .from(stores)
       .leftJoin(ratings, eq(ratings.storeId, stores.id))
       .where(
         and(
           eq(stores.status, true),
+          sql`${distanceSql} < 15`, // Giới hạn khoảng cách 15km
           eq(stores.isLocked, false),
           not(isNull(stores.location)),
           ...(escapedQuery
@@ -432,10 +417,7 @@ export class StoresService implements OnModuleInit {
         ),
       )
       .groupBy(stores.id)
-      .having(
-        sql`${distanceCalculation}
-        < 15`,
-      )
+
       .orderBy(
         sql`distance
         ASC`,
@@ -454,6 +436,7 @@ export class StoresService implements OnModuleInit {
           and(
             eq(stores.status, true),
             eq(stores.isLocked, false),
+            sql`${distanceSql} < 15`,
             not(isNull(stores.location)),
             ...(escapedQuery
               ? [
@@ -770,6 +753,22 @@ export class StoresService implements OnModuleInit {
     }
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
 
+    const distanceSql = sql.raw(`
+    6371 * acos(
+      least(
+        greatest(
+          cos(radians(${latitude})) *
+          cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+          cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+          sin(radians(${latitude})) *
+          sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision))),
+          -1
+        ),
+        1
+      )
+    )
+  `);
+
     // --- TRUY VẤN CHÍNH: có voucher
     const storesWithVouchers = await this.db
       .select({
@@ -787,16 +786,7 @@ export class StoresService implements OnModuleInit {
            AND v.discount_type = ${DiscountTypeEnum.PERCENTAGE}
            AND v.deleted_at IS NULL
          ORDER BY v.value DESC LIMIT 1)`.mapWith((val) => val ?? null),
-        distance: sql`
-        6371 * acos(
-          cos(radians(${latitude})) *
-          cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-          cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
-          sin(radians(${latitude})) *
-          sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
-        )`
-          .mapWith(Number)
-          .as('distance'),
+        distance: distanceSql.mapWith(Number).as('distance'),
         voucherCount: sql`
         (SELECT COUNT(*)
          FROM vouchers v
@@ -827,15 +817,7 @@ export class StoresService implements OnModuleInit {
               AND v.deleted_at IS NULL
           )
         `),
-          sql.raw(`
-          6371 * acos(
-            cos(radians(${latitude})) *
-            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
-            sin(radians(${latitude})) *
-            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
-          ) < 15
-        `),
+          sql`${distanceSql} < 15`,
         ),
       )
       .groupBy(stores.id)
@@ -849,20 +831,7 @@ export class StoresService implements OnModuleInit {
     return this.db
       .select({
         ...getTableColumns(stores),
-        distance: sql
-          .raw(
-            `
-          6371 * acos(
-            cos(radians(${latitude})) *
-            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
-            sin(radians(${latitude})) *
-            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
-          ) < 15
-        `,
-          )
-          .mapWith(Number)
-          .as('distance'),
+        distance: distanceSql.mapWith(Number).as('distance'),
       })
       .from(stores)
       .where(
@@ -871,15 +840,7 @@ export class StoresService implements OnModuleInit {
           eq(stores.isLocked, false),
           isNotNull(stores.location),
           storeIsOpenSql(),
-          sql.raw(`
-          6371 * acos(
-            cos(radians(${latitude})) *
-            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
-            sin(radians(${latitude})) *
-            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
-          ) < 15
-        `),
+          sql`${distanceSql} < 15`,
         ),
       )
       .orderBy(
@@ -942,6 +903,23 @@ export class StoresService implements OnModuleInit {
     }
     const [lat, lng] = reqDto.origins.split(',').map(Number);
 
+    // distanceSql có clamp [-1,1] để tránh lỗi acos
+    const distanceSql = sql.raw(`
+    6371 * acos(
+      least(
+        greatest(
+          cos(radians(${lat})) *
+          cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+          cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${lng})) +
+          sin(radians(${lat})) *
+          sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision))),
+          -1
+        ),
+        1
+      )
+    )
+  `);
+
     return this.db
       .select({
         ...getTableColumns(products),
@@ -990,15 +968,7 @@ export class StoresService implements OnModuleInit {
           eq(stores.isLocked, false),
           isNotNull(stores.location),
           storeIsOpenSql(),
-          sql.raw(`
-          6371 * acos(
-            cos(radians(${lat})) *
-            cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-            cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${lng})) +
-            sin(radians(${lat})) *
-            sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
-          ) < 15
-        `),
+          sql`${distanceSql} < 15`, // lọc theo bán kính 15km
         ),
       )
       .orderBy(desc(sql`order_count`))
