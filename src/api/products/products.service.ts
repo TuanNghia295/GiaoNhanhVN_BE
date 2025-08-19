@@ -31,6 +31,7 @@ import {
   isNotNull,
   isNull,
   lt,
+  lte,
   ne,
   or,
   sql,
@@ -395,10 +396,10 @@ export class ProductsService implements OnModuleInit {
         and(
           isNotNull(products.salePrice),
           // Có sale price hợp lệ nhỏ hơn giá gốc
-          // lt(products.salePrice, products.price),
+          lt(products.salePrice, products.price),
           // sản phẩm phải có thời gian bắt đầu và kết thúc
-          or(isNull(products.startDate), gte(products.startDate, new Date())),
-          or(isNull(products.endDate), lt(products.endDate, new Date())),
+          or(isNull(products.startDate), lte(products.startDate, new Date())),
+          or(isNull(products.endDate), gte(products.endDate, new Date())),
           ...(nearestAreaId ? [eq(stores.areaId, nearestAreaId)] : []),
           // cửa hàng còn hoạt động
           storeIsOpenSql(),
@@ -419,7 +420,7 @@ export class ProductsService implements OnModuleInit {
         ) < 15
       `,
         ),
-      )
-      .limit(15);
+      );
+    // .limit(15);
   }
 }
