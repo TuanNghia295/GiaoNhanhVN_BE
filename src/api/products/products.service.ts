@@ -357,6 +357,23 @@ export class ProductsService implements OnModuleInit {
       throw new ValidationException(ErrorCode.CV002);
     }
 
+    // Công thức distance có clamp [-1,1]
+    const distanceSql = sql.raw(`
+    6371 * acos(
+      least(
+        greatest(
+          cos(radians(${latitude})) *
+          cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
+          cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+          sin(radians(${latitude})) *
+          sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision))),
+          -1
+        ),
+        1
+      )
+    )
+  `);
+
     //---------------------------------------------------
     // Lấy area gần nhất
     //---------------------------------------------------
@@ -409,17 +426,7 @@ export class ProductsService implements OnModuleInit {
       )
       .orderBy(
         // sắp xếp gần nhất
-        sql.raw(
-          `
-        6371 * acos(
-          cos(radians(${latitude})) *
-          cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-          cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
-          sin(radians(${latitude})) *
-          sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision)))
-        ) < 15
-      `,
-        ),
+        sql`${distanceSql} < 15`,
       );
     // .limit(15);
   }
