@@ -4,7 +4,6 @@ import { VerifyOtpReqDto } from '@/api/zalo/dto/verify-otp.req.dto';
 import { ZaloCallbackReqDto } from '@/api/zalo/dto/zalo-callback.req.dto';
 import { ApiPublic } from '@/decorators/http.decorators';
 import { Controller, Get, Post, Query } from '@nestjs/common';
-import { ApiExcludeEndpoint } from '@nestjs/swagger';
 import { ZaloService } from './zalo.service';
 
 @Controller('zalo')
@@ -20,7 +19,7 @@ export class ZaloController {
     return await this.zaloService.sendZaloOtp(phone);
   }
 
-  @ApiExcludeEndpoint()
+  // @ApiExcludeEndpoint()
   @ApiPublic({
     summary: 'Callback từ Zalo',
   })
