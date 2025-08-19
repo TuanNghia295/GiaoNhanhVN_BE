@@ -384,9 +384,9 @@ export class ProductsService implements OnModuleInit {
       .select({
         ...getTableColumns(products),
         store: stores,
-        usedSaleQuantity: sql<number>`COALESCE(${usedSaleSubquery.usedSaleQty}, 0)`.as(
-          'used_sale_quantity',
-        ),
+        usedSaleQuantity: sql<number>`COALESCE(${usedSaleSubquery.usedSaleQty}, 0)`
+          .mapWith(Number)
+          .as('used_sale_quantity'),
       })
       .from(products)
       .innerJoin(stores, eq(products.storeId, stores.id))
@@ -395,7 +395,7 @@ export class ProductsService implements OnModuleInit {
         and(
           isNotNull(products.salePrice),
           // Có sale price hợp lệ nhỏ hơn giá gốc
-          lt(products.salePrice, products.price),
+          // lt(products.salePrice, products.price),
           // sản phẩm phải có thời gian bắt đầu và kết thúc
           or(isNull(products.startDate), gte(products.startDate, new Date())),
           or(isNull(products.endDate), lt(products.endDate, new Date())),
