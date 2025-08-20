@@ -527,24 +527,17 @@ export class VouchersService {
 
   async getUsableVouchers(reqDto: UsableVoucherReqDto, payload: JwtPayloadType) {
     const usableVouchers = [];
-
-    const startDate = DateTime.fromJSDate(new Date()).startOf('day').toJSDate();
-
-    const endDate = DateTime.fromJSDate(new Date()).endOf('day').toJSDate();
+    const now = new Date();
 
     //---------------------------------------------------------
-    // Lấy voucher type ADMIN vs MANAGEMENT nếu có areaId
+    // Voucher ADMIN / MANAGEMENT theo areaId
     //---------------------------------------------------------
     if (reqDto.areaId) {
       const voucherApps = await this.db
         .select({
           ...getTableColumns(vouchers),
-          usedCount: count(vouchersOnOrders.voucherId),
-          userUsageCount: sql<number>`COALESCE
-            (
-          ${voucherUsages.usageCount},
-          0
-          )`.mapWith(Number),
+          usedCount: sql<number>`COUNT(DISTINCT ${vouchersOnOrders.id})`.mapWith(Number),
+          userUsageCount: sql<number>`COALESCE(${voucherUsages.usageCount}, 0)`.mapWith(Number),
         })
         .from(vouchers)
         .leftJoin(vouchersOnOrders, eq(vouchersOnOrders.voucherId, vouchers.id))
@@ -560,47 +553,33 @@ export class VouchersService {
               : [eq(vouchers.isHidden, false)]),
             eq(vouchers.status, VouchersStatusEnum.ACTIVE),
             inArray(vouchers.type, [VouchersTypeEnum.ADMIN, VouchersTypeEnum.MANAGEMENT]),
-            lte(vouchers.startDate, startDate),
-            gte(vouchers.endDate, endDate),
+            // startDate <= now (hoặc null) && endDate >= now (hoặc null)
+            or(isNull(vouchers.startDate), lte(vouchers.startDate, now)),
+            or(isNull(vouchers.endDate), gte(vouchers.endDate, now)),
             eq(vouchers.areaId, reqDto.areaId),
           ),
         )
-        .groupBy(
-          vouchers.id,
-          voucherUsages.usageCount, // chỉ cần usageCount nếu cần so sánh
-        )
+        .groupBy(vouchers.id, voucherUsages.usageCount)
         .orderBy(desc(vouchers.createdAt))
         .having(
           and(
-            lt(count(vouchersOnOrders.voucherId), vouchers.maxUses),
-            lt(
-              sql`coalesce
-                (
-              ${voucherUsages.usageCount},
-              0
-              )`,
-              vouchers.usePerUser,
-            ),
+            lt(sql`COUNT(DISTINCT ${vouchersOnOrders.id})`, vouchers.maxUses),
+            lt(sql`COALESCE(${voucherUsages.usageCount}, 0)`, vouchers.usePerUser),
           ),
         );
 
-      if (voucherApps?.length > 0) {
-        usableVouchers.push(...voucherApps);
-      }
+      if (voucherApps.length > 0) usableVouchers.push(...voucherApps);
     }
 
     //---------------------------------------------------------
-    // Lấy voucher type STORE nếu có storeId
+    // Voucher STORE theo storeId
     //---------------------------------------------------------
     if (reqDto.storeId) {
       const storeVouchers = await this.db
         .select({
           ...getTableColumns(vouchers),
-          usedCount: count(vouchersOnOrders.voucherId).mapWith(Number),
-          usedByUserCount: sql<number>`COALESCE (
-          ${voucherUsages.usageCount},
-          0
-          )`.mapWith(Number),
+          usedCount: sql<number>`COUNT(DISTINCT ${vouchersOnOrders.id})`.mapWith(Number),
+          userUsageCount: sql<number>`COALESCE(${voucherUsages.usageCount}, 0)`.mapWith(Number),
         })
         .from(vouchers)
         .leftJoin(users, eq(users.id, vouchers.userId))
@@ -619,29 +598,20 @@ export class VouchersService {
             eq(vouchers.status, VouchersStatusEnum.ACTIVE),
             eq(vouchers.type, VouchersTypeEnum.STORE),
             eq(stores.id, reqDto.storeId),
-            lte(vouchers.startDate, startDate),
-            gte(vouchers.endDate, endDate),
+            or(isNull(vouchers.startDate), lte(vouchers.startDate, now)),
+            or(isNull(vouchers.endDate), gte(vouchers.endDate, now)),
           ),
         )
-        .groupBy(vouchers.id, users.id, voucherUsages.userId, voucherUsages.usageCount)
+        .groupBy(vouchers.id, voucherUsages.usageCount)
         .orderBy(desc(vouchers.createdAt))
         .having(
           and(
-            lt(count(vouchersOnOrders.voucherId), vouchers.maxUses),
-            lt(
-              sql`coalesce
-                (
-              ${voucherUsages.usageCount},
-              0
-              )`,
-              vouchers.usePerUser,
-            ),
+            lt(sql`COUNT(DISTINCT ${vouchersOnOrders.id})`, vouchers.maxUses),
+            lt(sql`COALESCE(${voucherUsages.usageCount}, 0)`, vouchers.usePerUser),
           ),
         );
 
-      if (storeVouchers && storeVouchers.length > 0) {
-        usableVouchers.push(...storeVouchers);
-      }
+      if (storeVouchers.length > 0) usableVouchers.push(...storeVouchers);
     }
 
     return usableVouchers;

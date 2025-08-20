@@ -384,15 +384,16 @@ export class ProductsService implements OnModuleInit {
     const usedSaleSubquery = this.db
       .select({
         productId: orderDetails.productId,
-        usedSaleQty: sql<number>`SUM(${orderDetails.quantity})`.as('used_sale_qty'),
+        usedSaleQty: sql<number>`COALESCE(SUM(${orderDetails.quantity}), 0)`.as('used_sale_qty'),
       })
       .from(orderDetails)
       .innerJoin(orders, eq(orderDetails.orderId, orders.id))
       .where(
         and(
-          ne(orders.status, OrderStatusEnum.CANCELED), // loại đơn hủy
-          // Nếu muốn chỉ tính đơn đã giao / accepted thì:
-          // inArray(orders.status, [OrderStatusEnum.DELIVERED, OrderStatusEnum.ACCEPTED])
+          // bỏ đơn hủy
+          ne(orders.status, OrderStatusEnum.CANCELED),
+          // chỉ lấy đơn sale
+          eq(orderDetails.isSale, true),
         ),
       )
       .groupBy(orderDetails.productId)
