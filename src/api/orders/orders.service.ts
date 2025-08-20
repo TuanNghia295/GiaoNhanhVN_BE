@@ -1297,6 +1297,7 @@ export class OrdersService {
   }
 
   async assignOrderToShipper(orderId: number, payload: JwtPayloadType) {
+    console.log('Assigning order to shipper:', orderId, payload);
     return this.db.transaction(async (tx) => {
       //--------------------------------------------
       // Kiểm tra xem đơn hàng có tồn tại không
@@ -1376,7 +1377,9 @@ export class OrdersService {
         updateOrder.userId,
       );
 
+      console.log('validUserFcmToken', validUserFcmToken);
       if (validUserFcmToken.fcmToken) {
+        console.log('Sending FCM notification to user:', validUserFcmToken.fcmToken);
         await this.notifyAboutAssignOrder([validUserFcmToken.fcmToken], updateOrder.code);
       }
       this.emitter.emit('order.accepted', orderId);
