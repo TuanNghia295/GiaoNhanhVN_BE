@@ -13,7 +13,7 @@ LIMIT 10;
 
 
 Select  * from stores where user_id = 479;
-SELECT  * FROM users WHERE phone = '0966007345'
+SELECT  * FROM users WHERE phone = '0123123123';
 SELECT * FROM products WHERE store_id = 3183
 DELETE  FROM orders ;
 
