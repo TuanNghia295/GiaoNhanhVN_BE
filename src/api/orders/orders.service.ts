@@ -1041,7 +1041,8 @@ export class OrdersService {
         await tx
           .update(products)
           .set({
-            quantity: decrement(products.quantity, item.quantity),
+            usedSaleQuantity: increment(products.usedSaleQuantity, item.quantity),
+            // quantity: decrement(products.quantity, item.quantity),
             ...(product.quantity - item.quantity <= 0
               ? { salePrice: null, startDate: null, endDate: null }
               : {}),

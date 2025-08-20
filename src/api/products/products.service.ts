@@ -14,7 +14,7 @@ import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagi
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE, storeIsOpenSql } from '@/database/global';
-import { areas, orderDetails, orders, OrderStatusEnum, products, stores } from '@/database/schemas';
+import { areas, products, stores } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { deleteIfExists, normalizeImagePath } from '@/utils/util';
@@ -30,9 +30,7 @@ import {
   gte,
   isNotNull,
   isNull,
-  lt,
   lte,
-  ne,
   or,
   sql,
 } from 'drizzle-orm';
@@ -156,7 +154,7 @@ export class ProductsService implements OnModuleInit {
           ...reqDto,
           // nếu fe có cập nhật quantity thì cập nhật saleQuantity
           // cứng để làm thành slider
-          ...(reqDto.quantity && { saleQuantity: reqDto.quantity }),
+          // ...(reqDto.quantity && { saleQuantity: reqDto.quantity }),
           storeMenuId: reqDto.storeMenuId,
           storeId: reqDto.storeId,
         })
@@ -227,7 +225,9 @@ export class ProductsService implements OnModuleInit {
         .update(products)
         .set({
           ...reqDto,
-          ...(reqDto.quantity && { saleQuantity: reqDto.quantity }),
+          //  nếu fe có cập nhật quantity thì reset saleQuantity
+          ...(reqDto.quantity && { usedSaleQuantity: 0 }),
+          // ...(reqDto.quantity && { saleQuantity: reqDto.quantity }),
         })
         .where(eq(products.id, productId))
         .returning();
@@ -380,41 +380,18 @@ export class ProductsService implements OnModuleInit {
     const nearestAreaId = await this.getNearestAreaId(latitude, longitude);
     console.log(`Nearest area ID: ${nearestAreaId}`);
 
-    // Subquery tính usedSaleQty
-    const usedSaleSubquery = this.db
-      .select({
-        productId: orderDetails.productId,
-        usedSaleQty: sql<number>`COALESCE(SUM(${orderDetails.quantity}), 0)`.as('used_sale_qty'),
-      })
-      .from(orderDetails)
-      .innerJoin(orders, eq(orderDetails.orderId, orders.id))
-      .where(
-        and(
-          // bỏ đơn hủy
-          ne(orders.status, OrderStatusEnum.CANCELED),
-          // chỉ lấy đơn sale
-          eq(orderDetails.isSale, true),
-        ),
-      )
-      .groupBy(orderDetails.productId)
-      .as('used_sales');
-
     return this.db
       .select({
         ...getTableColumns(products),
         store: stores,
-        usedSaleQuantity: sql<number>`COALESCE(${usedSaleSubquery.usedSaleQty}, 0)`
-          .mapWith(Number)
-          .as('used_sale_quantity'),
       })
       .from(products)
       .innerJoin(stores, eq(products.storeId, stores.id))
-      .leftJoin(usedSaleSubquery, eq(products.id, usedSaleSubquery.productId))
       .where(
         and(
           isNotNull(products.salePrice),
           // Có sale price hợp lệ nhỏ hơn giá gốc
-          lt(products.salePrice, products.price),
+          // lt(products.salePrice, products.price),
           // sản phẩm phải có thời gian bắt đầu và kết thúc
           or(isNull(products.startDate), lte(products.startDate, new Date())),
           or(isNull(products.endDate), gte(products.endDate, new Date())),
