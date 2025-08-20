@@ -1,6 +1,7 @@
 import { LoginResDto } from '@/api/auth/dto/login.res.dto';
 import { OTPCodeResDto } from '@/api/zalo/dto/otp-code.res.dto';
 import { VerifyOtpReqDto } from '@/api/zalo/dto/verify-otp.req.dto';
+import { ZaloCallbackReqDto } from '@/api/zalo/dto/zalo-callback.req.dto';
 import { ApiPublic } from '@/decorators/http.decorators';
 import { Controller, Get, Post, Query } from '@nestjs/common';
 import { ZaloService } from './zalo.service';
@@ -16,6 +17,15 @@ export class ZaloController {
   @Get('send-otp')
   async sendOtpToPhone(@Query('phone') phone: string) {
     return await this.zaloService.sendZaloOtp(phone);
+  }
+
+  // @ApiExcludeEndpoint()
+  @ApiPublic({
+    summary: 'Callback từ Zalo',
+  })
+  @Get('callback')
+  async callbackFromZalo(@Query() dto: ZaloCallbackReqDto) {
+    return await this.zaloService.callbackFromZalo(dto);
   }
 
   @ApiPublic({

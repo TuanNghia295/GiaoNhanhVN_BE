@@ -169,26 +169,23 @@ export class UsersService implements OnModuleInit {
     //----------------------------------------------------------------
     // Nếu người dùng nằm trong khu vực quản lý  thì cập nhật areaId
     //----------------------------------------------------------------
-    let areaId: number | null = null;
-    if (reqDto.parent && reqDto.province) {
-      const area = await this.db.query.areas.findFirst({
-        where: and(eq(areas.parent, reqDto.parent), eq(areas.name, reqDto.province)),
-        columns: {
-          id: true,
-        },
-      });
-      if (area) {
-        areaId = area.id;
-      }
-    }
-
-    console.log('areaId', areaId);
+    // let areaId: number | null = null;
+    // if (reqDto.parent && reqDto.province) {
+    //   const area = await this.db.query.areas.findFirst({
+    //     where: and(eq(areas.parent, reqDto.parent), eq(areas.name, reqDto.province)),
+    //     columns: {
+    //       id: true,
+    //     },
+    //   });
+    //   if (area) {
+    //     areaId = area.id;
+    //   }
+    // }
 
     return this.db
       .update(users)
       .set({
         ...reqDto,
-        areaId: areaId,
       })
       .where(eq(users.id, payload.id))
       .returning()

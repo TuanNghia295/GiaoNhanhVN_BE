@@ -31,6 +31,10 @@ async function bootstrap() {
         path: 'health',
         method: RequestMethod.GET,
       },
+      {
+        path: 'zalo/callback',
+        method: RequestMethod.GET,
+      },
     ],
   });
 

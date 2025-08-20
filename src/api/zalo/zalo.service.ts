@@ -13,7 +13,14 @@ import { createCacheKey } from '@/utils/cache.util';
 import { formatVietnamPhoneNumber } from '@/utils/util';
 import { HttpService } from '@nestjs/axios';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { HttpStatus, Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  HttpStatus,
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleInit,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AxiosError } from 'axios';
@@ -25,7 +32,7 @@ import { UsersService } from '../users/users.service';
 import { VerifyOtpReqDto } from './dto/verify-otp.req.dto';
 
 @Injectable()
-export class ZaloService {
+export class ZaloService implements OnModuleInit {
   private readonly logger = new Logger(ZaloService.name);
   private zaloConfig: {
     app_id: string;
@@ -49,6 +56,9 @@ export class ZaloService {
     this.zaloConfig = this.configService.getOrThrow('zalo', {
       infer: true,
     });
+  }
+  onModuleInit() {
+    // this.refreshToken()
   }
 
   /**
@@ -140,6 +150,7 @@ export class ZaloService {
         ),
     );
     if (data.error !== 0) {
+      console.error('Error sending OTP via Zalo:', data);
       throw new UnauthorizedException('Failed to send OTP via Zalo.');
     }
 
@@ -252,5 +263,39 @@ export class ZaloService {
       role: baseRole,
       ...tokens,
     });
+  }
+
+  async callbackFromZalo({ code, state }) {
+    const app_id = this.zaloConfig.app_id;
+    const app_secret = this.zaloConfig.app_secret;
+    const oauth_url = this.zaloConfig.oauth_url;
+    try {
+      const response = await this.httpService.axiosRef.post(
+        `${oauth_url}/v4/oa/access_token`,
+        {
+          code,
+          app_id,
+          grant_type: 'authorization_code',
+          code_verifier: state,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            secret_key: app_secret,
+          },
+        },
+      );
+      // if (response.status !== 200 || response.data.error) {
+      //   throw response.data;
+      // }
+      this.logger.log('Zalo token is created');
+      await this.createZaloToken(response.data.access_token, response.data.refresh_token);
+      return {
+        message: 'Zalo token is created',
+      };
+    } catch (error) {
+      this.logger.error('Error when get access token from Zalo', error);
+      throw new UnauthorizedException(error.error_name ?? 'Unauthorized');
+    }
   }
 }

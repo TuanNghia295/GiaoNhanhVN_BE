@@ -32,11 +32,11 @@ export class UpdateUserReqDto {
   @StringFieldOptional()
   fcmToken: string;
 
-  @StringFieldOptional()
-  province?: string;
-
-  @StringFieldOptional()
-  parent?: string;
+  // @StringFieldOptional()
+  // province?: string;
+  //
+  // @StringFieldOptional()
+  // parent?: string;
 
   @NumberFieldOptional()
   areaId: number;
