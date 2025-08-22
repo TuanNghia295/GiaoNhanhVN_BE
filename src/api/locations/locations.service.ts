@@ -2,10 +2,12 @@ import { AreasService } from '@/api/areas/areas.service';
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { CreateLocationReqDto } from '@/api/locations/dto/create-location.req.dto';
 import { LocationResDto } from '@/api/locations/dto/location.res.dto';
+import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
-import { areas, locations, users } from '@/database/schemas';
+import { locations, users } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
-import { Inject, Injectable } from '@nestjs/common';
+import { ValidationException } from '@/exceptions/validation.exception';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { and, desc, eq } from 'drizzle-orm';
 
@@ -25,26 +27,42 @@ export class LocationsService {
       .where(and(eq(locations.address, reqDto.address), eq(locations.userId, payload.id)))
       .execute();
 
-    const area = await this.db.query.areas.findFirst({
-      where: and(eq(areas.name, reqDto.province), eq(areas.parent, reqDto.parent)),
-      columns: {
-        id: true,
-      },
-    });
-    await this.db
-      .update(users)
-      .set({
-        areaId: area?.id ?? null,
-      })
-      .where(eq(users.id, payload.id));
+    let areaId: number | null = null;
+    if (reqDto.geometry) {
+      console.log('reqDto.origins', reqDto.origins);
+      const [latitude, longitude] = reqDto.geometry.split(',').map(Number);
+      console.log('latitude', latitude, 'longitude', longitude);
+      if (isNaN(latitude) || isNaN(longitude)) {
+        throw new ValidationException(ErrorCode.CV000, HttpStatus.BAD_REQUEST);
+      }
+      let areaId = await this.areasService.getNearestAreaId(latitude, longitude);
+      console.log('location areaId', areaId);
+      if (areaId) {
+        await this.db
+          .update(users)
+          .set({
+            areaId: areaId,
+          })
+          .where(eq(users.id, payload.id));
+      }
+    }
 
-    if (existLocation) return existLocation;
+    if (existLocation) {
+      return this.db
+        .update(locations)
+        .set({
+          ...(areaId ? { areaId } : {}),
+        })
+        .where(eq(locations.id, existLocation.id))
+        .returning();
+    }
 
+    console.log('create location with areaId', areaId);
     const [createdLocation] = await this.db
       .insert(locations)
       .values({
         ...reqDto,
-        ...(area ? { areaId: area.id } : {}),
+        ...(areaId ? { areaId } : {}),
         userId: payload.id,
       })
       .returning();

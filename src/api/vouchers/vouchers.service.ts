@@ -29,7 +29,7 @@ import { voucherUsages } from '@/database/schemas/voucher-usage.schema'; // Impo
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { formatNumber } from '@/utils/util';
-import { ForbiddenException, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { plainToInstance } from 'class-transformer';
 import {
@@ -58,8 +58,6 @@ export class VouchersService {
     private readonly configService: ConfigService<AllConfigType>,
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
   ) {}
-
-  private readonly logger = new Logger(VouchersService.name);
 
   async getPageVouchers(reqDto: PageVouchersReqDto, payload: JwtPayloadType) {
     const qb = this.db

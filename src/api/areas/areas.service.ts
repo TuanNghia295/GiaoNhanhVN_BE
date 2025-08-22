@@ -6,13 +6,36 @@ import { areas, managers } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, ilike, isNull, or } from 'drizzle-orm';
+import { and, asc, eq, ilike, isNotNull, isNull, or, sql } from 'drizzle-orm';
 
 @Injectable()
 export class AreasService {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDB, // Replace with actual type
   ) {}
+
+  async getNearestAreaId(latitude: number, longitude: number): Promise<number | null> {
+    // Lấy area gần nhất
+    const nearestArea = await this.db
+      .select({
+        id: areas.id,
+        distance: sql<number>`
+        6371 * acos(
+          cos(radians(${latitude})) *
+          cos(radians(CAST(split_part(${areas.location}, ',', 1) AS double precision))) *
+          cos(radians(CAST(split_part(${areas.location}, ',', 2) AS double precision)) - radians(${longitude})) +
+          sin(radians(${latitude})) *
+          sin(radians(CAST(split_part(${areas.location}, ',', 1) AS double precision)))
+        )
+      `.as('distance'),
+      })
+      .from(areas)
+      .where(isNotNull(areas.location))
+      .orderBy(sql`distance ASC`)
+      .limit(1);
+
+    return nearestArea.length > 0 ? nearestArea[0].id : null;
+  }
 
   async existByNameOrCodeAndParent({
     name,

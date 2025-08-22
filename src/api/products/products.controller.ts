@@ -57,7 +57,9 @@ export class ProductsController {
     type: ProductResDto,
   })
   @Get(':productId')
-  async getProductById(@Param('productId') productId: number): Promise<ProductResDto> {
+  async getProductById(
+    @Param('productId', ParseIntPipe) productId: number,
+  ): Promise<ProductResDto> {
     return await this.productsService.getProductById(productId);
   }
 

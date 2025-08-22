@@ -16,6 +16,11 @@ export class UpdateUserReqDto {
   })
   phone: string;
 
+  @StringFieldOptional({
+    example: '10.782418, 106.695635',
+  })
+  origins?: string;
+
   @EmailFieldOptional({
     default: 'sting@gmail.com',
   })

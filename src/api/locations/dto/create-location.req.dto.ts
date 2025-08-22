@@ -7,9 +7,14 @@ export class CreateLocationReqDto {
   @StringField()
   geometry!: string;
 
-  @StringFieldOptional()
-  province?: string;
+  @StringFieldOptional({
+    example: '10.782418, 106.695635',
+  })
+  origins?: string;
 
-  @StringFieldOptional()
-  parent?: string;
+  // @StringFieldOptional()
+  // province?: string;
+  //
+  // @StringFieldOptional()
+  // parent?: string;
 }

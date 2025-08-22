@@ -367,6 +367,7 @@ export class OrdersService {
   }
 
   async findNearestArea(reqDto: CalculateOrderReqDto) {
+    console.log('Finding nearest area for origins:', reqDto);
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
     let area: Area & {
       distance?: number;
@@ -375,41 +376,47 @@ export class OrdersService {
     //------------------------------------------------------------
     // B1 : Nếu tồn tại areaId thì lấy thông tin khu vực đó
     //------------------------------------------------------------
-    if (reqDto.areaId) {
+    if (
+      reqDto.areaId &&
+      [OrderTypeEnum.FOOD, OrderTypeEnum.ANOTHER_SHOP].includes(reqDto.orderType)
+    ) {
       area = await this.db.query.areas.findFirst({
         where: eq(areas.id, reqDto.areaId),
       });
     }
 
-    if (reqDto.parent && reqDto.name) {
-      // Nếu có parent và name, lấy area theo tên
-      console.log(`lấy area theo tên`, reqDto.parent + ' - ' + reqDto.name);
-      area = await this.db.query.areas.findFirst({
-        where: and(eq(areas.parent, reqDto.parent), eq(areas.name, reqDto.name)),
-      });
-    }
+    // if (reqDto.parent && reqDto.name) {
+    //   // Nếu có parent và name, lấy area theo tên
+    //   console.log(`lấy area theo tên`, reqDto.parent + ' - ' + reqDto.name);
+    //   area = await this.db.query.areas.findFirst({
+    //     where: and(eq(areas.parent, reqDto.parent), eq(areas.name, reqDto.name)),
+    //   });
+    // }
 
     //------------------------------------------------------------
     // B2 : Nếu không có areaId thì tìm khu vực gần nhất
     //------------------------------------------------------------
     if (!area) {
-      area = await this.db
-        .select({
-          ...getTableColumns(areas),
-          distance: sql
-            .raw(
-              `
-        6371 * acos(
+      const distanceSql = sql.raw(`
+    6371 * acos(
+      least(
+        greatest(
           cos(radians(${latitude})) *
           cos(radians(CAST(split_part(areas.location, ',', 1) AS double precision))) *
           cos(radians(CAST(split_part(areas.location, ',', 2) AS double precision)) - radians(${longitude})) +
           sin(radians(${latitude})) *
-          sin(radians(CAST(split_part(areas.location, ',', 1) AS double precision)))
-        )
-      `,
-            )
-            .mapWith(Number)
-            .as('distance'),
+          sin(radians(CAST(split_part(areas.location, ',', 1) AS double precision))),
+          -1
+        ),
+        1
+      )
+    )
+  `);
+
+      area = await this.db
+        .select({
+          ...getTableColumns(areas),
+          distance: distanceSql.mapWith(Number).as('distance'),
         })
         .from(areas)
         .leftJoin(settings, eq(areas.id, settings.areaId))
@@ -424,6 +431,7 @@ export class OrdersService {
         .limit(1)
         .then((res) => res[0]);
     }
+    console.log('Nearest area found:', area);
     return area;
   }
 
