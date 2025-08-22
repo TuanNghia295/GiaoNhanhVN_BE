@@ -389,6 +389,7 @@ export class ProductsService implements OnModuleInit {
       .innerJoin(stores, eq(products.storeId, stores.id))
       .where(
         and(
+          isNull(products.deletedAt),
           isNotNull(products.salePrice),
           // Có sale price hợp lệ nhỏ hơn giá gốc
           // lt(products.salePrice, products.price),
