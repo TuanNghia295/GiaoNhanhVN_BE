@@ -25,9 +25,9 @@ export class CalculateOrderReqDto {
   @NumberFieldOptional()
   deliveryRegionId?: number;
 
-  @StringFieldOptional()
-  parent?: string;
-
-  @StringFieldOptional()
-  name?: string;
+  // @StringFieldOptional()
+  // parent?: string;
+  //
+  // @StringFieldOptional()
+  // name?: string;
 }
