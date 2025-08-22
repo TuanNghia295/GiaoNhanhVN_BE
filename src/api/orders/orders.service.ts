@@ -375,7 +375,10 @@ export class OrdersService {
     //------------------------------------------------------------
     // B1 : Nếu tồn tại areaId thì lấy thông tin khu vực đó
     //------------------------------------------------------------
-    if (reqDto.areaId && reqDto.orderType === OrderTypeEnum.FOOD) {
+    if (
+      reqDto.areaId &&
+      [OrderTypeEnum.FOOD, OrderTypeEnum.ANOTHER_SHOP].includes(reqDto.orderType)
+    ) {
       area = await this.db.query.areas.findFirst({
         where: eq(areas.id, reqDto.areaId),
       });
