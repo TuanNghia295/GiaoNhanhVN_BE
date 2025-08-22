@@ -391,6 +391,9 @@ export class ProductsService implements OnModuleInit {
         and(
           isNull(products.deletedAt),
           isNotNull(products.salePrice),
+          eq(stores.isLocked, false),
+          eq(stores.status, true),
+          eq(products.isLocked, false),
           // Có sale price hợp lệ nhỏ hơn giá gốc
           // lt(products.salePrice, products.price),
           // sản phẩm phải có thời gian bắt đầu và kết thúc
