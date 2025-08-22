@@ -25,7 +25,7 @@ import { deleteIfExists, formatNumber, normalizeImagePath } from '@/utils/util';
 import { HttpStatus, Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { plainToInstance } from 'class-transformer';
-import { and, count, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import sharp from 'sharp';
@@ -161,9 +161,50 @@ export class UsersService implements OnModuleInit {
     });
   }
 
+  async getNearestAreaId(latitude: number, longitude: number): Promise<number | null> {
+    // Lấy area gần nhất
+    const nearestArea = await this.db
+      .select({
+        id: areas.id,
+        distance: sql<number>`
+        6371 * acos(
+          cos(radians(${latitude})) *
+          cos(radians(CAST(split_part(${areas.location}, ',', 1) AS double precision))) *
+          cos(radians(CAST(split_part(${areas.location}, ',', 2) AS double precision)) - radians(${longitude})) +
+          sin(radians(${latitude})) *
+          sin(radians(CAST(split_part(${areas.location}, ',', 1) AS double precision)))
+        )
+      `.as('distance'),
+      })
+      .from(areas)
+      .where(isNotNull(areas.location))
+      .orderBy(sql`distance ASC`)
+      .limit(1);
+
+    return nearestArea.length > 0 ? nearestArea[0].id : null;
+  }
+
   async update(payload: JwtPayloadType, reqDto: UpdateUserReqDto) {
     if (!(await this.existsById(payload.id))) {
       throw new ValidationException(ErrorCode.U001, HttpStatus.NOT_FOUND);
+    }
+
+    if (reqDto.phone && (await this.existsByPhone(reqDto.phone))) {
+      throw new ValidationException(ErrorCode.U002, HttpStatus.CONFLICT);
+    }
+
+    // Nếu người dùng có cung cấp vị trí thì cập nhật areaId
+    if (reqDto.origins) {
+      console.log('reqDto.origins', reqDto.origins);
+      const [latitude, longitude] = reqDto.origins.split(',').map(Number);
+      if (isNaN(latitude) || isNaN(longitude)) {
+        throw new ValidationException(ErrorCode.CV000, HttpStatus.BAD_REQUEST);
+      }
+      const areaId = await this.getNearestAreaId(latitude, longitude);
+      console.log('areaId', areaId);
+      if (areaId) {
+        reqDto.areaId = areaId;
+      }
     }
 
     //----------------------------------------------------------------
