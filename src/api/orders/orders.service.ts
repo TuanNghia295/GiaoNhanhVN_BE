@@ -380,13 +380,13 @@ export class OrdersService {
       });
     }
 
-    if (reqDto.parent && reqDto.name) {
-      // Nếu có parent và name, lấy area theo tên
-      console.log(`lấy area theo tên`, reqDto.parent + ' - ' + reqDto.name);
-      area = await this.db.query.areas.findFirst({
-        where: and(eq(areas.parent, reqDto.parent), eq(areas.name, reqDto.name)),
-      });
-    }
+    // if (reqDto.parent && reqDto.name) {
+    //   // Nếu có parent và name, lấy area theo tên
+    //   console.log(`lấy area theo tên`, reqDto.parent + ' - ' + reqDto.name);
+    //   area = await this.db.query.areas.findFirst({
+    //     where: and(eq(areas.parent, reqDto.parent), eq(areas.name, reqDto.name)),
+    //   });
+    // }
 
     //------------------------------------------------------------
     // B2 : Nếu không có areaId thì tìm khu vực gần nhất
