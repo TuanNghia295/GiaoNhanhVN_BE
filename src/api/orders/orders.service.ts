@@ -1661,26 +1661,26 @@ export class OrdersService {
       throw new ValidationException(ErrorCode.OD003);
     }
 
-    const [refund] = await tx
-      .select({
-        refundPoint: sql`coalesce
-          (sum(vouchers.value), 0)`.mapWith(Number),
-      })
-      .from(orders)
-      .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
-      .leftJoin(
-        vouchers,
-        and(
-          eq(vouchers.id, vouchersOnOrders.voucherId),
-          inArray(vouchers.type, [VouchersTypeEnum.ADMIN, VouchersTypeEnum.MANAGEMENT]),
-        ),
-      )
-      .where(eq(orders.id, existOrder.id))
-      .groupBy(orders.id);
+    // const [refund] = await tx
+    //   .select({
+    //     refundPoint: sql`coalesce
+    //       (sum(vouchers.value), 0)`.mapWith(Number),
+    //   })
+    //   .from(orders)
+    //   .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
+    //   .leftJoin(
+    //     vouchers,
+    //     and(
+    //       eq(vouchers.id, vouchersOnOrders.voucherId),
+    //       inArray(vouchers.type, [VouchersTypeEnum.ADMIN, VouchersTypeEnum.MANAGEMENT]),
+    //     ),
+    //   )
+    //   .where(eq(orders.id, existOrder.id))
+    //   .groupBy(orders.id);
     //---------------------------------------------------
     // Hoàn lại điểm cho người giao hàng
     //---------------------------------------------------
-    const subtractPoint = await this.calculateSubtractPoint(existOrder, refund.refundPoint || 0);
+    const subtractPoint = await this.calculateSubtractPoint(existOrder);
     await this.deliversService.addPoint(existOrder.deliverId, subtractPoint, tx);
     //--------------------------------------------------
     // Hoàn xu cho người dùng
