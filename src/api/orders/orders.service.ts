@@ -421,7 +421,7 @@ export class OrdersService {
         .leftJoin(settings, eq(areas.id, settings.areaId))
         .where(
           and(
-            eq(settings.openFullTime, true),
+            // eq(settings.openFullTime, true),
             isNotNull(areas.location),
             // eq(areas.status, AreaStatusEnum.ACTIVE),
           ),
