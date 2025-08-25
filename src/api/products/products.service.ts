@@ -409,10 +409,6 @@ export class ProductsService implements OnModuleInit {
           lt(products.usedSaleQuantity, products.quantity),
         ),
       )
-      .orderBy(
-        // sắp xếp gần nhất
-        sql`${distanceSql} < 15`,
-      );
-    // .limit(15);
+      .limit(15);
   }
 }
