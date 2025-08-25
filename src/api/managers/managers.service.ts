@@ -3,6 +3,7 @@ import { LoginResDto } from '@/api/auth/dto/login.res.dto';
 import { CreateManagerReqDto } from '@/api/managers/dto/create-manager.req.dto';
 import { ManagerResDto } from '@/api/managers/dto/manager.res.dto';
 import { PageManagerReqDto } from '@/api/managers/dto/page-manager.req.dto';
+import { UpdateManagerReqDto } from '@/api/managers/dto/update-manager.req.dto';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
@@ -177,5 +178,21 @@ export class ManagersService {
       .leftJoin(areas, eq(managers.areaId, areas.id))
       .where(eq(managers.id, managerId))
       .then((res) => res[0]);
+  }
+
+  async updateById(managerId: number, reqDto: UpdateManagerReqDto) {
+    const manager = await this.existById(managerId);
+    if (!manager) {
+      throw new ValidationException(ErrorCode.M001);
+    }
+    const [updatedManager] = await this.db
+      .update(managers)
+      .set({
+        ...reqDto,
+      })
+      .where(eq(managers.id, managerId))
+      .returning();
+
+    return updatedManager;
   }
 }

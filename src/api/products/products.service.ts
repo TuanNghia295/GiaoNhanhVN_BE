@@ -30,6 +30,7 @@ import {
   gte,
   isNotNull,
   isNull,
+  lt,
   lte,
   or,
   sql,
@@ -404,6 +405,8 @@ export class ProductsService implements OnModuleInit {
           storeIsOpenSql(),
           // số lượng sale phải lớn hơn 0
           gt(products.quantity, 0),
+          // còn trong giới hạn số lượng sale đã bán
+          lt(products.usedSaleQuantity, products.quantity),
         ),
       )
       .orderBy(

@@ -997,25 +997,6 @@ export class OrdersService {
         throw new ValidationException(ErrorCode.P002, HttpStatus.BAD_REQUEST);
       }
 
-      // if (product.salePrice && product.startDate) {
-      //   // lấy ra số lượng đơn hàng đã đặt cho sản phẩm này
-      //   const orderedDuringSale = await tx
-      //     .select({ total: sum(orderDetails.quantity).mapWith(Number) })
-      //     .from(orderDetails)
-      //     .innerJoin(orders, eq(orderDetails.orderId, orders.id))
-      //     .where(
-      //       and(
-      //         eq(orderDetails.productId, item.productId),
-      //         gte(orderDetails.createdAt, product.startDate),
-      //         not(eq(orders.status, OrderStatusEnum.CANCELED)),
-      //       ),
-      //     )
-      //     .then((res) => res[0]?.total ?? 0);
-      //   console.log('Total product ordered for productId:', item.productId, orderedDuringSale);
-      //
-      //   totalIfThisOrderIncluded = orderedDuringSale + item.quantity;
-      // }
-
       await tx.execute(sql`
         UPDATE order_details
         SET total = (
