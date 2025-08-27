@@ -1,0 +1,1 @@
+ALTER TABLE "orders" ADD COLUMN "delivery_region_id" integer;
