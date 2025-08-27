@@ -1,7 +1,10 @@
+import { StoreResDto } from '@/api/stores/dto/store.res.dto';
+import { WrapperType } from '@/common/types/types';
 import { AbstractResDto } from '@/database/dto/abstract.res.dto';
 import { RoleEnum } from '@/database/schemas';
 import {
   BooleanField,
+  ClassFieldOptional,
   DateField,
   EmailField,
   EnumField,
@@ -59,6 +62,10 @@ export class UserResDto extends AbstractResDto {
   @StringField()
   @Expose()
   gender: string;
+
+  @ClassFieldOptional(() => StoreResDto)
+  @Expose()
+  stores: WrapperType<StoreResDto[]>;
 
   // @ClassFieldOptional(() => LocationResDto)
   // @Expose()

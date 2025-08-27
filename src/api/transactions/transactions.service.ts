@@ -201,7 +201,8 @@ export class TransactionsService {
     ]);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
-    return new OffsetPaginatedDto(entities, meta);
+    const newEntities = entities.map((item) => plainToInstance(TransactionResDto, item));
+    return new OffsetPaginatedDto(newEntities, meta);
   }
 
   async addPointsForArea(reqDto: AddPointReqDto, payload: JwtPayloadType) {

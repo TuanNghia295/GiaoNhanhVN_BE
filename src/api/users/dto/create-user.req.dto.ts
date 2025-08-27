@@ -1,4 +1,9 @@
-import { NumberFieldOptional, PasswordField, StringField } from '@/decorators/field.decorators';
+import {
+  BooleanFieldOptional,
+  NumberFieldOptional,
+  PasswordField,
+  StringField,
+} from '@/decorators/field.decorators';
 
 export class CreateUserReqDto {
   @StringField()
@@ -9,4 +14,7 @@ export class CreateUserReqDto {
 
   @NumberFieldOptional()
   areaId?: number;
+
+  @BooleanFieldOptional()
+  hasShopDirectly?: boolean;
 }

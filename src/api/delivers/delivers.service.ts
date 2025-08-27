@@ -99,7 +99,8 @@ export class DeliversService implements OnModuleInit {
     ]);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
-    return new OffsetPaginatedDto(entities, meta);
+    const newEntities = entities.map((item) => plainToInstance(DeliverResDto, item));
+    return new OffsetPaginatedDto(newEntities, meta);
   }
 
   async getPendingOrders(payload: JwtPayloadType) {

@@ -567,6 +567,7 @@ export class StoresService implements OnModuleInit {
     const [store] = await tx
       .select({
         id: stores.id,
+        status: stores.status,
         openTime: stores.openTime,
         closeTime: stores.closeTime,
         openSecondTime: stores.openSecondTime,
@@ -589,7 +590,7 @@ export class StoresService implements OnModuleInit {
 
     const isOpen = this.checkIsStoreOpen(now, openTime, closeTime, openSecondTime, closeSecondTime);
     this.logTimeDebug(now, openTime, closeTime, openSecondTime, closeSecondTime);
-    if (!isOpen) {
+    if (!isOpen || !store.status) {
       throw new ValidationException(ErrorCode.S003);
     }
   }
