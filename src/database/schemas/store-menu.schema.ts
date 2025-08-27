@@ -27,3 +27,5 @@ export const storeMenusRelations = relations(storeMenus, ({ one, many }) => ({
   }),
   products: many(products),
 }));
+
+export type StoreMenu = typeof storeMenus.$inferSelect;

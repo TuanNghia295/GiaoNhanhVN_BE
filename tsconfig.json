@@ -4,7 +4,7 @@
   },
   "compilerOptions": {
     "module": "commonjs",
-    "declaration": true,
+//    "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
@@ -13,6 +13,7 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
+    "declaration": false,
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": false,
