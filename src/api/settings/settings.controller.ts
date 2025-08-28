@@ -2,6 +2,7 @@ import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { HotlineReqDto } from '@/api/settings/dto/hotline.req.dto';
 import { ServiceFeeResDto } from '@/api/settings/dto/service.fee.res.dto';
 import { SettingResDto } from '@/api/settings/dto/setting.res.dto';
+import { UpdateDistanceReqDto } from '@/api/settings/dto/update-distance.req.dto';
 import { UpdateServiceFeeReqDto } from '@/api/settings/dto/update-service.fee.req.dto';
 import { UpdateSettingReqDto } from '@/api/settings/dto/update-setting.req.dto';
 import { RoleEnum } from '@/database/schemas';
@@ -89,5 +90,15 @@ export class SettingsController {
   })
   async updateDistanceSettings(@Param('type') type: string, @Body() dto: UpdateServiceFeeReqDto) {
     return await this.settingsService.updateServiceFeesByType(type, dto);
+  }
+
+  @Roles(RoleEnum.MANAGEMENT)
+  @Patch('distance')
+  @ApiAuth({
+    summary: 'Cập nhật cài đặt khoảng cách',
+  })
+  async updateDistance(@Body() reqDto: UpdateDistanceReqDto) {
+    console.log('reqDto', reqDto);
+    return await this.settingsService.updateDistance(reqDto);
   }
 }
