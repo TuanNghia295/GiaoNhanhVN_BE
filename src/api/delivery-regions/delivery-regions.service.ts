@@ -72,7 +72,9 @@ export class DeliveryRegionsService {
           ? [eq(deliveryRegions.areaId, payload.areaId)]
           : []),
       ),
-
+      with: {
+        area: true,
+      },
       limit: reqDto.limit,
       offset: reqDto.offset,
     };
