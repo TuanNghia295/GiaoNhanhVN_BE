@@ -1,6 +1,7 @@
 import { HotlineReqDto } from '@/api/settings/dto/hotline.req.dto';
 import { ServiceFeeResDto } from '@/api/settings/dto/service.fee.res.dto';
 import { SettingResDto } from '@/api/settings/dto/setting.res.dto';
+import { UpdateDistanceReqDto } from '@/api/settings/dto/update-distance.req.dto';
 import { UpdateServiceFeeReqDto } from '@/api/settings/dto/update-service.fee.req.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
@@ -151,5 +152,23 @@ export class SettingsService {
     }
 
     return setting;
+  }
+
+  async updateDistance({ items }: UpdateDistanceReqDto) {
+    console.log('items', items);
+    return this.db.transaction(async (tx) => {
+      await Promise.all(
+        items.map(async (item) => {
+          await tx
+            .update(distances)
+            .set({
+              rate: item.rate,
+            })
+            .where(eq(distances.id, item.id))
+            .execute();
+        }),
+      );
+      return true;
+    });
   }
 }

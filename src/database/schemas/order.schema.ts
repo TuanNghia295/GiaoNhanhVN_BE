@@ -37,7 +37,10 @@ export const orders = pgTable(
   'orders',
   {
     id: serial().primaryKey(),
-    type: varchar('type', { length: 20 }).notNull().default(OrderTypeEnum.FOOD),
+    type: varchar('type', { length: 20 })
+      .notNull()
+      .default(OrderTypeEnum.FOOD)
+      .$type<OrderTypeEnum>(),
     code: varchar('code', { length: 50 }).notNull(),
     status: varchar('status', { length: 20 })
       .notNull()
@@ -170,13 +173,13 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
     fields: [orders.areaId],
     references: [areas.id],
   }),
-  user: one(users, {
-    fields: [orders.userId],
-    references: [users.id],
-  }),
   deliver: one(delivers, {
     fields: [orders.deliverId],
     references: [delivers.id],
+  }),
+  user: one(users, {
+    fields: [orders.userId],
+    references: [users.id],
   }),
   orderDetails: many(orderDetails),
   store: one(stores, {

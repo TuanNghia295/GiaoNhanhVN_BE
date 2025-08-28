@@ -55,6 +55,7 @@ import { ValidationException } from '@/exceptions/validation.exception';
 import { GoongService } from '@/shared/goong.service';
 import { calculatePayForShop, roundUp } from '@/utils/calculate.util';
 import { buildMulticastMessage } from '@/utils/firebase.util';
+import { getOrderNotificationContent } from '@/utils/notification.util';
 import { allowedTransitions } from '@/utils/util';
 import { calculateVoucherDiscount } from '@/utils/voucher-utils';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -996,25 +997,6 @@ export class OrdersService {
         throw new ValidationException(ErrorCode.P002, HttpStatus.BAD_REQUEST);
       }
 
-      // if (product.salePrice && product.startDate) {
-      //   // lấy ra số lượng đơn hàng đã đặt cho sản phẩm này
-      //   const orderedDuringSale = await tx
-      //     .select({ total: sum(orderDetails.quantity).mapWith(Number) })
-      //     .from(orderDetails)
-      //     .innerJoin(orders, eq(orderDetails.orderId, orders.id))
-      //     .where(
-      //       and(
-      //         eq(orderDetails.productId, item.productId),
-      //         gte(orderDetails.createdAt, product.startDate),
-      //         not(eq(orders.status, OrderStatusEnum.CANCELED)),
-      //       ),
-      //     )
-      //     .then((res) => res[0]?.total ?? 0);
-      //   console.log('Total product ordered for productId:', item.productId, orderedDuringSale);
-      //
-      //   totalIfThisOrderIncluded = orderedDuringSale + item.quantity;
-      // }
-
       await tx.execute(sql`
         UPDATE order_details
         SET total = (
@@ -1048,7 +1030,8 @@ export class OrdersService {
         await tx
           .update(products)
           .set({
-            quantity: decrement(products.quantity, item.quantity),
+            usedSaleQuantity: increment(products.usedSaleQuantity, item.quantity),
+            // quantity: decrement(products.quantity, item.quantity),
             ...(product.quantity - item.quantity <= 0
               ? { salePrice: null, startDate: null, endDate: null }
               : {}),
@@ -1069,12 +1052,9 @@ export class OrdersService {
     const orderDetail = await this.db.query.orders.findFirst({
       where: eq(orders.id, orderId),
       with: {
+        store: true,
         user: true,
-        store: {
-          with: {
-            user: true,
-          },
-        },
+        deliver: true,
         vouchers: {
           with: {
             voucher: true,
@@ -1093,7 +1073,6 @@ export class OrdersService {
         },
       },
     });
-
     if (!orderDetail) {
       throw new ValidationException(ErrorCode.OD001, HttpStatus.NOT_FOUND);
     }
@@ -1108,8 +1087,14 @@ export class OrdersService {
 
   async getPageByUserId(userId: number, reqDto: PageMyOrderReqDto) {
     if (reqDto.startDate && reqDto.endDate) {
-      reqDto.startDate = DateTime.fromJSDate(new Date(reqDto.startDate)).startOf('day').toJSDate();
-      reqDto.endDate = DateTime.fromJSDate(new Date(reqDto.endDate)).endOf('day').toJSDate();
+      reqDto.startDate = DateTime.fromJSDate(reqDto.startDate)
+        .setZone('Asia/Ho_Chi_Minh')
+        .startOf('day')
+        .toJSDate();
+      reqDto.endDate = DateTime.fromJSDate(reqDto.endDate)
+        .setZone('Asia/Ho_Chi_Minh')
+        .endOf('day')
+        .toJSDate();
     }
     const baseConfig: FindManyQueryConfig<typeof this.db.query.orders> = {
       with: {
@@ -1119,6 +1104,7 @@ export class OrdersService {
             voucher: true,
           },
         },
+        deliver: true,
         user: true,
         reasonDeliverCancelOrder: true,
         orderDetails: {
@@ -1163,6 +1149,7 @@ export class OrdersService {
       ...entity,
       vouchers: Array.isArray(entity.vouchers) ? entity.vouchers.map((v) => v.voucher) : [],
     }));
+    console.log('Mapped Entities:', mappedEntities);
 
     const totalsOrders = Object.fromEntries(
       (
@@ -1192,11 +1179,7 @@ export class OrdersService {
     };
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
-    return new OrdersOffsetPaginatedResDto(
-      mappedEntities.map((order) => plainToInstance(OrderResDto, order)),
-      meta,
-      totalOrdersForPaginated,
-    );
+    return new OrdersOffsetPaginatedResDto(mappedEntities, meta, totalOrdersForPaginated);
   }
 
   async updateOrderStatus(
@@ -1256,6 +1239,17 @@ export class OrdersService {
         .where(eq(orders.id, orderId))
         .returning();
 
+      //-------------------------------------------------
+      // láy fcm token  by storeId
+      //-------------------------------------------------
+      const validStoreFcmToken = await this.storesService.getValidStoreFcmTokenByStoreId(
+        existOrder.storeId,
+      );
+      //-------------------------------------------------
+      // Gửi thông báo FCM  cho người dùng về việc hủy đơn hàng
+      //-------------------------------------------------
+      const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(existOrder.userId);
+
       switch (reqDto.status) {
         case OrderStatusEnum.CANCELED: {
           await this.managerDoCancelOrder(updatedOrder, tx);
@@ -1263,9 +1257,29 @@ export class OrdersService {
             updatedOrder: updatedOrder,
             role: payload.role,
           });
+          const mergeFcmTokens = [validUserFcmToken?.fcmToken, validStoreFcmToken?.fcmToken].filter(
+            (token) => token,
+          ); // Lọc các token hợp lệ
+          if (mergeFcmTokens.length > 0) {
+            this.notifyOrderStatus(
+              mergeFcmTokens,
+              updatedOrder.status,
+              updatedOrder.type,
+              updatedOrder.code,
+            );
+          }
           break;
         }
         default:
+          const mergeFcmTokens = [validUserFcmToken?.fcmToken].filter((token) => token); // Lọc các token hợp lệ
+          if (mergeFcmTokens.length > 0) {
+            this.notifyOrderStatus(
+              mergeFcmTokens,
+              updatedOrder.status,
+              updatedOrder.type,
+              updatedOrder.code,
+            );
+          }
           await this.emitter.emitAsync('order.updated_status', updatedOrder);
       }
       return updatedOrder;
@@ -1273,6 +1287,7 @@ export class OrdersService {
   }
 
   async assignOrderToShipper(orderId: number, payload: JwtPayloadType) {
+    console.log('Assigning order to shipper:', orderId, payload);
     return this.db.transaction(async (tx) => {
       //--------------------------------------------
       // Kiểm tra xem đơn hàng có tồn tại không
@@ -1352,7 +1367,9 @@ export class OrdersService {
         updateOrder.userId,
       );
 
+      console.log('validUserFcmToken', validUserFcmToken);
       if (validUserFcmToken.fcmToken) {
+        console.log('Sending FCM notification to user:', validUserFcmToken.fcmToken);
         await this.notifyAboutAssignOrder([validUserFcmToken.fcmToken], updateOrder.code);
       }
       this.emitter.emit('order.accepted', orderId);
@@ -1414,6 +1431,11 @@ export class OrdersService {
         })
         .where(eq(orders.id, orderId))
         .returning();
+
+      //-------------------------------------------------
+      // Gửi thông báo FCM  cho người dùng về việc hủy đơn hàng
+      //-------------------------------------------------
+      const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(existOrder.userId);
       switch (status) {
         case OrderStatusEnum.CANCELED: {
           //--------------------------------------------
@@ -1424,15 +1446,53 @@ export class OrdersService {
             updatedOrder: updatedOrder,
             role: RoleEnum.DELIVER,
           });
+          //-------------------------------------------------
+          // láy fcm token  by storeId
+          //-------------------------------------------------
+          const validStoreFcmToken = await this.storesService.getValidStoreFcmTokenByStoreId(
+            existOrder.storeId,
+          );
+          console.log('validUserFcmToken', validUserFcmToken);
+          const mergeFcmTokens = [validUserFcmToken?.fcmToken, validStoreFcmToken?.fcmToken].filter(
+            (token) => token,
+          ); // Lọc các token hợp lệ
+          if (mergeFcmTokens.length > 0) {
+            this.notifyOrderStatus(
+              mergeFcmTokens,
+              updatedOrder.status,
+              updatedOrder.type,
+              updatedOrder.code,
+            );
+          }
           break;
         }
-        case OrderStatusEnum.DELIVERED:
+        case OrderStatusEnum.DELIVERED: {
           await this.doCompleteOrder(updatedOrder, existDeliver, tx);
+          const mergeFcmTokens = [validUserFcmToken?.fcmToken].filter((token) => token); // Lọc các token hợp lệ
+          if (mergeFcmTokens.length > 0) {
+            this.notifyOrderStatus(
+              mergeFcmTokens,
+              updatedOrder.status,
+              updatedOrder.type,
+              updatedOrder.code,
+            );
+          }
           await this.emitter.emitAsync('order.updated_status', updatedOrder);
           break;
-        default:
+        }
+        default: {
+          const mergeFcmTokens = [validUserFcmToken?.fcmToken].filter((token) => token); // Lọc các token hợp lệ
+          if (mergeFcmTokens.length > 0) {
+            this.notifyOrderStatus(
+              mergeFcmTokens,
+              updatedOrder.status,
+              updatedOrder.type,
+              updatedOrder.code,
+            );
+          }
           await this.emitter.emitAsync('order.updated_status', updatedOrder);
           break;
+        }
       }
       return updatedOrder;
     });
@@ -1529,43 +1589,47 @@ export class OrdersService {
       // hoàn điểm cho shipper
       await this.deliversService.addPoint(existOrder.deliverId, subtractPoint, tx);
     }
-
-    //-------------------------------------------------
-    // láy fcm token  by storeId
-    //-------------------------------------------------
-    const validStoreFcmToken = await this.storesService.getValidStoreFcmTokenByStoreId(
-      existOrder.storeId,
-    );
-    //-------------------------------------------------
-    // Gửi thông báo FCM  cho người dùng về việc hủy đơn hàng
-    //-------------------------------------------------
-    const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(existOrder.userId);
-    console.log('validUserFcmToken', validUserFcmToken);
-    const mergeFcmTokens = [validUserFcmToken?.fcmToken, validStoreFcmToken?.fcmToken].filter(
-      (token) => token,
-    ); // Lọc các token hợp lệ
-    if (mergeFcmTokens.length > 0) {
-      this.notifyOrderCanceled(mergeFcmTokens);
-    }
   }
 
-  private notifyOrderCanceled(tokens: string[]) {
-    if (tokens.length === 0) {
-      return;
-    }
+  private notifyOrderStatus(
+    tokens: string[],
+    status: OrderStatusEnum,
+    type: OrderTypeEnum,
+    orderCode: string,
+  ) {
+    if (tokens.length === 0) return;
+    const { title, message } = getOrderNotificationContent(status, type, orderCode);
     this.admin
       .messaging()
       .sendEachForMulticast(
         buildMulticastMessage({
-          tokens: tokens,
-          title: 'Đơn hàng đã bị hủy',
-          body: 'Đơn hàng của bạn đã bị hủy. Vui lòng kiểm tra lại.',
+          tokens,
+          title,
+          body: message,
         }),
       )
       .catch((error) => {
         this.logger.error('Error sending FCM notification', error);
       });
   }
+
+  // private notifyOrderCanceled(tokens: string[]) {
+  //   if (tokens.length === 0) {
+  //     return;
+  //   }
+  //   this.admin
+  //     .messaging()
+  //     .sendEachForMulticast(
+  //       buildMulticastMessage({
+  //         tokens: tokens,
+  //         title: 'Đơn hàng đã bị hủy',
+  //         body: 'Đơn hàng của bạn đã bị hủy. Vui lòng kiểm tra lại.',
+  //       }),
+  //     )
+  //     .catch((error) => {
+  //       this.logger.error('Error sending FCM notification', error);
+  //     });
+  // }
 
   //Thực hiện hủy đơn hàng
   private async doCancelOrder(
@@ -1617,24 +1681,6 @@ export class OrdersService {
       type: CanceledReasonEnum.CANCELED,
       deliverId: existDeliver.id,
     });
-
-    //-------------------------------------------------
-    // láy fcm token  by storeId
-    //-------------------------------------------------
-    const validStoreFcmToken = await this.storesService.getValidStoreFcmTokenByStoreId(
-      existOrder.storeId,
-    );
-    //-------------------------------------------------
-    // Gửi thông báo FCM  cho người dùng về việc hủy đơn hàng
-    //-------------------------------------------------
-    const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(existOrder.userId);
-    console.log('validUserFcmToken', validUserFcmToken);
-    const mergeFcmTokens = [validUserFcmToken?.fcmToken, validStoreFcmToken?.fcmToken].filter(
-      (token) => token,
-    ); // Lọc các token hợp lệ
-    if (mergeFcmTokens.length > 0) {
-      this.notifyOrderCanceled(mergeFcmTokens);
-    }
   }
 
   private async lockDeliver(deliverId: number) {

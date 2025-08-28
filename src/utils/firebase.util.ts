@@ -80,12 +80,17 @@ export function buildMulticastMessage({
       body: body,
     },
     android: {
+      ttl: 60 * 1000,
       priority: 'high',
       notification: {
         sound: typeof sound === 'string' ? sound : sound.android || 'default',
+        channelId: 'alert-channel',
       },
     },
     apns: {
+      headers: {
+        'apns-priority': '10',
+      },
       payload: {
         aps: {
           // badge: 1,

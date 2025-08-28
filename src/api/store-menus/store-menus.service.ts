@@ -28,6 +28,11 @@ export class StoreMenusService {
       where: and(eq(storeMenus.storeId, reqDto.storeId), isNull(storeMenus.deletedAt)),
       with: {
         products: {
+          extras: {
+            quantity: sql<number>`
+                (${products.quantity} - COALESCE (${products.usedSaleQuantity}, 0))
+            `.as('quantity'),
+          },
           with: {
             categoryItem: true,
             extras: true,

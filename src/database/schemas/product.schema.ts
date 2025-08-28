@@ -33,6 +33,10 @@ export const products = pgTable(
     startDate: timestamp('start_date'),
     endDate: timestamp('end_date'),
     description: text('description'),
+
+    usedSaleQuantity: integer('used_sale_quantity').default(0), // số lượng sale đã sử dụng
+    // số lượng sale tối đa
+    // saleQuantity: integer('sale_quantity').default(0),
     salePrice: numeric('sale_price', {
       precision: 15,
       scale: 2,

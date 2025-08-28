@@ -5,11 +5,12 @@ import { CreateManagerReqDto } from '@/api/managers/dto/create-manager.req.dto';
 import { LoginManagerReqDto } from '@/api/managers/dto/login-manager.req.dto';
 import { ManagerResDto } from '@/api/managers/dto/manager.res.dto';
 import { PageManagerReqDto } from '@/api/managers/dto/page-manager.req.dto';
+import { UpdateManagerReqDto } from '@/api/managers/dto/update-manager.req.dto';
 import { RoleEnum } from '@/database/schemas';
 import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth, ApiPublic } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { ManagersService } from './managers.service';
 
 @Controller('managers')
@@ -67,5 +68,16 @@ export class ManagersController {
   @Get()
   async getPageManagers(@Query() reqDto: PageManagerReqDto) {
     return await this.managersService.getPageManagers(reqDto);
+  }
+
+  @Roles(RoleEnum.ADMIN)
+  @ApiAuth({
+    summary: 'Cập nhật thông tin của quản lý khu vực [ADMIN]',
+    type: ManagerResDto,
+  })
+  @Put(':managerId')
+  async updateManager(@Param('managerId') managerId: number, @Body() reqDto: UpdateManagerReqDto) {
+    console.log('Updating manager with ID:', managerId, 'and data:', reqDto);
+    return await this.managersService.updateById(managerId, reqDto);
   }
 }

@@ -14,8 +14,8 @@ export class PageStoreReqDto extends PageOptionsDto {
   @NumberFieldOptional()
   readonly categoryItemId?: number;
 
-  @NumberFieldOptional()
-  areaId?: number;
+  // @NumberFieldOptional()
+  // areaId?: number;
 
   @BooleanFieldOptional()
   readonly isRating?: boolean;

@@ -108,9 +108,38 @@ export class StoresService implements OnModuleInit {
       .then((res) => res[0] ?? null);
   }
 
+  async getNearestAreaId(latitude: number, longitude: number): Promise<number | null> {
+    // Lấy area gần nhất
+    const nearestArea = await this.db
+      .select({
+        id: areas.id,
+        distance: sql<number>`
+        6371 * acos(
+          cos(radians(${latitude})) *
+          cos(radians(CAST(split_part(${areas.location}, ',', 1) AS double precision))) *
+          cos(radians(CAST(split_part(${areas.location}, ',', 2) AS double precision)) - radians(${longitude})) +
+          sin(radians(${latitude})) *
+          sin(radians(CAST(split_part(${areas.location}, ',', 1) AS double precision)))
+        )
+      `.as('distance'),
+      })
+      .from(areas)
+      .where(isNotNull(areas.location))
+      .orderBy(sql`distance ASC`)
+      .limit(1);
+
+    return nearestArea.length > 0 ? nearestArea[0].id : null;
+  }
+
   async getPageStores(reqDto: PageStoreReqDto, payload: JwtPayloadType) {
     // Parse latitude and longitude from origins
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
+
+    //---------------------------------------------------
+    // Lấy area gần nhất
+    //---------------------------------------------------
+    const nearestAreaId = await this.getNearestAreaId(latitude, longitude);
+    console.log('nearestAreaId', nearestAreaId);
 
     const distanceSql = sql.raw(`
     6371 * acos(
@@ -161,7 +190,7 @@ export class StoresService implements OnModuleInit {
           eq(stores.status, true),
           eq(stores.isLocked, false),
           isNotNull(stores.location),
-          ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
+          ...(nearestAreaId ? [eq(stores.areaId, nearestAreaId)] : []),
           sql`${distanceSql} < 15`,
         ),
       )
@@ -230,7 +259,7 @@ export class StoresService implements OnModuleInit {
               : []),
             eq(stores.isLocked, false),
             isNotNull(stores.location),
-            ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
+            ...(nearestAreaId ? [eq(stores.areaId, nearestAreaId)] : []),
           ),
         )
         .then((res) => res[0]),
@@ -324,6 +353,7 @@ export class StoresService implements OnModuleInit {
 
   async searchStore(reqDto: SearchPageStoresReqDto) {
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
+
     if (isNaN(latitude) || isNaN(longitude)) {
       throw new ValidationException(
         ErrorCode.S007,
@@ -331,6 +361,9 @@ export class StoresService implements OnModuleInit {
         'Invalid origins format. Expected format: "latitude,longitude"',
       );
     }
+
+    const nearestAreaId = await this.getNearestAreaId(latitude, longitude);
+
     const escapedQuery = reqDto.q
       ? reqDto.q.replace(/'/g, "''") // Escape single quotes for SQL
       : '';
@@ -392,6 +425,7 @@ export class StoresService implements OnModuleInit {
           sql`${distanceSql} < 15`, // Giới hạn khoảng cách 15km
           eq(stores.isLocked, false),
           not(isNull(stores.location)),
+          ...(nearestAreaId ? [eq(stores.areaId, nearestAreaId)] : []),
           ...(escapedQuery
             ? [
                 or(
@@ -436,6 +470,7 @@ export class StoresService implements OnModuleInit {
           and(
             eq(stores.status, true),
             eq(stores.isLocked, false),
+            ...(nearestAreaId ? [eq(stores.areaId, nearestAreaId)] : []),
             sql`${distanceSql} < 15`,
             not(isNull(stores.location)),
             ...(escapedQuery
@@ -753,6 +788,8 @@ export class StoresService implements OnModuleInit {
     }
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
 
+    const nearestAreaId = await this.getNearestAreaId(latitude, longitude);
+
     const distanceSql = sql.raw(`
     6371 * acos(
       least(
@@ -802,7 +839,7 @@ export class StoresService implements OnModuleInit {
       .leftJoin(orders, eq(orders.storeId, stores.id))
       .where(
         and(
-          ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
+          ...(nearestAreaId ? [eq(stores.areaId, nearestAreaId)] : []),
           eq(stores.status, true),
           eq(stores.isLocked, false),
           isNotNull(stores.location),
@@ -903,6 +940,8 @@ export class StoresService implements OnModuleInit {
     }
     const [lat, lng] = reqDto.origins.split(',').map(Number);
 
+    const nearestAreaId = await this.getNearestAreaId(lat, lng);
+
     // distanceSql có clamp [-1,1] để tránh lỗi acos
     const distanceSql = sql.raw(`
     6371 * acos(
@@ -964,7 +1003,7 @@ export class StoresService implements OnModuleInit {
           isNotNull(products.image),
           isNull(products.deletedAt),
           eq(stores.status, true),
-          ...(reqDto.areaId ? [eq(stores.areaId, reqDto.areaId)] : []),
+          ...(nearestAreaId ? [eq(stores.areaId, nearestAreaId)] : []),
           eq(stores.isLocked, false),
           isNotNull(stores.location),
           storeIsOpenSql(),
