@@ -35,7 +35,7 @@ export class LocationsService {
       if (isNaN(latitude) || isNaN(longitude)) {
         throw new ValidationException(ErrorCode.CV000, HttpStatus.BAD_REQUEST);
       }
-      let areaId = await this.areasService.getNearestAreaId(latitude, longitude);
+      areaId = await this.areasService.getNearestAreaId(latitude, longitude);
       console.log('location areaId', areaId);
       if (areaId) {
         await this.db
