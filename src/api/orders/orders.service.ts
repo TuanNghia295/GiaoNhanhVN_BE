@@ -444,7 +444,14 @@ export class OrdersService {
     const deliveryRegion = await this.db.query.deliveryRegions.findFirst({
       where: eq(deliveryRegions.id, reqDto.deliveryRegionId),
     });
-    const totalDelivery = deliveryRegion.price;
+    const distanceFee = deliveryRegion.price;
+
+    //--------------------------------------------------------------
+    // Tính phí dịch vụ môi trường
+    //--------------------------------------------------------------
+    const { isNight, nightFee, isRain, rainFee } = await this.calculateEnvironmentFee(setting);
+
+    const totalDelivery = _.round(distanceFee + nightFee + rainFee);
 
     //----------------------------------------------
     // Thu nhập của người giao hàng
@@ -467,15 +474,15 @@ export class OrdersService {
     return {
       sessionId: sessionId,
       distance: distanceRate,
-      nightFee: 0,
-      rainFee: 0,
+      nightFee: nightFee,
+      rainFee: rainFee,
       deliveryIncomeTax,
       deliveryRegionId: deliveryRegion.id,
       incomeDeliver: incomeDeliver,
       userServiceFee: FIXED_USER_SERVICE_FEE,
-      totalDelivery: totalDelivery,
-      isRain: false,
-      isNight: false,
+      totalDelivery: distanceFee,
+      isRain: isRain,
+      isNight: isNight,
       areaId: setting.areaId,
     };
   }
