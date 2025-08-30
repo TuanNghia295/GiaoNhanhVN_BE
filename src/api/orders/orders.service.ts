@@ -1027,7 +1027,7 @@ export class OrdersService {
                                              FROM options o
                                              WHERE o.id = order_details.option_id), 0) +
           COALESCE((
-                       SELECT SUM(ex.price * etod.quantity * order_details.quantity)
+                       SELECT SUM(ex.price * etod.quantity)
                        FROM extras_to_order_details etod
                                 JOIN extras ex ON ex.id = etod.extra_id
                        WHERE etod.order_detail_id = order_details.id
