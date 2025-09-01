@@ -239,9 +239,9 @@ export class UsersService implements OnModuleInit {
       throw new ValidationException(ErrorCode.U001, HttpStatus.NOT_FOUND);
     }
 
-    if (reqDto.phone && (await this.existsByPhone(reqDto.phone))) {
-      throw new ValidationException(ErrorCode.U002, HttpStatus.CONFLICT);
-    }
+    // if (reqDto.phone && (await this.existsByPhone(reqDto.phone))) {
+    //   throw new ValidationException(ErrorCode.U002, HttpStatus.CONFLICT);
+    // }
 
     // Nếu người dùng có cung cấp vị trí thì cập nhật areaId
     if (reqDto.origins) {
