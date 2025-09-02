@@ -961,6 +961,7 @@ export class OrdersService {
           id: products.id,
           startDate: products.startDate,
           endDate: products.endDate,
+          usedSaleQuantity: products.usedSaleQuantity,
           quantity: products.quantity,
           salePrice: products.salePrice,
         })
@@ -1003,7 +1004,9 @@ export class OrdersService {
       console.log('isSalePeriod:', isSalePeriod);
       console.log('product.salePrice:', product);
 
-      if (isSalePeriod && product.quantity < item.quantity) {
+      const availableSaleQuantity = product.quantity - product.usedSaleQuantity;
+
+      if (isSalePeriod && availableSaleQuantity < item.quantity) {
         throw new ValidationException(ErrorCode.P002, HttpStatus.BAD_REQUEST);
       }
 
@@ -1043,8 +1046,7 @@ export class OrdersService {
           .update(products)
           .set({
             usedSaleQuantity: increment(products.usedSaleQuantity, item.quantity),
-            // quantity: decrement(products.quantity, item.quantity),
-            ...(product.quantity - item.quantity <= 0
+            ...(availableSaleQuantity - item.quantity <= 0
               ? { salePrice: null, startDate: null, endDate: null }
               : {}),
           })
