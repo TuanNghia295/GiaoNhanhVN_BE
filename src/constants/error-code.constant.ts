@@ -50,7 +50,8 @@ export enum ErrorCode {
   //Product
   P001 = 'product.error.not_found',
   P002 = 'product.error.product_not_enough_sale_quantity',
-
+  // Sản phẩm bị khóa
+  P003 = 'product.error.is_locked',
   // Voucher
   V000 = 'voucher.unique.code',
   V001 = 'voucher.error.not_found',

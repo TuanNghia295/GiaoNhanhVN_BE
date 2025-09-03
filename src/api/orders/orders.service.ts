@@ -961,6 +961,7 @@ export class OrdersService {
           id: products.id,
           startDate: products.startDate,
           endDate: products.endDate,
+          isLocked: products.isLocked,
           usedSaleQuantity: products.usedSaleQuantity,
           quantity: products.quantity,
           salePrice: products.salePrice,
@@ -970,6 +971,15 @@ export class OrdersService {
         .limit(1);
       if (!product) {
         throw new ValidationException(ErrorCode.P001, HttpStatus.NOT_FOUND);
+      }
+
+      // ❌ Sản phẩm đang bị khóa
+      if (product.isLocked) {
+        throw new ValidationException(
+          ErrorCode.P003,
+          HttpStatus.BAD_REQUEST,
+          `productId ${product.id} is locked`,
+        );
       }
       const [orderDetail] = await tx
         .insert(orderDetails)
