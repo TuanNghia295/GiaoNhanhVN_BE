@@ -580,6 +580,11 @@ export class StoresService implements OnModuleInit {
       throw new ValidationException(ErrorCode.S001); // Không tìm thấy cửa hàng
     }
 
+    // check bất buộc có giờ mở cửa và đóng cửa
+    if (!store.openTime || !store.closeTime) {
+      throw new ValidationException(ErrorCode.S008); // Cửa hàng chưa thiết lập giờ mở cửa
+    }
+
     // Nếu status = false => cửa hàng đang đóng (bất kể giờ giấc)
     if (!store.status) {
       throw new ValidationException(ErrorCode.S003);
