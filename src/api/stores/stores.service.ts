@@ -574,24 +574,29 @@ export class StoresService implements OnModuleInit {
         closeSecondTime: stores.closeSecondTime,
       })
       .from(stores)
-      .where(and(eq(stores.id, storeId)));
+      .where(eq(stores.id, storeId));
 
     if (!store) {
-      throw new ValidationException(ErrorCode.S001);
+      throw new ValidationException(ErrorCode.S001); // Không tìm thấy cửa hàng
     }
-    console.log('store', store);
+
+    // Nếu status = false => cửa hàng đang đóng (bất kể giờ giấc)
+    if (!store.status) {
+      throw new ValidationException(ErrorCode.S003);
+    }
 
     const now = DateTime.now().setZone('Asia/Ho_Chi_Minh');
-
     const { openTime, closeTime, openSecondTime, closeSecondTime } = this.getStoreTimeRanges(
       store,
       now,
     );
 
     const isOpen = this.checkIsStoreOpen(now, openTime, closeTime, openSecondTime, closeSecondTime);
+
     this.logTimeDebug(now, openTime, closeTime, openSecondTime, closeSecondTime);
-    if (!isOpen || !store.status) {
-      throw new ValidationException(ErrorCode.S003);
+
+    if (!isOpen) {
+      throw new ValidationException(ErrorCode.S003); // Ngoài giờ mở cửa
     }
   }
 

@@ -11,7 +11,9 @@ FROM
     pg_stat_statements
 LIMIT 10;
 
-
+SELECT *
+FROM stores
+WHERE id = 2988;
 Select  * from stores where user_id = 479;
 SELECT  * FROM users WHERE phone = '0123123123';
 SELECT * FROM products WHERE store_id = 3183
