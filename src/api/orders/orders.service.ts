@@ -1305,9 +1305,8 @@ export class OrdersService {
     console.log('Assigning order to shipper:', orderId, payload);
     return this.db.transaction(async (tx) => {
       //--------------------------------------------
-      // Kiểm tra xem đơn hàng có tồn tại không
+      // 1. Kiểm tra xem đơn hàng có tồn tại không
       //--------------------------------------------
-      // Khóa đơn hàng bằng SELECT FOR UPDATE
       const result = await tx.execute(
         sql`
           SELECT id,
@@ -1331,20 +1330,20 @@ export class OrdersService {
         throw new ValidationException(ErrorCode.OD001);
       }
       //--------------------------------------------
-      // Kiểm tra xem đơn hàng đã được giao chưa
+      // 2. Kiểm tra trạng thái đơn hàng
       //--------------------------------------------
       if (existOrder.status !== OrderStatusEnum.PENDING) {
         throw new ValidationException(ErrorCode.OD005);
       }
       //--------------------------------------------
-      // Kiểm tra xem người giao hàng có tồn tại không
+      // 3. Kiểm tra shipper có tồn tại không
       //--------------------------------------------
       const existDeliver = await this.deliversService.existById(payload.id);
       if (!existDeliver) {
         throw new ValidationException(ErrorCode.D001);
       }
       //--------------------------------------------
-      // Tổng point mà người giao hàng sẽ bị trừ khi nhận đơn
+      // 4. Tính điểm cần trừ khi nhận đơn
       //--------------------------------------------
       const subtractPoint = await this.calculateSubtractPoint(existOrder);
       if (this.configService.get('app.nodeEnv', { infer: true }) === Environment.DEVELOPMENT) {
@@ -1362,10 +1361,34 @@ export class OrdersService {
       }
 
       //--------------------------------------------
-      // Kiểm tra xem người giao hàng có đủ điểm để nhận đơn không
+      // 5. Kiểm tra điểm của shipper
       //--------------------------------------------
       if (existDeliver.point < subtractPoint) {
         throw new ValidationException(ErrorCode.D005);
+      }
+
+      //--------------------------------------------
+      // 6. Kiểm tra số lượng đơn đang hoạt động của shipper
+      //--------------------------------------------
+      const activeOrdersResult = await tx
+        .select({
+          count: sql`COUNT(*)`.mapWith(Number),
+        })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.deliverId, payload.id),
+            inArray(orders.status, [OrderStatusEnum.ACCEPTED, OrderStatusEnum.DELIVERING]),
+          ),
+        );
+
+      const activeOrdersCount = activeOrdersResult[0]?.count ?? 0;
+      console.log('activeOrdersCount:', activeOrdersCount);
+      //--------------------------------------------
+      // 7. Nếu shipper có từ 3 đơn hàng đang hoạt động trở lên thì không cho nhận thêm đơn
+      //--------------------------------------------
+      if (activeOrdersCount >= 3) {
+        throw new ValidationException(ErrorCode.D008); // Đã nhận tối đa 3 đơn
       }
 
       await this.deliversService.subtractPoint(payload.id, subtractPoint, tx);

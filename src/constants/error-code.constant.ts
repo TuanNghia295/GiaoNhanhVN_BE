@@ -44,6 +44,8 @@ export enum ErrorCode {
   D005 = 'deliver.error.not_enough_point',
   D006 = 'deliver.error.cant_change_active_status',
   D007 = 'deliver.error.existed',
+  // nhận tối đa 3 đơn
+  D008 = 'deliver.error.reach_max_active_orders',
 
   //Product
   P001 = 'product.error.not_found',
