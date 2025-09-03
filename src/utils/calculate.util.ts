@@ -22,7 +22,10 @@ export function calculatePayForShop(
   if (type !== OrderTypeEnum.FOOD) return 0;
 
   const gross = totalProduct - storeServiceFee - totalVoucherStore;
-  const net = Math.max(gross, 0) - totalProductTax;
+  const nonNegativeGross = Math.max(gross, 0);
 
-  return roundUp(net, precision); // ✅ làm tròn lên
+  // ✅ không để bị âm ở bước nào
+  const net = Math.max(nonNegativeGross - totalProductTax, 0);
+
+  return roundUp(net, precision);
 }
