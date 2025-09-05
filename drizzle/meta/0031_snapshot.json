@@ -1,6 +1,6 @@
 {
-  "id": "8aeeceb3-9ade-4df0-b8c0-3f47fc63433d",
-  "prevId": "83b2289b-e47a-4461-b181-4ca0b7ef3b24",
+  "id": "7d2987e7-c71d-49b1-a2f2-80904b07a76b",
+  "prevId": "8aeeceb3-9ade-4df0-b8c0-3f47fc63433d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1405,6 +1405,13 @@
           "primaryKey": false,
           "notNull": false,
           "default": false
+        },
+        "sale_price": {
+          "name": "sale_price",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
         },
         "option_id": {
           "name": "option_id",
