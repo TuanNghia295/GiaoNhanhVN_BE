@@ -4,7 +4,6 @@ import { CreateOrderDetailReqDto } from '@/api/order-details/dto/create-order-de
 import { CalculateOrderReqDto } from '@/api/orders/dto/calculate-order.req.dto';
 import { CountOrderReqDto } from '@/api/orders/dto/count-order.req.dto';
 import { OrderCreateReqDto } from '@/api/orders/dto/order-create.req.dto';
-import { OrderResDto } from '@/api/orders/dto/order.res.dto';
 import { PageMyOrderReqDto } from '@/api/orders/dto/page-my-order.req.dto';
 import { PageOrderReqDto } from '@/api/orders/dto/query-order.req.dto';
 import { UpdateStatusOrderReqDto } from '@/api/orders/dto/update-status-order.req.dto';
@@ -63,7 +62,6 @@ import { forwardRef, HttpStatus, Inject, Injectable, Logger } from '@nestjs/comm
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Cache } from 'cache-manager';
-import { plainToInstance } from 'class-transformer';
 import { endOfDay, startOfDay } from 'date-fns';
 import {
   and,
@@ -99,6 +97,7 @@ export interface CalculateResponse {
   isNight: boolean;
   rainFee: number;
   deliveryIncomeTax: number;
+  deliveryRegionId?: number;
   nightFee: number;
   areaId: number;
 }
@@ -125,6 +124,7 @@ export class OrdersService {
   async getPageOrders(reqDto: PageOrderReqDto, payload: JwtPayloadType) {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.orders> = {
       with: {
+        deliveryRegion: true,
         store: {
           with: {
             user: true,
@@ -240,17 +240,14 @@ export class OrdersService {
       vouchers: Array.isArray(entity.vouchers) ? entity.vouchers.map((v) => v.voucher) : [],
     }));
 
-    return new OrdersOffsetPaginatedResDto(
-      mappedEntities.map((order) => plainToInstance(OrderResDto, order)),
-      meta,
-      totalOrdersForPaginated,
-    );
+    return new OrdersOffsetPaginatedResDto(mappedEntities, meta, totalOrdersForPaginated);
   }
 
   async findById(orderId: number) {
     return this.db.query.orders.findFirst({
       where: eq(orders.id, orderId),
       with: {
+        deliveryRegion: true,
         store: true,
         vouchers: {
           with: {
@@ -447,7 +444,14 @@ export class OrdersService {
     const deliveryRegion = await this.db.query.deliveryRegions.findFirst({
       where: eq(deliveryRegions.id, reqDto.deliveryRegionId),
     });
-    const totalDelivery = deliveryRegion.price;
+    const distanceFee = deliveryRegion.price;
+
+    //--------------------------------------------------------------
+    // Tính phí dịch vụ môi trường
+    //--------------------------------------------------------------
+    const { isNight, nightFee, isRain, rainFee } = await this.calculateEnvironmentFee(setting);
+
+    const totalDelivery = _.round(distanceFee + nightFee + rainFee);
 
     //----------------------------------------------
     // Thu nhập của người giao hàng
@@ -470,14 +474,15 @@ export class OrdersService {
     return {
       sessionId: sessionId,
       distance: distanceRate,
-      nightFee: 0,
-      rainFee: 0,
+      nightFee: nightFee,
+      rainFee: rainFee,
       deliveryIncomeTax,
+      deliveryRegionId: deliveryRegion.id,
       incomeDeliver: incomeDeliver,
       userServiceFee: FIXED_USER_SERVICE_FEE,
-      totalDelivery: totalDelivery,
-      isRain: false,
-      isNight: false,
+      totalDelivery: distanceFee,
+      isRain: isRain,
+      isNight: isNight,
       areaId: setting.areaId,
     };
   }
@@ -873,6 +878,9 @@ export class OrdersService {
           storeServiceFee: storeServiceFee,
           payforShop: payforShop,
           coinUsed: coinUsed,
+          ...(reqDto.type === OrderTypeEnum.ANOTHER_SHOP
+            ? { deliveryRegionId: calculateOrder.deliveryRegionId }
+            : {}),
           totalDelivery: calculateOrder.totalDelivery,
           incomeDeliver: calculateOrder.incomeDeliver,
           totalProductTax: totalProductTax,
@@ -891,6 +899,8 @@ export class OrdersService {
       const orderDetail = await tx.query.orders.findFirst({
         where: eq(orders.id, order.id),
         with: {
+          deliveryRegion: true,
+          deliver: true,
           store: true,
           user: true,
           vouchers: {
@@ -919,7 +929,7 @@ export class OrdersService {
           : [],
       };
       await this.cache.del(reqDto.sessionId);
-      return plainToInstance(OrderResDto, mappedOrderDetail);
+      return mappedOrderDetail;
     });
   }
 
@@ -1019,10 +1029,12 @@ export class OrdersService {
           COALESCE(order_details.quantity * (SELECT o.price
                                              FROM options o
                                              WHERE o.id = order_details.option_id), 0) +
-          COALESCE(order_details.quantity * (SELECT SUM(ex.price * etod.quantity)
-                                             FROM extras_to_order_details etod
-                                                    JOIN extras ex ON ex.id = etod.extra_id
-                                             WHERE etod.order_detail_id = order_details.id), 0)
+          COALESCE((
+                       SELECT SUM(ex.price * etod.quantity)
+                       FROM extras_to_order_details etod
+                                JOIN extras ex ON ex.id = etod.extra_id
+                       WHERE etod.order_detail_id = order_details.id
+                   ), 0)
           ) FROM products p
         WHERE order_details.id = ${orderDetail.id}
           AND order_details.product_id = p.id
@@ -1054,6 +1066,7 @@ export class OrdersService {
     const orderDetail = await this.db.query.orders.findFirst({
       where: eq(orders.id, orderId),
       with: {
+        deliveryRegion: true,
         store: true,
         user: true,
         deliver: true,

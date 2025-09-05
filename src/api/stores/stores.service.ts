@@ -73,12 +73,12 @@ export class StoresService implements OnModuleInit {
     }
   }
 
-  async existById(storeId: number): Promise<{
-    storeId: number;
-  }> {
+  async existById(storeId: number) {
     return await this.db
       .select({
         storeId: stores.id,
+        background: stores.background,
+        avatar: stores.avatar,
       })
       .from(stores)
       .where(eq(stores.id, storeId))
@@ -580,6 +580,11 @@ export class StoresService implements OnModuleInit {
       throw new ValidationException(ErrorCode.S001); // Không tìm thấy cửa hàng
     }
 
+    // check bất buộc có giờ mở cửa và đóng cửa
+    if (!store.openTime || !store.closeTime) {
+      throw new ValidationException(ErrorCode.S008); // Cửa hàng chưa thiết lập giờ mở cửa
+    }
+
     // Nếu status = false => cửa hàng đang đóng (bất kể giờ giấc)
     if (!store.status) {
       throw new ValidationException(ErrorCode.S003);
@@ -715,6 +720,28 @@ export class StoresService implements OnModuleInit {
       .then((res) => plainToInstance(StoreResDto, res[0]));
   }
 
+  async updateBackgroundByStoreId(storeId: number, background: Express.Multer.File) {
+    const existStore = await this.existById(storeId);
+    if (!existStore) {
+      throw new ValidationException(ErrorCode.S001);
+    }
+    if (existStore.background) {
+      deleteIfExists(existStore.background, this.basePath);
+    }
+    const fileName = await this.buildFileName('store_background');
+    const fullImagePath = join(this.basePath, fileName);
+    await sharp(background.buffer).jpeg({ quality: 80 }).toFile(fullImagePath);
+
+    return await this.db
+      .update(stores)
+      .set({
+        background: normalizeImagePath(fullImagePath),
+      })
+      .where(eq(stores.id, storeId))
+      .returning()
+      .then((res) => plainToInstance(StoreResDto, res[0]));
+  }
+
   async updateAvatarByUserId(userId: number, avatar: Express.Multer.File) {
     const existStore = await this.existStoreByUserId(userId);
     if (!existStore) {
@@ -733,6 +760,31 @@ export class StoresService implements OnModuleInit {
         avatar: normalizeImagePath(fullImagePath),
       })
       .where(eq(stores.userId, userId))
+      .returning()
+      .then((res) => {
+        console.log('res', res);
+        return plainToInstance(StoreResDto, res[0]);
+      });
+  }
+
+  async updateAvatarByStoreId(storeId: number, avatar: Express.Multer.File) {
+    const existStore = await this.existById(storeId);
+    if (!existStore) {
+      throw new ValidationException(ErrorCode.S001);
+    }
+    if (existStore.avatar) {
+      deleteIfExists(existStore.avatar, this.basePath);
+    }
+    const fileName = await this.buildFileName('store_avatar');
+    const fullImagePath = join(this.basePath, fileName);
+    await sharp(avatar.buffer).jpeg({ quality: 80 }).toFile(fullImagePath);
+
+    return await this.db
+      .update(stores)
+      .set({
+        avatar: normalizeImagePath(fullImagePath),
+      })
+      .where(eq(stores.id, storeId))
       .returning()
       .then((res) => {
         console.log('res', res);

@@ -78,6 +78,8 @@ export enum ErrorCode {
   S006 = 'store.error.invalid_time_working',
   //Invalid origins format. Expected format: "latitude,longitude"
   S007 = 'store.error.invalid_origins_format',
+  // cửa hàng chưa thiết lập time working
+  S008 = 'store.error.not_set_time_working',
 
   //Banner
   B001 = 'banner.error.not_found',

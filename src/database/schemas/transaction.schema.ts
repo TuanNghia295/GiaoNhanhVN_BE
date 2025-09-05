@@ -2,7 +2,7 @@ import { areas } from '@/database/schemas/area.schema';
 import { bankRecords } from '@/database/schemas/bank-record.schema';
 import { delivers } from '@/database/schemas/deliver.schema';
 import { managers } from '@/database/schemas/manager.schema';
-import { relations } from 'drizzle-orm';
+import { Relations, relations } from 'drizzle-orm';
 import { decimal, integer, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 export enum TransactionTypeEnum {
@@ -61,6 +61,6 @@ export const transactionsRelations = relations(transactions, ({ one }) => ({
     references: [delivers.id],
   }),
   bank: one(bankRecords),
-}));
+})) satisfies Relations<'transactions'>;
 
 export type TransactionType = typeof transactions.$inferSelect;

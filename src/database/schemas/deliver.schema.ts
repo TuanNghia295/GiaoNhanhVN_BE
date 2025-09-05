@@ -1,5 +1,6 @@
 import { areas } from '@/database/schemas/area.schema';
 import { locations } from '@/database/schemas/location.schema';
+import { orders } from '@/database/schemas/order.schema';
 import { RoleEnum } from '@/database/schemas/user.schema';
 import { relations } from 'drizzle-orm';
 import {
@@ -61,7 +62,7 @@ export const delivers = pgTable(
 );
 
 export const deliversRelations = relations(delivers, ({ many, one }) => ({
-  orders: many(delivers),
+  orders: many(orders),
   location: one(locations),
   area: one(areas, {
     fields: [delivers.areaId],

@@ -1,5 +1,6 @@
 import { areas } from '@/database/schemas/area.schema';
 import { delivers } from '@/database/schemas/deliver.schema';
+import { deliveryRegions } from '@/database/schemas/delivery-region.schema';
 import { orderDetails } from '@/database/schemas/order-detail.schema';
 import { reasonDeliverCancelOrders } from '@/database/schemas/reason-deliver-cancel-order.schema';
 import { stores } from '@/database/schemas/store.schema';
@@ -142,7 +143,7 @@ export const orders = pgTable(
     isRated: boolean('is_rated').notNull().default(false),
     addressFrom: varchar('address_from', { length: 255 }).notNull(),
     geometryFrom: varchar('geometry_from', { length: 255 }).notNull(),
-
+    deliveryRegionId: integer('delivery_region_id'),
     addressTo: varchar('address_to', { length: 255 }).notNull(),
     geometryTo: varchar('geometry_to', { length: 255 }).notNull(),
 
@@ -172,6 +173,10 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   area: one(areas, {
     fields: [orders.areaId],
     references: [areas.id],
+  }),
+  deliveryRegion: one(deliveryRegions, {
+    fields: [orders.deliveryRegionId],
+    references: [deliveryRegions.id],
   }),
   deliver: one(delivers, {
     fields: [orders.deliverId],

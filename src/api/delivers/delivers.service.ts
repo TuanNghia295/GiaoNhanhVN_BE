@@ -99,7 +99,8 @@ export class DeliversService implements OnModuleInit {
     ]);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
-    return new OffsetPaginatedDto(entities, meta);
+    const newEntities = entities.map((item) => plainToInstance(DeliverResDto, item));
+    return new OffsetPaginatedDto(newEntities, meta);
   }
 
   async getPendingOrders(payload: JwtPayloadType) {
@@ -110,6 +111,7 @@ export class DeliversService implements OnModuleInit {
       where: and(eq(orders.status, OrderStatusEnum.PENDING), eq(orders.areaId, payload.areaId)),
       orderBy: asc(orders.createdAt),
       with: {
+        deliveryRegion: true,
         user: true,
         store: true,
         orderDetails: {
@@ -350,6 +352,7 @@ export class DeliversService implements OnModuleInit {
       ),
       orderBy: desc(orders.createdAt),
       with: {
+        deliveryRegion: true,
         user: true,
         store: {
           with: {

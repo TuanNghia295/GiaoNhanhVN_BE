@@ -204,6 +204,13 @@
       "when": 1755674752663,
       "tag": "0028_perfect_bloodaxe",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1756273839613,
+      "tag": "0029_motionless_devos",
+      "breakpoints": true
     }
   ]
 }

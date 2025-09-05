@@ -2,6 +2,7 @@ import { AuthService } from '@/api/auth/auth.service';
 import { LoginReqDto } from '@/api/auth/dto/login.req.dto';
 import { LoginResDto } from '@/api/auth/dto/login.res.dto';
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
+import { ConvertUserToStoreFunctionReqDto } from '@/api/store-requests/dto/convert-user-to-store-function.req.dto';
 import { AddCoinReqDto } from '@/api/users/dto/add-coin.req.dto';
 import { ChangePasswordReqDto } from '@/api/users/dto/change-password.req.dto';
 import { CreateUserReqDto } from '@/api/users/dto/create-user.req.dto';
@@ -83,6 +84,18 @@ export class UsersController {
   @Get()
   async getPageUsers(@CurrentUser() payload: JwtPayloadType, @Query() reqDto: PageUserReqDto) {
     return await this.usersService.getPageUsers(reqDto, payload);
+  }
+
+  // api chuyển đổi chức năng user tthanhf cửa hàng
+  // chỉ có user mới đc đăng ký cửa hàng
+
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'Chuyển đổi chức năng user thành cửa hàng [MANAGEMENT, ADMIN]',
+  })
+  @Post('convert-function')
+  async convertUserToStoreFunction(@Body() reqDto: ConvertUserToStoreFunctionReqDto) {
+    return await this.usersService.convertUserToStoreFunction(reqDto);
   }
 
   @Roles(RoleEnum.MANAGEMENT)

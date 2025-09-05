@@ -186,6 +186,33 @@ export class StoresController {
     }
   }
 
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'Cập nhật background cửa hàng (STORE)',
+  })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('background', {
+      fileFilter: (req, file, callback) => {
+        const fileTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+        if (fileTypes.includes(file.mimetype)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Invalid file type'), false);
+        }
+      },
+      storage: memoryStorage(),
+    }),
+  )
+  @Patch('background/:storeId')
+  async updateBackgroundByStoreId(
+    @Param('storeId') storeId: number,
+    @Body() _reqDto: UpdateBackgroundReqDto,
+    @UploadedFile() background: Express.Multer.File,
+  ) {
+    return await this.storesService.updateBackgroundByStoreId(storeId, background);
+  }
+
   @Roles(RoleEnum.STORE)
   @ApiAuth({
     summary: 'Cập nhật avatar cửa hàng (STORE)',
@@ -217,6 +244,34 @@ export class StoresController {
         // không có quền cập nhật
         throw new ForbiddenException();
     }
+  }
+
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'Cập nhật avatar cửa hàng (MANAGEMENT)',
+  })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('avatar', {
+      fileFilter: (req, file, callback) => {
+        const fileTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+        if (fileTypes.includes(file.mimetype)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Invalid file type'), false);
+        }
+      },
+      storage: memoryStorage(),
+    }),
+  )
+  @Patch('avatar/:storeId')
+  async updateAvatarByStoreId(
+    @Param('storeId') storeId: number,
+    @Body() _reqDto: UpdateAvatarReqDto,
+    @UploadedFile() avatar: Express.Multer.File,
+  ) {
+    console.log('storeId', storeId);
+    return await this.storesService.updateAvatarByStoreId(storeId, avatar);
   }
 
   @Roles(RoleEnum.STORE)

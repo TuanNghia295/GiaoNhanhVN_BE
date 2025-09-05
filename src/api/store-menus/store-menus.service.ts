@@ -61,11 +61,12 @@ export class StoreMenusService {
       }),
       this.db.select({ totalCount: count() }).from(sql`${qCount}`),
     ]);
+
     if (reqDto.limit !== 10) {
       const meta = new OffsetPaginationDto(totalCount, reqDto);
       return new OffsetPaginatedDto(entities, meta);
     } else {
-      return entities as unknown as StoreMenuResDto[];
+      return entities;
     }
   }
 

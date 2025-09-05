@@ -1,4 +1,6 @@
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
+import { ConvertUserToStoreFunctionReqDto } from '@/api/store-requests/dto/convert-user-to-store-function.req.dto';
+import { StoresService } from '@/api/stores/stores.service';
 import { ChangePasswordReqDto } from '@/api/users/dto/change-password.req.dto';
 import { CreateUserReqDto } from '@/api/users/dto/create-user.req.dto';
 import { LockUserReqDto } from '@/api/users/dto/lock-user.req.dto';
@@ -15,6 +17,7 @@ import {
   coinLogs,
   ProviderEnum,
   RoleEnum,
+  stores,
   transactionLogs,
   TransactionTypeEnum,
   users,
@@ -36,6 +39,7 @@ export class UsersService implements OnModuleInit {
   constructor(
     private readonly emitter: EventEmitter2,
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
+    private readonly storesService: StoresService,
   ) {}
 
   private basePath = `uploads/users`;
@@ -62,19 +66,63 @@ export class UsersService implements OnModuleInit {
       throw new ValidationException(ErrorCode.U002, HttpStatus.CONFLICT);
     }
 
-    return this.db
-      .insert(users)
-      .values({
-        ...reqDto,
-        provider: ProviderEnum.PASSWORD,
-        ...(payload.role === RoleEnum.MANAGEMENT ? { areaId: payload.areaId } : {}),
-      })
-      .returning()
-      .then((result) => plainToInstance(UserResDto, result[0]));
+    return this.db.transaction(async (tx) => {
+      const newUser = await this.db
+        .insert(users)
+        .values({
+          ...reqDto,
+          provider: ProviderEnum.PASSWORD,
+          ...(payload.role === RoleEnum.MANAGEMENT ? { areaId: payload.areaId } : {}),
+        })
+        .returning()
+        .then((result) => plainToInstance(UserResDto, result[0]));
+
+      if (reqDto.hasShopDirectly) {
+        await tx
+          .update(users)
+          .set({ role: RoleEnum.STORE })
+          .where(eq(users.id, newUser.id))
+          .execute();
+
+        await tx
+          .insert(stores)
+          .values({
+            userId: newUser.id,
+            areaId: reqDto.areaId,
+          })
+          .execute();
+      }
+
+      return newUser;
+    });
+  }
+
+  async convertUserToStoreFunction(reqDto: ConvertUserToStoreFunctionReqDto) {
+    return this.db.transaction(async (tx) => {
+      if (!(await this.existsById(reqDto.userId))) {
+        throw new ValidationException(ErrorCode.U001, HttpStatus.NOT_FOUND);
+      }
+
+      if (await this.storesService.existStoreByUserId(reqDto.userId)) {
+        throw new ValidationException(ErrorCode.S002, HttpStatus.CONFLICT);
+      }
+
+      await tx
+        .update(users)
+        .set({ role: RoleEnum.STORE })
+        .where(eq(users.id, reqDto.userId))
+        .execute();
+
+      await tx
+        .insert(stores)
+        .values({
+          ...reqDto,
+        })
+        .execute();
+    });
   }
 
   async getPageUsers(reqDto: PageUserReqDto, payload: JwtPayloadType) {
-    console.log('reqDto', reqDto);
     const baseConfig: FindManyQueryConfig<typeof this.db.query.users> = {
       where: and(
         isNull(users.deletedAt),
@@ -86,6 +134,7 @@ export class UsersService implements OnModuleInit {
       ),
       with: {
         area: true,
+        stores: true,
       },
     };
 
@@ -107,7 +156,8 @@ export class UsersService implements OnModuleInit {
     ]);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
-    return new OffsetPaginatedDto(entities, meta);
+    const newEntities = plainToInstance(UserResDto, entities);
+    return new OffsetPaginatedDto(newEntities, meta);
   }
 
   async existsById(userId: number) {
