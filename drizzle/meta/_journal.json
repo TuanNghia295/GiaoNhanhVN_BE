@@ -215,15 +215,8 @@
     {
       "idx": 30,
       "version": "7",
-      "when": 1756870297624,
-      "tag": "0030_powerful_hellfire_club",
-      "breakpoints": true
-    },
-    {
-      "idx": 31,
-      "version": "7",
-      "when": 1756871504839,
-      "tag": "0031_kind_tarantula",
+      "when": 1757062064880,
+      "tag": "0030_flippant_bug",
       "breakpoints": true
     }
   ]

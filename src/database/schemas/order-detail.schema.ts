@@ -9,6 +9,7 @@ import {
   foreignKey,
   index,
   integer,
+  numeric,
   pgTable,
   serial,
   timestamp,
@@ -25,6 +26,8 @@ export const orderDetails = pgTable(
       .default(0),
     // check sale
     isSale: boolean('is_sale').default(false),
+    // lưu lại giá sale
+    salePrice: numeric('sale_price', { precision: 15, scale: 2, mode: 'number' }).default(0),
     optionId: integer('option_id'),
     productId: integer('product_id'),
     orderId: integer('order_id'),

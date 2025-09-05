@@ -956,31 +956,26 @@ export class OrdersService {
 
   async createOrderDetails(orderId: number, items: CreateOrderDetailReqDto[], tx: Transaction) {
     for (const item of items) {
+      // 1. Lấy product
       const [product] = await tx
         .select({
           id: products.id,
           startDate: products.startDate,
           endDate: products.endDate,
-          isLocked: products.isLocked,
           usedSaleQuantity: products.usedSaleQuantity,
           quantity: products.quantity,
           salePrice: products.salePrice,
+          price: products.price,
         })
         .from(products)
         .where(eq(products.id, item.productId))
         .limit(1);
+
       if (!product) {
         throw new ValidationException(ErrorCode.P001, HttpStatus.NOT_FOUND);
       }
 
-      // ❌ Sản phẩm đang bị khóa
-      if (product.isLocked) {
-        throw new ValidationException(
-          ErrorCode.P003,
-          HttpStatus.BAD_REQUEST,
-          `productId ${product.id} is locked`,
-        );
-      }
+      // 2. Insert order_detail
       const [orderDetail] = await tx
         .insert(orderDetails)
         .values({
@@ -989,49 +984,68 @@ export class OrdersService {
         })
         .returning();
 
+      // 3. Insert extras nếu có
       if (item.extras.length > 0) {
-        await tx
-          .insert(extrasToOrderDetails)
-          .values(
-            item.extras.map((extra) => ({
-              orderDetailId: orderDetail.id,
-              extraId: extra.extraId,
-              quantity: extra.quantity,
-            })),
-          )
-          .returning();
+        await tx.insert(extrasToOrderDetails).values(
+          item.extras.map((extra) => ({
+            orderDetailId: orderDetail.id,
+            extraId: extra.extraId,
+            quantity: extra.quantity,
+          })),
+        );
       }
 
+      // 4. Kiểm tra thời gian sale
       const now = new Date();
       const hasSalePrice = product.salePrice !== null && product.salePrice !== undefined;
-      console.log('hasSalePrice:', hasSalePrice);
       const isSalePeriod =
         hasSalePrice &&
         !!product.startDate &&
         !!product.endDate &&
         product.startDate <= now &&
         product.endDate >= now;
-      console.log('isSalePeriod:', isSalePeriod);
-      console.log('product.salePrice:', product);
 
-      const availableSaleQuantity = product.quantity - product.usedSaleQuantity;
+      // 5. Atomic update trừ kho
+      if (isSalePeriod) {
+        const updated = await tx
+          .update(products)
+          .set({
+            usedSaleQuantity: increment(products.usedSaleQuantity, item.quantity),
+            // ...(product.quantity - product.usedSaleQuantity - item.quantity <= 0
+            //   ? { salePrice: null, startDate: null, endDate: null }
+            //   : {}),
+          })
+          .where(
+            and(
+              eq(products.id, item.productId),
+              gte(sql`${products.quantity} - ${products.usedSaleQuantity}`, item.quantity),
+            ),
+          )
+          .returning();
 
-      if (isSalePeriod && availableSaleQuantity < item.quantity) {
-        throw new ValidationException(ErrorCode.P002, HttpStatus.BAD_REQUEST);
+        if (updated.length === 0) {
+          throw new ValidationException(ErrorCode.P002, HttpStatus.BAD_REQUEST); // hết số lượt sale
+        }
+
+        // đánh dấu chi tiết này là hàng sale
+        await tx
+          .update(orderDetails)
+          .set({
+            salePrice: product.salePrice,
+            isSale: true,
+          })
+          .where(eq(orderDetails.id, orderDetail.id));
       }
 
+      // 6. Cập nhật total cho order_detail
       await tx.execute(sql`
         UPDATE order_details
-        SET total = (
+        SET 
+          total = (
           COALESCE(
             order_details.quantity * (
               CASE
-                WHEN
-                  p.sale_price IS NOT NULL AND
-                  p.start_date <= NOW() AND
-                  p.end_date >= NOW() AND
-                  p.quantity >= order_details.quantity
-                  THEN p.sale_price
+                WHEN order_details.is_sale = true THEN p.sale_price
                 ELSE p.price
                 END
               ), 0
@@ -1040,34 +1054,25 @@ export class OrdersService {
                                              FROM options o
                                              WHERE o.id = order_details.option_id), 0) +
           COALESCE((
-                       SELECT SUM(ex.price * etod.quantity)
-                       FROM extras_to_order_details etod
-                                JOIN extras ex ON ex.id = etod.extra_id
-                       WHERE etod.order_detail_id = order_details.id
+                     SELECT SUM(ex.price * etod.quantity)
+                     FROM extras_to_order_details etod
+                            JOIN extras ex ON ex.id = etod.extra_id
+                     WHERE etod.order_detail_id = order_details.id
                    ), 0)
-          ) FROM products p
+          )
+          FROM products p
         WHERE order_details.id = ${orderDetail.id}
           AND order_details.product_id = p.id
       `);
-
-      // ✅ Trừ kho nếu đang trong thời gian sale, không cần check đủ hàng
       if (isSalePeriod) {
         await tx
           .update(products)
           .set({
-            usedSaleQuantity: increment(products.usedSaleQuantity, item.quantity),
-            ...(availableSaleQuantity - item.quantity <= 0
+            ...(product.quantity - product.usedSaleQuantity - item.quantity <= 0
               ? { salePrice: null, startDate: null, endDate: null }
               : {}),
           })
           .where(eq(products.id, item.productId));
-        // cập nhật detail này sale
-        await tx
-          .update(orderDetails)
-          .set({
-            isSale: true,
-          })
-          .where(eq(orderDetails.id, orderDetail.id));
       }
     }
   }
@@ -1260,8 +1265,6 @@ export class OrdersService {
         .update(orders)
         .set({
           status: reqDto.status,
-          ...(reqDto.status === OrderStatusEnum.CANCELED ? { canceledAt: new Date() } : {}),
-          ...(reqDto.status === OrderStatusEnum.DELIVERED ? { completedAt: new Date() } : {}),
         })
         .where(eq(orders.id, orderId))
         .returning();
@@ -1317,8 +1320,9 @@ export class OrdersService {
     console.log('Assigning order to shipper:', orderId, payload);
     return this.db.transaction(async (tx) => {
       //--------------------------------------------
-      // 1. Kiểm tra xem đơn hàng có tồn tại không
+      // Kiểm tra xem đơn hàng có tồn tại không
       //--------------------------------------------
+      // Khóa đơn hàng bằng SELECT FOR UPDATE
       const result = await tx.execute(
         sql`
           SELECT id,
@@ -1342,20 +1346,20 @@ export class OrdersService {
         throw new ValidationException(ErrorCode.OD001);
       }
       //--------------------------------------------
-      // 2. Kiểm tra trạng thái đơn hàng
+      // Kiểm tra xem đơn hàng đã được giao chưa
       //--------------------------------------------
       if (existOrder.status !== OrderStatusEnum.PENDING) {
         throw new ValidationException(ErrorCode.OD005);
       }
       //--------------------------------------------
-      // 3. Kiểm tra shipper có tồn tại không
+      // Kiểm tra xem người giao hàng có tồn tại không
       //--------------------------------------------
       const existDeliver = await this.deliversService.existById(payload.id);
       if (!existDeliver) {
         throw new ValidationException(ErrorCode.D001);
       }
       //--------------------------------------------
-      // 4. Tính điểm cần trừ khi nhận đơn
+      // Tổng point mà người giao hàng sẽ bị trừ khi nhận đơn
       //--------------------------------------------
       const subtractPoint = await this.calculateSubtractPoint(existOrder);
       if (this.configService.get('app.nodeEnv', { infer: true }) === Environment.DEVELOPMENT) {
@@ -1373,34 +1377,10 @@ export class OrdersService {
       }
 
       //--------------------------------------------
-      // 5. Kiểm tra điểm của shipper
+      // Kiểm tra xem người giao hàng có đủ điểm để nhận đơn không
       //--------------------------------------------
       if (existDeliver.point < subtractPoint) {
         throw new ValidationException(ErrorCode.D005);
-      }
-
-      //--------------------------------------------
-      // 6. Kiểm tra số lượng đơn đang hoạt động của shipper
-      //--------------------------------------------
-      const activeOrdersResult = await tx
-        .select({
-          count: sql`COUNT(*)`.mapWith(Number),
-        })
-        .from(orders)
-        .where(
-          and(
-            eq(orders.deliverId, payload.id),
-            inArray(orders.status, [OrderStatusEnum.ACCEPTED, OrderStatusEnum.DELIVERING]),
-          ),
-        );
-
-      const activeOrdersCount = activeOrdersResult[0]?.count ?? 0;
-      console.log('activeOrdersCount:', activeOrdersCount);
-      //--------------------------------------------
-      // 7. Nếu shipper có từ 3 đơn hàng đang hoạt động trở lên thì không cho nhận thêm đơn
-      //--------------------------------------------
-      if (activeOrdersCount >= 3) {
-        throw new ValidationException(ErrorCode.D008); // Đã nhận tối đa 3 đơn
       }
 
       await this.deliversService.subtractPoint(payload.id, subtractPoint, tx);
@@ -1409,7 +1389,6 @@ export class OrdersService {
         .set({
           status: OrderStatusEnum.ACCEPTED,
           deliverId: payload.id,
-          acceptedAt: new Date(),
         })
         .where(eq(orders.id, orderId))
         .returning();
@@ -1479,8 +1458,6 @@ export class OrdersService {
         .update(orders)
         .set({
           status: status,
-          ...(status === OrderStatusEnum.CANCELED ? { canceledAt: new Date() } : {}),
-          ...(status === OrderStatusEnum.DELIVERED ? { completedAt: new Date() } : {}),
         })
         .where(eq(orders.id, orderId))
         .returning();
@@ -1622,11 +1599,6 @@ export class OrdersService {
   }
 
   private async managerDoCancelOrder(existOrder: Order, tx: Transaction) {
-    //---------------------------------------------------
-    // Lấy điểm hoàn lại cho người giao hàng
-    //---------------------------------------------------
-    await this.vouchersService.refundVoucherUsage(existOrder.id, existOrder.userId, tx);
-
     // hoàn xu cho người dùng
     if (existOrder.coinUsed > 0) {
       await this.usersService.refundCoin(existOrder.userId, existOrder.coinUsed, tx);
@@ -1699,10 +1671,23 @@ export class OrdersService {
     if (!reason) {
       throw new ValidationException(ErrorCode.OD003);
     }
-    //---------------------------------------------------
-    // Lấy điểm hoàn lại cho người giao hàng
-    //---------------------------------------------------
-    await this.vouchersService.refundVoucherUsage(existOrder.id, existOrder.userId, tx);
+
+    // const [refund] = await tx
+    //   .select({
+    //     refundPoint: sql`coalesce
+    //       (sum(vouchers.value), 0)`.mapWith(Number),
+    //   })
+    //   .from(orders)
+    //   .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
+    //   .leftJoin(
+    //     vouchers,
+    //     and(
+    //       eq(vouchers.id, vouchersOnOrders.voucherId),
+    //       inArray(vouchers.type, [VouchersTypeEnum.ADMIN, VouchersTypeEnum.MANAGEMENT]),
+    //     ),
+    //   )
+    //   .where(eq(orders.id, existOrder.id))
+    //   .groupBy(orders.id);
     //---------------------------------------------------
     // Hoàn lại điểm cho người giao hàng
     //---------------------------------------------------
@@ -1842,7 +1827,7 @@ export class OrdersService {
   async isRated(orderId: number) {
     return this.db
       .select({
-        isRated: orders.isRated,
+        isRated: orders.id,
       })
       .from(orders)
       .where(eq(orders.id, orderId))

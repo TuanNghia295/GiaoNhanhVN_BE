@@ -1,5 +1,5 @@
 {
-  "id": "83b2289b-e47a-4461-b181-4ca0b7ef3b24",
+  "id": "f5e283e6-cb32-42f2-bac3-77f5923558d9",
   "prevId": "dcf60107-de4f-4899-84b4-120d8c0eb80a",
   "version": "7",
   "dialect": "postgresql",
@@ -1406,6 +1406,13 @@
           "notNull": false,
           "default": false
         },
+        "sale_price": {
+          "name": "sale_price",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
         "option_id": {
           "name": "option_id",
           "type": "integer",
@@ -1755,18 +1762,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "accepted_at": {
-          "name": "accepted_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {

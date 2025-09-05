@@ -931,6 +931,7 @@ export class StoresService implements OnModuleInit {
       .from(stores)
       .where(
         and(
+          ...(nearestAreaId ? [eq(stores.areaId, nearestAreaId)] : []),
           eq(stores.status, true),
           eq(stores.isLocked, false),
           isNotNull(stores.location),
@@ -938,10 +939,7 @@ export class StoresService implements OnModuleInit {
           // sql`${distanceSql} < 15`,
         ),
       )
-      .orderBy(
-        sql`RANDOM
-      ()`,
-      )
+      .orderBy(sql`random()`)
       .limit(15)
       .$dynamic();
   }
