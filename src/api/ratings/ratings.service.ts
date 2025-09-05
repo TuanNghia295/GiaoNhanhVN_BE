@@ -26,7 +26,10 @@ export class RatingsService {
       throw new ValidationException(ErrorCode.CM003, HttpStatus.BAD_REQUEST);
     }
 
-    // check deliverId?
+    // nếu đơn hàng đã được đánh giá rồi thì không được đánh giá nữa
+    if (await this.ordersService.isRated(reqDto.orderId)) {
+      throw new ValidationException(ErrorCode.CM002, HttpStatus.BAD_REQUEST);
+    }
 
     if (reqDto.storeId && !(await this.storesService.existById(reqDto.storeId))) {
       throw new ValidationException(ErrorCode.CM003, HttpStatus.BAD_REQUEST);
