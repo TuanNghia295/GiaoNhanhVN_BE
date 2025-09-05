@@ -9,5 +9,6 @@ import { StoreRequestsService } from './store-requests.service';
   imports: [AreasModule, StoresModule, NotificationsModule],
   controllers: [StoreRequestsController],
   providers: [StoreRequestsService],
+  exports: [StoreRequestsService],
 })
 export class StoreRequestsModule {}
