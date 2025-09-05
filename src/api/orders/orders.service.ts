@@ -956,6 +956,7 @@ export class OrdersService {
 
   async createOrderDetails(orderId: number, items: CreateOrderDetailReqDto[], tx: Transaction) {
     for (const item of items) {
+      // 1. Lấy product
       const [product] = await tx
         .select({
           id: products.id,
@@ -964,13 +965,17 @@ export class OrdersService {
           usedSaleQuantity: products.usedSaleQuantity,
           quantity: products.quantity,
           salePrice: products.salePrice,
+          price: products.price,
         })
         .from(products)
         .where(eq(products.id, item.productId))
         .limit(1);
+
       if (!product) {
         throw new ValidationException(ErrorCode.P001, HttpStatus.NOT_FOUND);
       }
+
+      // 2. Insert order_detail
       const [orderDetail] = await tx
         .insert(orderDetails)
         .values({
@@ -979,49 +984,68 @@ export class OrdersService {
         })
         .returning();
 
+      // 3. Insert extras nếu có
       if (item.extras.length > 0) {
-        await tx
-          .insert(extrasToOrderDetails)
-          .values(
-            item.extras.map((extra) => ({
-              orderDetailId: orderDetail.id,
-              extraId: extra.extraId,
-              quantity: extra.quantity,
-            })),
-          )
-          .returning();
+        await tx.insert(extrasToOrderDetails).values(
+          item.extras.map((extra) => ({
+            orderDetailId: orderDetail.id,
+            extraId: extra.extraId,
+            quantity: extra.quantity,
+          })),
+        );
       }
 
+      // 4. Kiểm tra thời gian sale
       const now = new Date();
       const hasSalePrice = product.salePrice !== null && product.salePrice !== undefined;
-      console.log('hasSalePrice:', hasSalePrice);
       const isSalePeriod =
         hasSalePrice &&
         !!product.startDate &&
         !!product.endDate &&
         product.startDate <= now &&
         product.endDate >= now;
-      console.log('isSalePeriod:', isSalePeriod);
-      console.log('product.salePrice:', product);
 
-      const availableSaleQuantity = product.quantity - product.usedSaleQuantity;
+      // 5. Atomic update trừ kho
+      if (isSalePeriod) {
+        const updated = await tx
+          .update(products)
+          .set({
+            usedSaleQuantity: increment(products.usedSaleQuantity, item.quantity),
+            // ...(product.quantity - product.usedSaleQuantity - item.quantity <= 0
+            //   ? { salePrice: null, startDate: null, endDate: null }
+            //   : {}),
+          })
+          .where(
+            and(
+              eq(products.id, item.productId),
+              gte(sql`${products.quantity} - ${products.usedSaleQuantity}`, item.quantity),
+            ),
+          )
+          .returning();
 
-      if (isSalePeriod && availableSaleQuantity < item.quantity) {
-        throw new ValidationException(ErrorCode.P002, HttpStatus.BAD_REQUEST);
+        if (updated.length === 0) {
+          throw new ValidationException(ErrorCode.P002, HttpStatus.BAD_REQUEST); // hết số lượt sale
+        }
+
+        // đánh dấu chi tiết này là hàng sale
+        await tx
+          .update(orderDetails)
+          .set({
+            salePrice: product.salePrice,
+            isSale: true,
+          })
+          .where(eq(orderDetails.id, orderDetail.id));
       }
 
+      // 6. Cập nhật total cho order_detail
       await tx.execute(sql`
         UPDATE order_details
-        SET total = (
+        SET 
+          total = (
           COALESCE(
             order_details.quantity * (
               CASE
-                WHEN
-                  p.sale_price IS NOT NULL AND
-                  p.start_date <= NOW() AND
-                  p.end_date >= NOW() AND
-                  p.quantity >= order_details.quantity
-                  THEN p.sale_price
+                WHEN order_details.is_sale = true THEN p.sale_price
                 ELSE p.price
                 END
               ), 0
@@ -1030,34 +1054,25 @@ export class OrdersService {
                                              FROM options o
                                              WHERE o.id = order_details.option_id), 0) +
           COALESCE((
-                       SELECT SUM(ex.price * etod.quantity)
-                       FROM extras_to_order_details etod
-                                JOIN extras ex ON ex.id = etod.extra_id
-                       WHERE etod.order_detail_id = order_details.id
+                     SELECT SUM(ex.price * etod.quantity)
+                     FROM extras_to_order_details etod
+                            JOIN extras ex ON ex.id = etod.extra_id
+                     WHERE etod.order_detail_id = order_details.id
                    ), 0)
-          ) FROM products p
+          )
+          FROM products p
         WHERE order_details.id = ${orderDetail.id}
           AND order_details.product_id = p.id
       `);
-
-      // ✅ Trừ kho nếu đang trong thời gian sale, không cần check đủ hàng
       if (isSalePeriod) {
         await tx
           .update(products)
           .set({
-            usedSaleQuantity: increment(products.usedSaleQuantity, item.quantity),
-            ...(availableSaleQuantity - item.quantity <= 0
+            ...(product.quantity - product.usedSaleQuantity - item.quantity <= 0
               ? { salePrice: null, startDate: null, endDate: null }
               : {}),
           })
           .where(eq(products.id, item.productId));
-        // cập nhật detail này sale
-        await tx
-          .update(orderDetails)
-          .set({
-            isSale: true,
-          })
-          .where(eq(orderDetails.id, orderDetail.id));
       }
     }
   }
