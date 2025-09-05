@@ -1,5 +1,6 @@
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { ConvertUserToStoreFunctionReqDto } from '@/api/store-requests/dto/convert-user-to-store-function.req.dto';
+import { StoreRequestsService } from '@/api/store-requests/store-requests.service';
 import { StoresService } from '@/api/stores/stores.service';
 import { ChangePasswordReqDto } from '@/api/users/dto/change-password.req.dto';
 import { CreateUserReqDto } from '@/api/users/dto/create-user.req.dto';
@@ -40,6 +41,7 @@ export class UsersService implements OnModuleInit {
     private readonly emitter: EventEmitter2,
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly storesService: StoresService,
+    private readonly storeRequestsService: StoreRequestsService,
   ) {}
 
   private basePath = `uploads/users`;
@@ -105,6 +107,10 @@ export class UsersService implements OnModuleInit {
 
       if (await this.storesService.existStoreByUserId(reqDto.userId)) {
         throw new ValidationException(ErrorCode.S002, HttpStatus.CONFLICT);
+      }
+      // nếu có gửi yêu cầu tạo cửa hàng trước đó và đang ở pending
+      if (await this.storeRequestsService.existPendingStoreRequestByUserId(reqDto.userId)) {
+        throw new ValidationException(ErrorCode.SR002, HttpStatus.CONFLICT);
       }
 
       await tx
