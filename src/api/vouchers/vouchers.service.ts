@@ -49,7 +49,6 @@ import {
   sql,
 } from 'drizzle-orm';
 import _, { round } from 'lodash';
-import { DateTime } from 'luxon';
 
 @Injectable()
 export class VouchersService {
@@ -183,15 +182,6 @@ export class VouchersService {
     }
 
     if (reqDto.startDate && reqDto.endDate) {
-      reqDto.startDate = DateTime.fromJSDate(reqDto.startDate)
-        .setZone('Asia/Ho_Chi_Minh')
-        .startOf('day')
-        .toJSDate();
-      reqDto.endDate = DateTime.fromJSDate(reqDto.endDate)
-        .setZone('Asia/Ho_Chi_Minh')
-        .endOf('day')
-        .toJSDate();
-
       if (reqDto.startDate >= reqDto.endDate) {
         throw new ValidationException(
           ErrorCode.V009,
@@ -385,15 +375,6 @@ export class VouchersService {
     console.log('reqDto', reqDto);
     const now = new Date();
     if (reqDto.startDate && reqDto.endDate) {
-      reqDto.startDate = DateTime.fromJSDate(reqDto.startDate)
-        .setZone('Asia/Ho_Chi_Minh')
-        .startOf('day')
-        .toJSDate();
-      reqDto.endDate = DateTime.fromJSDate(reqDto.endDate)
-        .setZone('Asia/Ho_Chi_Minh')
-        .endOf('day')
-        .toJSDate();
-
       if (reqDto.startDate >= reqDto.endDate) {
         throw new ValidationException(
           ErrorCode.V009,
