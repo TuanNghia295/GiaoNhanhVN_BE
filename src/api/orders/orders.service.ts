@@ -931,25 +931,35 @@ export class OrdersService {
   }
 
   async cloneOrder(orderId: number, payload: JwtPayloadType) {
+    //-----------------------------------------------------
+    // B2: Tạo đơn hàng mới
+    //-----------------------------------------------------
     const existingOrder = await this.getDetailById(orderId);
     if (!existingOrder) {
       throw new ValidationException(ErrorCode.OD001, HttpStatus.NOT_FOUND);
     }
-    if (existingOrder.userId !== payload.id) {
-      throw new ValidationException(ErrorCode.OD002, HttpStatus.FORBIDDEN);
-    }
-    if (existingOrder.status !== OrderStatusEnum.DELIVERED) {
+
+    if ([OrderStatusEnum.DELIVERED, OrderStatusEnum.CANCELED].includes(existingOrder.status)) {
       throw new ValidationException(ErrorCode.OD003, HttpStatus.BAD_REQUEST);
     }
 
+    //-----------------------------------------------------
+    // B1: Hủy đơn hiên tại
+    //-----------------------------------------------------
+    await this.updateOrderStatus(orderId, { status: OrderStatusEnum.CANCELED }, payload);
     return await this.db.transaction(async (tx) => {
+      // clone order
+      const { id, code, createdAt, updatedAt, ...cloneData } = existingOrder;
+
+      console.log('Cloning order data:', cloneData);
       const [newOrder] = await tx
         .insert(orders)
         .values({
+          ...cloneData,
           code: await this.createUniqueCode(),
-          ...existingOrder,
         })
         .returning();
+      console.log('New cloned order created with ID:', newOrder.id);
 
       const items: CreateOrderDetailReqDto[] = existingOrder.orderDetails.map((detail) => ({
         productId: detail.productId,
@@ -1635,7 +1645,7 @@ export class OrdersService {
     if (existOrder.coinUsed > 0) {
       await this.usersService.refundCoin(existOrder.userId, existOrder.coinUsed, tx);
     }
-    await this.refundSale(existOrder.id, tx);
+    // await this.refundSale(existOrder.id, tx);
     // hoàn lại số lượt giảm giá nếu có
     if (existOrder.deliverId) {
       const existDeliver = await this.deliversService.findById(existOrder.deliverId);
@@ -1735,7 +1745,7 @@ export class OrdersService {
     //--------------------------------------
     // Hoàn lại lượt sale
     //---------------------------------
-    await this.refundSale(existOrder.id, tx);
+    // await this.refundSale(existOrder.id, tx);
 
     await tx.insert(reasonDeliverCancelOrders).values({
       orderId: existOrder.id,
