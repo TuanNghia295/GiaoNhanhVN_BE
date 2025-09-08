@@ -13,7 +13,7 @@ import { StoresService } from '@/api/stores/stores.service';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { DRIZZLE, storeIsOpenSql } from '@/database/global';
+import { DRIZZLE, storeIsOpenSql, Transaction } from '@/database/global';
 import { areas, products, stores } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
@@ -410,5 +410,21 @@ export class ProductsService implements OnModuleInit {
         ),
       )
       .limit(15);
+  }
+
+  async deleteByStoreId(storeId: number, tx: Transaction) {
+    const productsOfStore = await tx
+      .select({
+        id: products.id,
+        image: products.image,
+      })
+      .from(products)
+      .where(eq(products.storeId, storeId));
+
+    for (const product of productsOfStore) {
+      if (product.image) {
+        deleteIfExists(product.image, this.basePath);
+      }
+    }
   }
 }

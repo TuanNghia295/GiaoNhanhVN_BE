@@ -1,4 +1,5 @@
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
+import { ProductsService } from '@/api/products/products.service';
 import { ConvertUserToStoreFunctionReqDto } from '@/api/store-requests/dto/convert-user-to-store-function.req.dto';
 import { StoreRequestsService } from '@/api/store-requests/store-requests.service';
 import { StoresService } from '@/api/stores/stores.service';
@@ -23,6 +24,7 @@ import {
   TransactionTypeEnum,
   users,
 } from '@/database/schemas';
+import { voucherUsages } from '@/database/schemas/voucher-usage.schema';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { deleteIfExists, formatNumber, normalizeImagePath } from '@/utils/util';
@@ -42,6 +44,7 @@ export class UsersService implements OnModuleInit {
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly storesService: StoresService,
     private readonly storeRequestsService: StoreRequestsService,
+    private readonly productsService: ProductsService,
   ) {}
 
   private basePath = `uploads/users`;
@@ -446,5 +449,40 @@ export class UsersService implements OnModuleInit {
         coin: increment(users.coin, coinUsed),
       })
       .where(eq(users.id, userId));
+  }
+
+  async deleteById(userId: number) {
+    return this.db.transaction(async (tx) => {
+      const user = await this.existById(userId);
+      if (!user) {
+        throw new ValidationException(ErrorCode.U001, HttpStatus.NOT_FOUND);
+      }
+
+      // Xoá ảnh đại diện nếu có
+      if (user.avatar) {
+        deleteIfExists(user.avatar, this.basePath);
+      }
+      const store = await this.storesService.existStoreByUserId(userId);
+
+      if (!store) {
+        return tx
+          .delete(users)
+          .where(eq(users.id, userId))
+          .returning()
+          .then((result) => plainToInstance(UserResDto, result[0]));
+      }
+      // xóa sản phẩm  thuộc cửa hnagf
+      await this.productsService.deleteByStoreId(store.storeId, tx);
+      // xóa cửa hàng nếu có
+      await this.storesService.deleteByUserId(userId, tx);
+      await tx.delete(voucherUsages).where(eq(voucherUsages.userId, userId));
+
+      //xóa người dùng
+      return tx
+        .delete(users)
+        .where(eq(users.id, userId))
+        .returning()
+        .then((result) => plainToInstance(UserResDto, result[0]));
+    });
   }
 }
