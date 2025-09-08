@@ -35,6 +35,8 @@ export enum ErrorCode {
   U003 = 'user.error.is_locked',
   // mật khẩu không đúng
   U004 = 'user.error.invalid_password',
+  // phone đã được đăng ký
+  U005 = 'user.error.phone_existed',
 
   // Deliver
   D001 = 'deliver.error.not_found',

@@ -212,6 +212,7 @@ export class UsersService implements OnModuleInit {
       columns: {
         id: true,
         password: true,
+        phone: true,
         avatar: true,
       },
     });
@@ -241,13 +242,19 @@ export class UsersService implements OnModuleInit {
   }
 
   async update(payload: JwtPayloadType, reqDto: UpdateUserReqDto) {
-    if (!(await this.existsById(payload.id))) {
+    const existingUser = await this.existById(payload.id);
+    if (!existingUser) {
       throw new ValidationException(ErrorCode.U001, HttpStatus.NOT_FOUND);
     }
 
-    // if (reqDto.phone && (await this.existsByPhone(reqDto.phone))) {
-    //   throw new ValidationException(ErrorCode.U002, HttpStatus.CONFLICT);
-    // }
+    // nếu có số điện thoai và khác số hiện tại thì kiểm tra trùng
+    if (
+      reqDto.phone &&
+      reqDto.phone !== existingUser.phone &&
+      (await this.existsByPhone(reqDto.phone))
+    ) {
+      throw new ValidationException(ErrorCode.U005, HttpStatus.CONFLICT);
+    }
 
     // Nếu người dùng có cung cấp vị trí thì cập nhật areaId
     if (reqDto.origins) {
