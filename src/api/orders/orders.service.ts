@@ -1823,4 +1823,14 @@ export class OrdersService {
 
     return totalOrdersForPaginated;
   }
+
+  async isRated(orderId: number) {
+    return this.db
+      .select({
+        isRated: orders.id,
+      })
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .then((res) => res[0]?.isRated ?? false);
+  }
 }

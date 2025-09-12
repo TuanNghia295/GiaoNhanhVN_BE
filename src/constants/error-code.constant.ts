@@ -124,7 +124,8 @@ export enum ErrorCode {
 
   //Comment
   CM001 = 'comment.error.not_found',
-  CM002 = 'comment.error.already_exists',
+  // đơn hàng đã có đánh giá
+  CM002 = 'comment.error.order_had_rated',
   CM003 = 'comment.error.wrong_id_input',
   CM004 = 'comment.error.insert_failed',
   CM005 = 'comment.error.bad_input',
