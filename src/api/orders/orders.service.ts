@@ -1064,15 +1064,20 @@ export class OrdersService {
         WHERE order_details.id = ${orderDetail.id}
           AND order_details.product_id = p.id
       `);
+
       if (isSalePeriod) {
-        await tx
-          .update(products)
-          .set({
-            ...(product.quantity - product.usedSaleQuantity - item.quantity <= 0
-              ? { salePrice: null, startDate: null, endDate: null }
-              : {}),
-          })
-          .where(eq(products.id, item.productId));
+        const needClearSale = product.quantity - product.usedSaleQuantity - item.quantity <= 0;
+
+        if (needClearSale) {
+          await tx
+            .update(products)
+            .set({
+              salePrice: null,
+              startDate: null,
+              endDate: null,
+            })
+            .where(eq(products.id, item.productId));
+        }
       }
     }
   }
