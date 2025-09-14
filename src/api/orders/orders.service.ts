@@ -1456,6 +1456,7 @@ export class OrdersService {
         .update(orders)
         .set({
           status: OrderStatusEnum.ACCEPTED,
+          acceptedAt: new Date(),
           deliverId: payload.id,
         })
         .where(eq(orders.id, orderId))
