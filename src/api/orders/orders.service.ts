@@ -1324,6 +1324,15 @@ export class OrdersService {
         .update(orders)
         .set({
           status: reqDto.status,
+          ...(reqDto.status === OrderStatusEnum.ACCEPTED && {
+            acceptedAt: new Date(),
+          }),
+          ...(reqDto.status === OrderStatusEnum.CANCELED && {
+            canceledAt: new Date(),
+          }),
+          ...(reqDto.status === OrderStatusEnum.DELIVERED && {
+            completedAt: new Date(),
+          }),
         })
         .where(eq(orders.id, orderId))
         .returning();
@@ -1517,6 +1526,15 @@ export class OrdersService {
         .update(orders)
         .set({
           status: status,
+          ...(status === OrderStatusEnum.ACCEPTED && {
+            acceptedAt: new Date(),
+          }),
+          ...(status === OrderStatusEnum.CANCELED && {
+            canceledAt: new Date(),
+          }),
+          ...(status === OrderStatusEnum.DELIVERED && {
+            completedAt: new Date(),
+          }),
         })
         .where(eq(orders.id, orderId))
         .returning();
