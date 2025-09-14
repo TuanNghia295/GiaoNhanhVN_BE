@@ -528,11 +528,12 @@ export class DeliversService implements OnModuleInit {
     };
   }
 
-  async getDeliversByPhoneOrName(input: string, areaId: number) {
+  async getDeliversByPhoneOrName(input: string, areaId: number, payload: JwtPayloadType) {
     return this.db.query.delivers.findMany({
       where: and(
         isNull(delivers.deletedAt),
         ...(areaId ? [eq(delivers.areaId, areaId)] : []),
+        ...(payload.role === RoleEnum.MANAGEMENT ? [eq(delivers.areaId, payload.areaId)] : []),
         ...(input
           ? [or(ilike(delivers.phone, `%${input}%`), ilike(delivers.fullName, `%${input}%`))]
           : []),

@@ -232,13 +232,17 @@ export class DeliversController {
     return await this.deliversService.update(payload.id, reqDto, payload);
   }
 
-  @Roles(RoleEnum.ADMIN, RoleEnum.STORE, RoleEnum.MANAGEMENT)
+  @Roles(RoleEnum.MANAGEMENT)
   @ApiAuth({
     summary: 'Lấy danh sách deliver để hiển thị dạng list (admin)',
     type: DeliverResDto,
   })
   @Get('list')
-  async getDelivers(@Query('input') input: string, @Query('areaId') areaId: number) {
-    return this.deliversService.getDeliversByPhoneOrName(input, areaId);
+  async getDelivers(
+    @CurrentUser() payload: JwtPayloadType,
+    @Query('input') input: string,
+    @Query('areaId') areaId: number,
+  ) {
+    return this.deliversService.getDeliversByPhoneOrName(input, areaId, payload);
   }
 }
