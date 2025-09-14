@@ -1067,6 +1067,13 @@ export class OrdersService {
 
       if (isSalePeriod) {
         const needClearSale = product.quantity - product.usedSaleQuantity - item.quantity <= 0;
+        console.log(
+          `Product ID ${product.id} needClearSale:`,
+          needClearSale,
+          product.quantity,
+          product.usedSaleQuantity,
+          item.quantity,
+        );
 
         if (needClearSale) {
           await tx
