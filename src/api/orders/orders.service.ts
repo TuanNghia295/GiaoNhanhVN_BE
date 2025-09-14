@@ -75,13 +75,13 @@ import {
   ilike,
   inArray,
   isNotNull,
-  lt,
   lte,
   SQL,
   sql,
   sum,
 } from 'drizzle-orm';
 import admin from 'firebase-admin';
+import Redis from 'ioredis';
 import _ from 'lodash';
 import { DateTime } from 'luxon';
 import { v4 as uuidv4 } from 'uuid';
@@ -104,6 +104,8 @@ export interface CalculateResponse {
 
 @Injectable()
 export class OrdersService {
+  private redis: Redis;
+
   constructor(
     private readonly configService: ConfigService<AllConfigType>,
     private readonly usersService: UsersService,
@@ -117,7 +119,9 @@ export class OrdersService {
     @Inject(CACHE_MANAGER) private cache: Cache,
     @Inject(FIREBASE_ADMIN) private readonly admin: admin.app.App,
     @Inject(DRIZZLE) private readonly db: DrizzleDB, // Replace with actual type
-  ) {}
+  ) {
+    this.redis = new Redis(configService.get('redis.url', { infer: true }));
+  }
 
   private readonly logger = new Logger(OrdersService.name);
 
@@ -659,26 +663,19 @@ export class OrdersService {
    * Tạo mã đơn hàng duy nhất theo định dạng DH-YYYY-DD-XXXX
    * @returns Mã đơn hàng duy nhất
    */
-  private async createUniqueCode(): Promise<string> {
-    const now = DateTime.utc(); // luôn nên dùng UTC cho DB
 
-    const monthStart = now.startOf('month'); // 00:00 ngày đầu tháng
-    const monthEnd = now.endOf('month'); // 23:59:59.999 ngày cuối tháng
+  async createUniqueCode(): Promise<string> {
+    const prefix = 'DH';
+    const datePart = DateTime.now().setZone('Asia/Ho_Chi_Minh').toFormat('yyyy-LL-dd');
+    const key = `order:seq:${datePart}`;
 
-    const year = now.year;
-    const month = now.month;
+    const seq = await this.redis.incr(key);
+    if (seq === 1) {
+      await this.redis.expire(key, 24 * 60 * 60); // reset mỗi ngày
+    }
 
-    const [{ totalOrder }] = await this.db
-      .select({ totalOrder: count(orders.id) })
-      .from(orders)
-      .where(
-        and(
-          gte(orders.createdAt, monthStart.toJSDate()),
-          lt(orders.createdAt, monthEnd.toJSDate()),
-        ),
-      );
-
-    return `DH-${year}-${month}-${String((totalOrder ?? 0) + 1).padStart(4, '0')}`;
+    const seqPart = String(seq).padStart(4, '0');
+    return `${prefix}-${datePart}-${seqPart}`;
   }
 
   async create(payload: JwtPayloadType, reqDto: OrderCreateReqDto) {
@@ -930,6 +927,51 @@ export class OrdersService {
       };
       await this.cache.del(reqDto.sessionId);
       return mappedOrderDetail;
+    });
+  }
+
+  async cloneOrder(orderId: number, payload: JwtPayloadType) {
+    //-----------------------------------------------------
+    // B2: Tạo đơn hàng mới
+    //-----------------------------------------------------
+    const existingOrder = await this.getDetailById(orderId);
+    if (!existingOrder) {
+      throw new ValidationException(ErrorCode.OD001, HttpStatus.NOT_FOUND);
+    }
+
+    if ([OrderStatusEnum.DELIVERED, OrderStatusEnum.CANCELED].includes(existingOrder.status)) {
+      throw new ValidationException(ErrorCode.OD003, HttpStatus.BAD_REQUEST);
+    }
+
+    //-----------------------------------------------------
+    // B1: Hủy đơn hiên tại
+    //-----------------------------------------------------
+    await this.updateOrderStatus(orderId, { status: OrderStatusEnum.CANCELED }, payload);
+    return await this.db.transaction(async (tx) => {
+      // clone order
+      const { id, code, createdAt, updatedAt, ...cloneData } = existingOrder;
+
+      console.log('Cloning order data:', cloneData);
+      const [newOrder] = await tx
+        .insert(orders)
+        .values({
+          ...cloneData,
+          code: await this.createUniqueCode(),
+        })
+        .returning();
+      console.log('New cloned order created with ID:', newOrder.id);
+
+      const items: CreateOrderDetailReqDto[] = existingOrder.orderDetails.map((detail) => ({
+        productId: detail.productId,
+        optionId: detail.optionId,
+        quantity: detail.quantity,
+        extras: detail.extras.map((e) => ({
+          extraId: e.extraId,
+          quantity: e.quantity,
+        })),
+      }));
+
+      await this.createOrderDetails(newOrder.id, items, tx);
     });
   }
 
@@ -1615,7 +1657,7 @@ export class OrdersService {
     if (existOrder.coinUsed > 0) {
       await this.usersService.refundCoin(existOrder.userId, existOrder.coinUsed, tx);
     }
-    await this.refundSale(existOrder.id, tx);
+    // await this.refundSale(existOrder.id, tx);
     // hoàn lại số lượt giảm giá nếu có
     if (existOrder.deliverId) {
       const existDeliver = await this.deliversService.findById(existOrder.deliverId);
@@ -1715,7 +1757,7 @@ export class OrdersService {
     //--------------------------------------
     // Hoàn lại lượt sale
     //---------------------------------
-    await this.refundSale(existOrder.id, tx);
+    // await this.refundSale(existOrder.id, tx);
 
     await tx.insert(reasonDeliverCancelOrders).values({
       orderId: existOrder.id,

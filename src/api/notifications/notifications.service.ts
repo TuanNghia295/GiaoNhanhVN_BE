@@ -39,7 +39,7 @@ export class NotificationsService implements OnModuleInit {
 
   onModuleInit() {
     if (!existsSync(this.basePath)) {
-      mkdirSync(this.basePath);
+      mkdirSync(this.basePath, { recursive: true }); // <- thêm recursive
       console.log(`Đã tạo thư mục upload: ${this.basePath}`);
     }
   }

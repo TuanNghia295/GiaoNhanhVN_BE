@@ -1069,4 +1069,23 @@ export class StoresService implements OnModuleInit {
       .orderBy(desc(sql`order_count`))
       .limit(15);
   }
+
+  async deleteByUserId(userId: number, tx: Transaction) {
+    const store = await this.existStoreByUserId(userId);
+
+    if (!store) {
+      throw new ValidationException(ErrorCode.S001);
+    }
+    // xóa sản phẩm  và ảnh
+    // await this.productsService.deleteByStoreId(store.storeId, tx);
+
+    if (store.background) {
+      deleteIfExists(store.background, this.basePath);
+    }
+    if (store.avatar) {
+      deleteIfExists(store.avatar, this.basePath);
+    }
+    const [deletedStore] = await tx.delete(stores).where(eq(stores.userId, userId)).returning();
+    return deletedStore;
+  }
 }

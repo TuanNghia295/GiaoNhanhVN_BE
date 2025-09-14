@@ -58,6 +58,16 @@ export class OrdersController {
     return await this.ordersService.create(payload, reqDto);
   }
 
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'Hủy và clone đơn hàng (management)',
+    type: OrderResDto,
+  })
+  @Patch('clone')
+  async cloneOrder(@CurrentUser() payload: JwtPayloadType, @Query('orderId') orderId: number) {
+    return await this.ordersService.cloneOrder(orderId, payload);
+  }
+
   @ApiPublic({
     summary: 'Lấy chi tiết đơn hàng (public)',
     type: OrderResDto,

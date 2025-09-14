@@ -218,6 +218,13 @@
       "when": 1757062064880,
       "tag": "0030_flippant_bug",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1757062976337,
+      "tag": "0031_omniscient_iron_monger",
+      "breakpoints": true
     }
   ]
 }

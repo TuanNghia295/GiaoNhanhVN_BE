@@ -1,8 +1,6 @@
 import { OrdersService } from '@/api/orders/orders.service';
-import { CacheKey } from '@/constants/cache.constant';
 import { ApiPublic } from '@/decorators/http.decorators';
 import { GoongService } from '@/shared/goong.service';
-import { createCacheKey } from '@/utils/cache.util';
 import { buildTopicMessage } from '@/utils/firebase.util';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Controller, Get, Inject, Post } from '@nestjs/common';
@@ -138,11 +136,7 @@ export class AppController {
   @ApiPublic()
   @Get('redis')
   async getRedis() {
-    await this.cache.set(
-      createCacheKey(CacheKey.SESSION_ORDER, '123'),
-      123,
-      60 * 60, // Cache for 1 hour
-    );
+    return this.orderService.createUniqueCode();
   }
 
   private async notifyNewOrderToDriverByTopic(topicName: string) {

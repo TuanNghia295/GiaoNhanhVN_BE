@@ -18,6 +18,7 @@ import { Roles } from '@/decorators/role.decorator';
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Patch,
   Post,
@@ -177,5 +178,11 @@ export class UsersController {
   @Patch('add-coin')
   async addPoint(@CurrentUser() payload: JwtPayloadType, @Body() reqDto: AddCoinReqDto) {
     return this.usersService.incrementCoin(reqDto.userId, reqDto.coin, payload);
+  }
+
+  @ApiPublic()
+  @Delete()
+  async deleteById(@Query('userId') userId: number) {
+    return await this.usersService.deleteById(userId);
   }
 }

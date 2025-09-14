@@ -46,11 +46,14 @@ export enum ErrorCode {
   D005 = 'deliver.error.not_enough_point',
   D006 = 'deliver.error.cant_change_active_status',
   D007 = 'deliver.error.existed',
+  // nhận tối đa 3 đơn
+  D008 = 'deliver.error.reach_max_active_orders',
 
   //Product
   P001 = 'product.error.not_found',
   P002 = 'product.error.product_not_enough_sale_quantity',
-
+  // Sản phẩm bị khóa
+  P003 = 'product.error.is_locked',
   // Voucher
   V000 = 'voucher.unique.code',
   V001 = 'voucher.error.not_found',
@@ -127,8 +130,6 @@ export enum ErrorCode {
   // đơn hàng đã có đánh giá
   CM002 = 'comment.error.order_had_rated',
   CM003 = 'comment.error.wrong_id_input',
-  CM004 = 'comment.error.insert_failed',
-  CM005 = 'comment.error.bad_input',
 
   //Rotation
   R001 = 'route.error.not_found',

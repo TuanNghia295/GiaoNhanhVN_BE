@@ -10,7 +10,7 @@ import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto
 import { AllConfigType } from '@/config/config.type';
 import { Environment } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
-import { DRIZZLE, increment, Transaction, withPagination } from '@/database/global';
+import { decrement, DRIZZLE, increment, Transaction, withPagination } from '@/database/global';
 import {
   areas,
   DiscountTypeEnum,
@@ -49,7 +49,6 @@ import {
   sql,
 } from 'drizzle-orm';
 import _, { round } from 'lodash';
-import { DateTime } from 'luxon';
 
 @Injectable()
 export class VouchersService {
@@ -183,15 +182,6 @@ export class VouchersService {
     }
 
     if (reqDto.startDate && reqDto.endDate) {
-      reqDto.startDate = DateTime.fromJSDate(reqDto.startDate)
-        .setZone('Asia/Ho_Chi_Minh')
-        .startOf('day')
-        .toJSDate();
-      reqDto.endDate = DateTime.fromJSDate(reqDto.endDate)
-        .setZone('Asia/Ho_Chi_Minh')
-        .endOf('day')
-        .toJSDate();
-
       if (reqDto.startDate >= reqDto.endDate) {
         throw new ValidationException(
           ErrorCode.V009,
@@ -385,15 +375,6 @@ export class VouchersService {
     console.log('reqDto', reqDto);
     const now = new Date();
     if (reqDto.startDate && reqDto.endDate) {
-      reqDto.startDate = DateTime.fromJSDate(reqDto.startDate)
-        .setZone('Asia/Ho_Chi_Minh')
-        .startOf('day')
-        .toJSDate();
-      reqDto.endDate = DateTime.fromJSDate(reqDto.endDate)
-        .setZone('Asia/Ho_Chi_Minh')
-        .endOf('day')
-        .toJSDate();
-
       if (reqDto.startDate >= reqDto.endDate) {
         throw new ValidationException(
           ErrorCode.V009,
@@ -613,5 +594,32 @@ export class VouchersService {
     }
 
     return usableVouchers;
+  }
+
+  async refundVoucherUsage(orderId: number, userId: number, tx?: Transaction) {
+    const _db = tx ?? this.db;
+    const voucherUsagesInOrder = await _db
+      .select({
+        voucherId: vouchersOnOrders.voucherId,
+        id: vouchersOnOrders.id,
+      })
+      .from(vouchersOnOrders)
+      .where(eq(vouchersOnOrders.orderId, orderId));
+
+    for (const usage of voucherUsagesInOrder) {
+      // Cập nhật lại bảng voucher_usages
+      const updateUsage = await _db
+        .update(voucherUsages)
+        .set({
+          usageCount: decrement(voucherUsages.usageCount, 1),
+        })
+        .where(and(eq(voucherUsages.voucherId, usage.voucherId), eq(voucherUsages.userId, userId)))
+        .returning();
+
+      console.log('updateUsage', updateUsage);
+
+      // Xóa bản ghi trong bảng vouchers_on_orders
+      await _db.delete(vouchersOnOrders).where(eq(vouchersOnOrders.id, usage.id));
+    }
   }
 }

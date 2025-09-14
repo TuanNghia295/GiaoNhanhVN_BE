@@ -63,6 +63,7 @@
     "exceljs": "^4.4.0",
     "firebase-admin": "^12.7.0",
     "globals": "^16.3.0",
+    "ioredis": "^5.7.0",
     "keyv": "^5.5.0",
     "lodash": "^4.17.21",
     "luxon": "^3.7.1",

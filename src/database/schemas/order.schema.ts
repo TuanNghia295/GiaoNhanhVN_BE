@@ -159,6 +159,10 @@ export const orders = pgTable(
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
+    /** 👇 thêm mới ở đây */
+    acceptedAt: timestamp('accepted_at'), // thời gian nhận đơn
+    completedAt: timestamp('completed_at'), // thời gian hoàn thành đơn
+    canceledAt: timestamp('canceled_at'), // thời gian hủy đơn
   },
   (table) => [
     index('orders_user_id_idx').on(table.userId),
