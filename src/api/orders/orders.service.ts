@@ -666,12 +666,17 @@ export class OrdersService {
 
   async createUniqueCode(): Promise<string> {
     const prefix = 'DH';
-    const datePart = DateTime.now().setZone('Asia/Ho_Chi_Minh').toFormat('yyyy-LL-dd');
+    const datePart = DateTime.now().setZone('Asia/Ho_Chi_Minh').toFormat('yyyy-LL'); // theo tháng
     const key = `order:seq:${datePart}`;
 
     const seq = await this.redis.incr(key);
+
     if (seq === 1) {
-      await this.redis.expire(key, 24 * 60 * 60); // reset mỗi ngày
+      // tính số giây còn lại trong tháng để set expire
+      const endOfMonth = DateTime.now().setZone('Asia/Ho_Chi_Minh').endOf('month');
+      // Set expire vào cuối tháng
+      const ttl = Math.floor(endOfMonth.diffNow('seconds').seconds);
+      await this.redis.expire(key, ttl);
     }
 
     const seqPart = String(seq).padStart(4, '0');
