@@ -515,7 +515,9 @@ export class VouchersService {
       const voucherApps = await this.db
         .select({
           ...getTableColumns(vouchers),
-          usedCount: sql<number>`COUNT(DISTINCT ${vouchersOnOrders.id})`.mapWith(Number),
+          usedCount: sql<number>`COALESCE ( ${count(vouchersOnOrders.voucherId)}, 0)`.mapWith(
+            Number,
+          ),
           userUsageCount: sql<number>`COALESCE(${voucherUsages.usageCount}, 0)`.mapWith(Number),
         })
         .from(vouchers)
@@ -547,6 +549,7 @@ export class VouchersService {
           ),
         );
 
+      console.log('voucherApps', voucherApps);
       if (voucherApps.length > 0) usableVouchers.push(...voucherApps);
     }
 
@@ -597,11 +600,12 @@ export class VouchersService {
   }
 
   async refundVoucherUsage(orderId: number, userId: number, tx?: Transaction) {
+    console.log('refundVoucherUsage', { orderId, userId });
     const _db = tx ?? this.db;
     const voucherUsagesInOrder = await _db
       .select({
         voucherId: vouchersOnOrders.voucherId,
-        id: vouchersOnOrders.id,
+        orderId: vouchersOnOrders.orderId,
       })
       .from(vouchersOnOrders)
       .where(eq(vouchersOnOrders.orderId, orderId));
@@ -616,10 +620,17 @@ export class VouchersService {
         .where(and(eq(voucherUsages.voucherId, usage.voucherId), eq(voucherUsages.userId, userId)))
         .returning();
 
-      console.log('updateUsage', updateUsage);
+      console.log('updateUsage', updateUsage, usage);
 
       // Xóa bản ghi trong bảng vouchers_on_orders
-      await _db.delete(vouchersOnOrders).where(eq(vouchersOnOrders.id, usage.id));
+      await _db
+        .delete(vouchersOnOrders)
+        .where(
+          and(
+            eq(vouchersOnOrders.voucherId, usage.voucherId),
+            eq(vouchersOnOrders.orderId, usage.orderId),
+          ),
+        );
     }
   }
 }

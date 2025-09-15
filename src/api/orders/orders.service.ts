@@ -956,6 +956,23 @@ export class OrdersService {
       // clone order
       const { id, code, createdAt, updatedAt, ...cloneData } = existingOrder;
 
+      // //-------------------------------------------------
+      // // Kiểm tra voucher app
+      // //-------------------------------------------------
+      if (existingOrder.vouchers.length > 0) {
+        for (const v of existingOrder.vouchers) {
+          await this.applyCoupon(
+            existingOrder.id,
+            v.id,
+            {
+              id: existingOrder.userId,
+              role: RoleEnum.USER,
+            },
+            tx,
+          );
+        }
+      }
+
       console.log('Cloning order data:', cloneData);
       const [newOrder] = await tx
         .insert(orders)
@@ -1677,6 +1694,9 @@ export class OrdersService {
   }
 
   private async managerDoCancelOrder(existOrder: Order, tx: Transaction) {
+    // hoàn lượt voucher
+    await this.vouchersService.refundVoucherUsage(existOrder.id, existOrder.userId, tx);
+
     // hoàn xu cho người dùng
     if (existOrder.coinUsed > 0) {
       await this.usersService.refundCoin(existOrder.userId, existOrder.coinUsed, tx);

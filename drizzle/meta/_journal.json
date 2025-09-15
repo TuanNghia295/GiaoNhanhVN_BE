@@ -225,6 +225,13 @@
       "when": 1757062976337,
       "tag": "0031_omniscient_iron_monger",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1757903432748,
+      "tag": "0032_amusing_chamber",
+      "breakpoints": true
     }
   ]
 }

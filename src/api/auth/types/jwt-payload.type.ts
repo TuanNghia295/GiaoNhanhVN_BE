@@ -4,7 +4,7 @@ export type JwtPayloadType = {
   id: number;
   role: RoleEnum;
   areaId?: number;
-  sessionId: string;
-  iat: number;
-  exp: number;
+  sessionId?: string;
+  iat?: number;
+  exp?: number;
 };

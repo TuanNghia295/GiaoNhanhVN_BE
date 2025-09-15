@@ -84,10 +84,10 @@ export const vouchersOnOrders = pgTable(
   'vouchers_on_orders',
   {
     orderId: integer('order_id')
-      .references(() => orders.id)
+      .references(() => orders.id, { onDelete: 'cascade' })
       .notNull(),
     voucherId: integer('voucher_id')
-      .references(() => vouchers.id)
+      .references(() => vouchers.id, { onDelete: 'cascade' })
       .notNull(),
     id: integer(),
     createdAt: timestamp('created_at'),
