@@ -1925,7 +1925,7 @@ export class OrdersService {
   async isRated(orderId: number) {
     return this.db
       .select({
-        isRated: orders.id,
+        isRated: orders.isRated,
       })
       .from(orders)
       .where(eq(orders.id, orderId))
