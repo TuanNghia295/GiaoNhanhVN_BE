@@ -979,6 +979,7 @@ export class OrdersService {
         .insert(orders)
         .values({
           ...dataWithoutDeliverId,
+          status: OrderStatusEnum.PENDING,
           code: await this.createUniqueCode(),
         })
         .returning();
