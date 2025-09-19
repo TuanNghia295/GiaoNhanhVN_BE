@@ -972,12 +972,13 @@ export class OrdersService {
           );
         }
       }
+      const { deliverId, ...dataWithoutDeliverId } = cloneData;
 
       console.log('Cloning order data:', cloneData);
       const [newOrder] = await tx
         .insert(orders)
         .values({
-          ...cloneData,
+          ...dataWithoutDeliverId,
           code: await this.createUniqueCode(),
         })
         .returning();
