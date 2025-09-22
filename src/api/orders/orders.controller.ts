@@ -6,11 +6,26 @@ import { OrderResDto } from '@/api/orders/dto/order.res.dto';
 import { PageMyOrderReqDto } from '@/api/orders/dto/page-my-order.req.dto';
 import { PageOrderReqDto } from '@/api/orders/dto/query-order.req.dto';
 import { UpdateStatusOrderReqDto } from '@/api/orders/dto/update-status-order.req.dto';
+import { UploadImageOrderReqDto } from '@/api/orders/dto/upload-image-order.req.dto';
 import { RoleEnum } from '@/database/schemas';
 import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth, ApiPublic } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
-import { Body, Controller, Get, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  UploadedFiles,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { ApiConsumes } from '@nestjs/swagger';
+import { memoryStorage } from 'multer';
 import { OrdersService } from './orders.service';
 
 @Controller('orders')
@@ -56,6 +71,34 @@ export class OrdersController {
   @Post()
   async createOrder(@CurrentUser() payload: JwtPayloadType, @Body() reqDto: OrderCreateReqDto) {
     return await this.ordersService.create(payload, reqDto);
+  }
+
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'Cập nhật banner (admin, management)',
+  })
+  @Patch(':orderId/images')
+  @UseInterceptors(
+    FilesInterceptor('images', 100, {
+      fileFilter: (req, file, callback) => {
+        const fileTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+        if (fileTypes.includes(file.mimetype)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Invalid file type'), false);
+        }
+      },
+      storage: memoryStorage(),
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  async updateImages(
+    @Param('orderId', ParseIntPipe) orderId: number,
+    @Body() reqDto: UploadImageOrderReqDto,
+    @UploadedFiles() images?: Express.Multer.File[],
+  ) {
+    console.log(images);
+    return await this.ordersService.updateImages(orderId, images);
   }
 
   @Roles(RoleEnum.MANAGEMENT)

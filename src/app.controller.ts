@@ -1,10 +1,14 @@
 import { OrdersService } from '@/api/orders/orders.service';
+import { DRIZZLE } from '@/database/global';
+import { settings } from '@/database/schemas';
+import { DrizzleDB } from '@/database/types/drizzle';
 import { ApiPublic } from '@/decorators/http.decorators';
 import { GoongService } from '@/shared/goong.service';
 import { buildTopicMessage } from '@/utils/firebase.util';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Controller, Get, Inject, Post } from '@nestjs/common';
 import { Cache } from 'cache-manager'; // Replace with actual cache manager type
+import { and, eq } from 'drizzle-orm';
 import * as admin from 'firebase-admin';
 import { AppService } from './app.service';
 import { FIREBASE_ADMIN } from './firebase/firebase.module';
@@ -13,6 +17,7 @@ import { FIREBASE_ADMIN } from './firebase/firebase.module';
 export class AppController {
   constructor(
     private readonly appService: AppService,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
     @Inject(FIREBASE_ADMIN) private readonly admin: admin.app.App,
     @Inject(CACHE_MANAGER) private readonly cache: Cache, // Replace with actual type
     private readonly goongService: GoongService,
@@ -132,6 +137,18 @@ export class AppController {
   //   // You can add any logic you want to execute every second here
   //   await this.notifyNewOrderToDriverByTopic('new-order');
   // }
+  @ApiPublic()
+  @Get('abbbbb')
+  async test() {
+    const setting = await this.db.query.settings.findFirst({
+      where: and(
+        eq(settings.id, 38), // id của setting
+      ),
+    });
+    const { isNight, nightFee, isRain, rainFee } =
+      await this.orderService.calculateEnvironmentFee(setting);
+    return { isNight, nightFee, isRain, rainFee };
+  }
 
   @ApiPublic()
   @Get('redis')

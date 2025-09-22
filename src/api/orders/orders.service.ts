@@ -55,10 +55,10 @@ import { GoongService } from '@/shared/goong.service';
 import { calculatePayForShop, roundUp } from '@/utils/calculate.util';
 import { buildMulticastMessage } from '@/utils/firebase.util';
 import { getOrderNotificationContent } from '@/utils/notification.util';
-import { allowedTransitions } from '@/utils/util';
+import { allowedTransitions, deleteIfExists, normalizeImagePath } from '@/utils/util';
 import { calculateVoucherDiscount } from '@/utils/voucher-utils';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { forwardRef, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
+import { forwardRef, HttpStatus, Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Cache } from 'cache-manager';
@@ -81,9 +81,12 @@ import {
   sum,
 } from 'drizzle-orm';
 import admin from 'firebase-admin';
+import { existsSync, mkdirSync } from 'fs';
 import Redis from 'ioredis';
 import _ from 'lodash';
 import { DateTime } from 'luxon';
+import { join } from 'path';
+import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
 import { FIREBASE_ADMIN } from '../../firebase/firebase.module';
 
@@ -103,8 +106,17 @@ export interface CalculateResponse {
 }
 
 @Injectable()
-export class OrdersService {
+export class OrdersService implements OnModuleInit {
   private redis: Redis;
+
+  private basePath = `uploads/products`;
+
+  onModuleInit() {
+    if (!existsSync(this.basePath)) {
+      mkdirSync(this.basePath, { recursive: true });
+      console.log(`Đã tạo thư mục upload: ${this.basePath}`);
+    }
+  }
 
   constructor(
     private readonly configService: ConfigService<AllConfigType>,
@@ -279,6 +291,7 @@ export class OrdersService {
       .select({
         id: orders.id,
         status: orders.status,
+        images: orders.images,
         deliverId: orders.deliverId,
         totalDelivery: orders.totalDelivery,
         incomeDeliver: orders.incomeDeliver,
@@ -599,9 +612,17 @@ export class OrdersService {
 
     return _.round(baseRate);
   }
-
+  private normalizeTime(settingTime: Date, now: DateTime, zone: string): DateTime {
+    const dt = DateTime.fromJSDate(settingTime).setZone(zone);
+    return now.set({
+      hour: dt.hour,
+      minute: dt.minute,
+      second: 0,
+      millisecond: 0,
+    });
+  }
   //hàm tính phí dịch vụ môi tường
-  private async calculateEnvironmentFee(setting: Setting): Promise<{
+  async calculateEnvironmentFee(setting: Setting): Promise<{
     isNight: boolean;
     isRain: boolean;
     nightFee: number;
@@ -610,30 +631,41 @@ export class OrdersService {
     const zone = 'Asia/Ho_Chi_Minh';
     const now = DateTime.now().setZone(zone);
 
-    const startNight = DateTime.fromJSDate(setting.startNightTime)
-      .setZone(zone)
-      .set({ year: now.year, month: now.month, day: now.day });
+    // chuẩn hóa start / end time
+    let startNight = this.normalizeTime(setting.startNightTime, now, zone);
+    let endNight = this.normalizeTime(setting.endNightTime, now, zone);
 
-    let endNight = DateTime.fromJSDate(setting.endNightTime)
-      .setZone(zone)
-      .set({ year: now.year, month: now.month, day: now.day });
-
+    // nếu end <= start thì hiểu là khung qua ngày → cộng 1 ngày cho end
     if (endNight <= startNight) {
       endNight = endNight.plus({ days: 1 });
     }
 
+    // nếu giờ hiện tại < startNight và khung qua ngày, check start của hôm trước
+    if (now < startNight && endNight.diff(startNight, 'days').days >= 1) {
+      startNight = startNight.minus({ days: 1 });
+    }
     const isNight = now >= startNight && now <= endNight;
-    console.log('isNight:', isNight);
-    console.log('startNight:', setting.isNight);
-    const nightFee = setting.isNight && isNight ? setting.nightFee : 0;
 
+    // ===== Debug log =====
+    console.log('--- Environment Fee Debug ---');
+    console.log('Now:        ', now.toFormat('yyyy-MM-dd HH:mm:ss'));
+    console.log('StartNight: ', startNight.toFormat('yyyy-MM-dd HH:mm:ss'));
+    console.log('EndNight:   ', endNight.toFormat('yyyy-MM-dd HH:mm:ss'));
+    console.log('In Night?:  ', isNight);
+    console.log('Setting.isNight:', setting.isNight);
+    console.log('Setting.isRain: ', setting.isRain);
+    console.log('NightFee cfg:   ', setting.nightFee);
+    console.log('RainFee cfg:    ', setting.rainFee);
+    console.log('============================');
+
+    const nightFee = setting.isNight && isNight ? setting.nightFee : 0;
     const rainFee = setting.isRain ? setting.rainFee : 0;
 
     return {
       isNight: setting.isNight && isNight,
       isRain: setting.isRain,
-      nightFee: setting.isNight && isNight ? nightFee : 0,
-      rainFee: setting.isRain ? rainFee : 0,
+      nightFee,
+      rainFee,
     };
   }
 
@@ -1084,7 +1116,12 @@ export class OrdersService {
           .where(
             and(
               eq(products.id, item.productId),
-              gte(sql`${products.quantity} - ${products.usedSaleQuantity}`, item.quantity),
+              gte(
+                sql`${products.quantity}
+              -
+              ${products.usedSaleQuantity}`,
+                item.quantity,
+              ),
             ),
           )
           .returning();
@@ -1106,8 +1143,7 @@ export class OrdersService {
       // 6. Cập nhật total cho order_detail
       await tx.execute(sql`
         UPDATE order_details
-        SET 
-          total = (
+        SET total = (
           COALESCE(
             order_details.quantity * (
               CASE
@@ -1119,14 +1155,11 @@ export class OrdersService {
           COALESCE(order_details.quantity * (SELECT o.price
                                              FROM options o
                                              WHERE o.id = order_details.option_id), 0) +
-          COALESCE((
-                     SELECT SUM(ex.price * etod.quantity)
-                     FROM extras_to_order_details etod
-                            JOIN extras ex ON ex.id = etod.extra_id
-                     WHERE etod.order_detail_id = order_details.id
-                   ), 0)
-          )
-          FROM products p
+          COALESCE((SELECT SUM(ex.price * etod.quantity)
+                    FROM extras_to_order_details etod
+                           JOIN extras ex ON ex.id = etod.extra_id
+                    WHERE etod.order_detail_id = order_details.id), 0)
+          ) FROM products p
         WHERE order_details.id = ${orderDetail.id}
           AND order_details.product_id = p.id
       `);
@@ -1932,5 +1965,58 @@ export class OrdersService {
       .from(orders)
       .where(eq(orders.id, orderId))
       .then((res) => res[0]?.isRated ?? false);
+  }
+  private async buildFileName(prefix: string): Promise<string> {
+    const uniqueId = uuidv4();
+    return `${prefix}_${uniqueId}.jpeg`;
+  }
+  async updateImages(orderId: number, images: Express.Multer.File[]) {
+    const order = await this.existById(orderId);
+    if (!order) {
+      throw new ValidationException(ErrorCode.O001);
+    }
+
+    //------------------------------------------------------------
+    //- Nếu không gửi ảnh mới => giữ nguyên ảnh cũ
+    //------------------------------------------------------------
+    let normalizedPaths: string[] = order.images || [];
+
+    if (images?.length > 0) {
+      const uploadedPaths: string[] = [];
+
+      for (const file of images) {
+        const fileName = await this.buildFileName('order');
+        const fullImagePath = join(this.basePath, fileName);
+
+        await sharp(file.buffer).rotate().jpeg({ quality: 80 }).toFile(fullImagePath);
+
+        uploadedPaths.push(normalizeImagePath(fullImagePath));
+      }
+
+      //------------------------------------------------------------
+      //- Xoá ảnh cũ (nếu muốn xoá hết khi cập nhật mới)
+      //------------------------------------------------------------
+      if (order.images?.length > 0) {
+        for (const oldImg of order.images) {
+          deleteIfExists(oldImg, this.basePath);
+        }
+      }
+
+      normalizedPaths = uploadedPaths;
+    }
+
+    //------------------------------------------------------------
+    //- Update DB
+    //------------------------------------------------------------
+    const updatedOrder = await this.db
+      .update(orders)
+      .set({
+        images: normalizedPaths,
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    return updatedOrder[0];
   }
 }

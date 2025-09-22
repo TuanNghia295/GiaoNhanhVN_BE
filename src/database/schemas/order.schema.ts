@@ -6,11 +6,12 @@ import { reasonDeliverCancelOrders } from '@/database/schemas/reason-deliver-can
 import { stores } from '@/database/schemas/store.schema';
 import { users } from '@/database/schemas/user.schema';
 import { vouchersOnOrders } from '@/database/schemas/voucher.schema';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   serial,
@@ -47,7 +48,9 @@ export const orders = pgTable(
       .notNull()
       .$type<OrderStatusEnum>()
       .default(OrderStatusEnum.PENDING),
-
+    images: jsonb('images')
+      .$type<string[]>()
+      .default(sql`'[]'::jsonb`),
     coinUsed: numeric('coin_used', {
       precision: 15,
       scale: 2,

@@ -232,6 +232,13 @@
       "when": 1757903432748,
       "tag": "0032_amusing_chamber",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1758526187551,
+      "tag": "0033_nappy_silverclaw",
+      "breakpoints": true
     }
   ]
 }
