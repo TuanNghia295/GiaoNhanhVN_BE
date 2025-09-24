@@ -631,20 +631,27 @@ export class OrdersService implements OnModuleInit {
     const zone = 'Asia/Ho_Chi_Minh';
     const now = DateTime.now().setZone(zone);
 
-    // chuẩn hóa start / end time
+    // chuẩn hóa start / end time (giữ ngày hiện tại ban đầu)
     let startNight = this.normalizeTime(setting.startNightTime, now, zone);
     let endNight = this.normalizeTime(setting.endNightTime, now, zone);
 
-    // nếu end <= start thì hiểu là khung qua ngày → cộng 1 ngày cho end
-    if (endNight <= startNight) {
-      endNight = endNight.plus({ days: 1 });
+    let isNight: boolean;
+
+    if (startNight <= endNight) {
+      // khung trong cùng ngày
+      isNight = now >= startNight && now <= endNight;
+    } else {
+      // khung qua đêm
+      console.log('Khung giờ qua đêm detected');
+      isNight = now >= startNight || now <= endNight;
+      // nếu giờ hiện tại <= endNight, thì endNight là hôm nay, startNight là hôm trước
+      if (now <= endNight) {
+        startNight = startNight.minus({ days: 1 });
+      }
     }
 
-    // nếu giờ hiện tại < startNight và khung qua ngày, check start của hôm trước
-    if (now < startNight && endNight.diff(startNight, 'days').days >= 1) {
-      startNight = startNight.minus({ days: 1 });
-    }
-    const isNight = now >= startNight && now <= endNight;
+    const nightFee = setting.isNight && isNight ? setting.nightFee : 0;
+    const rainFee = setting.isRain ? setting.rainFee : 0;
 
     // ===== Debug log =====
     console.log('--- Environment Fee Debug ---');
@@ -657,9 +664,6 @@ export class OrdersService implements OnModuleInit {
     console.log('NightFee cfg:   ', setting.nightFee);
     console.log('RainFee cfg:    ', setting.rainFee);
     console.log('============================');
-
-    const nightFee = setting.isNight && isNight ? setting.nightFee : 0;
-    const rainFee = setting.isRain ? setting.rainFee : 0;
 
     return {
       isNight: setting.isNight && isNight,

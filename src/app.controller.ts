@@ -142,9 +142,10 @@ export class AppController {
   async test() {
     const setting = await this.db.query.settings.findFirst({
       where: and(
-        eq(settings.id, 38), // id của setting
+        eq(settings.areaId, 43), // id của setting
       ),
     });
+    console.log('Setting:', setting);
     const { isNight, nightFee, isRain, rainFee } =
       await this.orderService.calculateEnvironmentFee(setting);
     return { isNight, nightFee, isRain, rainFee };
