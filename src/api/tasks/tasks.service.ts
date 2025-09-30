@@ -2,7 +2,7 @@ import { DRIZZLE } from '@/database/global';
 import { vouchers, VouchersStatusEnum } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { and, gt, lte } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 
@@ -18,7 +18,7 @@ export class TasksService implements OnModuleInit {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
 
   // Corn job 0h việt time
-  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT, {
+  @Cron('0 */2 * * *', {
     name: 'vouchers.update-status',
     timeZone: 'Asia/Ho_Chi_Minh',
   })
