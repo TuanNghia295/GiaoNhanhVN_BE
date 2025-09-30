@@ -231,16 +231,11 @@ export class VouchersService {
       const now = new Date();
       const status = _.cond([
         [
-          (d: CreateVoucherReqDto) => d.startDate && d.startDate > now,
-          () => VouchersStatusEnum.PENDING,
-        ],
-        [
           (d: CreateVoucherReqDto) => d.endDate && d.endDate < now,
           () => VouchersStatusEnum.EXPIRED,
         ],
         [_.stubTrue, () => VouchersStatusEnum.ACTIVE], // Trường hợp mặc định
       ])(reqDto);
-
       switch (payload.role) {
         case RoleEnum.ADMIN:
           return tx
@@ -385,10 +380,6 @@ export class VouchersService {
     }
     const status = _.cond([
       [
-        (d: UpdateVoucherReqDto) => d.startDate && new Date(d.startDate) > now,
-        () => VouchersStatusEnum.PENDING,
-      ],
-      [
         (d: UpdateVoucherReqDto) => d.endDate && new Date(d.endDate) < now,
         () => VouchersStatusEnum.EXPIRED,
       ],
@@ -532,7 +523,7 @@ export class VouchersService {
             ...(reqDto.isHidden
               ? [eq(vouchers.isHidden, reqDto.isHidden), eq(vouchers.code, reqDto.code)]
               : [eq(vouchers.isHidden, false)]),
-            eq(vouchers.status, VouchersStatusEnum.ACTIVE),
+            // eq(vouchers.status, VouchersStatusEnum.ACTIVE),
             inArray(vouchers.type, [VouchersTypeEnum.ADMIN, VouchersTypeEnum.MANAGEMENT]),
             // startDate <= now (hoặc null) && endDate >= now (hoặc null)
             or(isNull(vouchers.startDate), lte(vouchers.startDate, now)),
@@ -577,7 +568,7 @@ export class VouchersService {
               ? [eq(vouchers.isHidden, reqDto.isHidden), eq(vouchers.code, reqDto.code)]
               : [eq(vouchers.isHidden, false)]),
             isNull(vouchers.deletedAt),
-            eq(vouchers.status, VouchersStatusEnum.ACTIVE),
+            // eq(vouchers.status, VouchersStatusEnum.ACTIVE),
             eq(vouchers.type, VouchersTypeEnum.STORE),
             eq(stores.id, reqDto.storeId),
             or(isNull(vouchers.startDate), lte(vouchers.startDate, now)),
