@@ -17,6 +17,7 @@ import {
   timestamp,
   varchar,
 } from 'drizzle-orm/pg-core';
+import { banners } from './banner.schema';
 
 export const stores = pgTable(
   'stores',
@@ -76,6 +77,7 @@ export const storesRelations = relations(stores, ({ one, many }) => ({
   products: many(products),
   orders: many(orders),
   storesToCategoryItems: many(storesToCategoryItems),
+  banners: many(banners),
 }));
 
 export const storesToCategoryItems = pgTable(

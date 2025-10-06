@@ -35,6 +35,7 @@ export const products = pgTable(
     description: text('description'),
 
     usedSaleQuantity: integer('used_sale_quantity').default(0), // số lượng sale đã sử dụng
+
     // số lượng sale tối đa
     // saleQuantity: integer('sale_quantity').default(0),
     salePrice: numeric('sale_price', {

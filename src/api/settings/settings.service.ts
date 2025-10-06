@@ -6,6 +6,7 @@ import { UpdateServiceFeeReqDto } from '@/api/settings/dto/update-service.fee.re
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
 import { areas, distances, RoleEnum, serviceFees, settings } from '@/database/schemas';
+import { privateSetting } from '@/database/schemas/private-setting.schema';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable } from '@nestjs/common';
@@ -13,6 +14,7 @@ import { plainToInstance } from 'class-transformer';
 import { and, asc, eq } from 'drizzle-orm';
 import { JwtPayloadType } from '../auth/types/jwt-payload.type';
 import { UpdateSettingReqDto } from './dto/update-setting.req.dto';
+import { UpdateShopDistanceReqDto } from './dto/update-shop-distance.req.dto';
 
 @Injectable()
 export class SettingsService {
@@ -170,5 +172,37 @@ export class SettingsService {
       );
       return true;
     });
+  }
+
+  async updateShopDistance({ numberStores, numberRadius }: UpdateShopDistanceReqDto) {
+    const [setting] = await this.db
+      .update(privateSetting)
+      .set({
+        numberStores,
+        numberRadius,
+      })
+      .where(eq(privateSetting.id, 1))
+      .returning()
+      .execute();
+
+    if (!setting) {
+      throw new Error('Setting with ID 1 not found.');
+    }
+
+    return plainToInstance(SettingResDto, setting);
+  }
+
+  async getShopByDistance() {
+    const [setting] = await this.db
+      .select()
+      .from(privateSetting)
+      .where(eq(privateSetting.id, 1))
+      .execute();
+
+    if (!setting) {
+      throw new ValidationException(ErrorCode.ST001);
+    }
+
+    return setting;
   }
 }

@@ -43,6 +43,7 @@ export class BannersService implements OnModuleInit {
       ),
       with: {
         area: true, // Assuming you want to include area details
+        store: true,
       },
     };
 
@@ -74,6 +75,10 @@ export class BannersService implements OnModuleInit {
   }
 
   async create(reqDto: CreateBannerReqDto, image: Express.Multer.File) {
+    let storeId = null;
+    if (reqDto?.link_store) {
+      storeId = Number(reqDto.link_store.split('/').pop());
+    }
     const fileName = await this.buildFileName('banner');
     const fullImagePath = join(this.basePath, fileName);
 
@@ -84,6 +89,7 @@ export class BannersService implements OnModuleInit {
       .insert(banners)
       .values({
         ...reqDto,
+        storeId,
         image: normalizedPath,
       })
       .returning();
@@ -161,16 +167,14 @@ export class BannersService implements OnModuleInit {
   }
 
   async getBannersWithTypeAreaId(areaId: number, type: string) {
-    const bannersList = await this.db
-      .select()
-      .from(banners)
-      .where(
-        and(
-          ...(areaId ? [eq(banners.areaId, areaId)] : []),
-          ...(type ? [eq(banners.type, type)] : []),
-        ),
-      )
-      .then((result) => result);
-    return bannersList.map((banner) => plainToInstance(BannerResDto, banner));
+    return await this.db.query.banners.findMany({
+      where: and(
+        ...(areaId ? [eq(banners.areaId, areaId)] : []),
+        ...(type ? [eq(banners.type, type)] : []),
+      ),
+      with: {
+        store: true,
+      },
+    });
   }
 }

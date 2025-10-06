@@ -10,6 +10,7 @@ import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth, ApiPublic } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
 import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
+import { UpdateShopDistanceReqDto } from './dto/update-shop-distance.req.dto';
 import { SettingsService } from './settings.service';
 
 @Controller('settings')
@@ -100,5 +101,23 @@ export class SettingsController {
   async updateDistance(@Body() reqDto: UpdateDistanceReqDto) {
     console.log('reqDto', reqDto);
     return await this.settingsService.updateDistance(reqDto);
+  }
+
+  @Roles(RoleEnum.ADMIN)
+  @Patch('shop-distance')
+  @ApiAuth({
+    summary: 'Cập nhật số lượng shop và bán kính tìm kiếm shop',
+  })
+  async updateNumberShopByDistance(@Body() reqDto: UpdateShopDistanceReqDto) {
+    return await this.settingsService.updateShopDistance(reqDto);
+  }
+
+  @Roles(RoleEnum.ADMIN)
+  @Get('shop-distance')
+  @ApiAuth({
+    summary: 'Hiển thị số lượng shop theo bán kính',
+  })
+  async getShopByDistance() {
+    return await this.settingsService.getShopByDistance();
   }
 }

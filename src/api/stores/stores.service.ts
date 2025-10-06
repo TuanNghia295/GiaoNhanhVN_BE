@@ -23,6 +23,7 @@ import {
   VouchersStatusEnum,
   VouchersTypeEnum,
 } from '@/database/schemas';
+import { privateSetting } from '@/database/schemas/private-setting.schema';
 import { ratings } from '@/database/schemas/rating.schema';
 import { viewedStores } from '@/database/schemas/viewed-stores.schema';
 import { DrizzleDB } from '@/database/types/drizzle';
@@ -135,6 +136,20 @@ export class StoresService implements OnModuleInit {
     // Parse latitude and longitude from origins
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
 
+    const [setting] = await this.db
+      .select({
+        numberRadius: privateSetting.numberRadius,
+        numberStores: privateSetting.numberStores,
+      })
+      .from(privateSetting)
+      .where(eq(privateSetting.id, 1));
+
+    // Quan trọng: Xử lý trường hợp không tìm thấy setting để tránh lỗi
+    if (!setting || !setting.numberRadius || !setting.numberStores) {
+      // Bạn có thể trả về lỗi hoặc một danh sách rỗng tùy theo logic nghiệp vụ
+      throw new Error('Private setting is not configured correctly.');
+    }
+
     //---------------------------------------------------
     // Lấy area gần nhất
     //---------------------------------------------------
@@ -157,6 +172,32 @@ export class StoresService implements OnModuleInit {
     )
   `);
 
+    const whereConditions = and(
+      ...(reqDto.categoryItemId
+        ? [
+            exists(
+              this.db
+                .select()
+                .from(products)
+                .where(
+                  and(
+                    eq(products.storeId, stores.id),
+                    eq(products.categoryItemId, reqDto.categoryItemId),
+                    isNull(products.deletedAt),
+                    eq(products.isLocked, false),
+                  ),
+                ),
+            ),
+          ]
+        : []),
+      eq(stores.status, true),
+      eq(stores.isLocked, false),
+      isNotNull(stores.location),
+      ...(nearestAreaId ? [eq(stores.areaId, nearestAreaId)] : []),
+      // <-- THAY ĐỔI 1: Lọc theo bán kính từ setting ---
+      sql`${distanceSql} < ${setting.numberRadius}`,
+    );
+
     // Base query builder
     const baseQb = this.db
       .select({
@@ -168,32 +209,7 @@ export class StoresService implements OnModuleInit {
       .leftJoin(ratings, eq(ratings.storeId, stores.id))
       .leftJoin(users, eq(users.id, stores.userId))
       .groupBy(stores.id, users.id)
-      .where(
-        and(
-          ...(reqDto.categoryItemId
-            ? [
-                exists(
-                  this.db
-                    .select()
-                    .from(products)
-                    .where(
-                      and(
-                        eq(products.storeId, stores.id),
-                        eq(products.categoryItemId, reqDto.categoryItemId),
-                        isNull(products.deletedAt),
-                        eq(products.isLocked, false),
-                      ),
-                    ),
-                ),
-              ]
-            : []),
-          eq(stores.status, true),
-          eq(stores.isLocked, false),
-          isNotNull(stores.location),
-          ...(nearestAreaId ? [eq(stores.areaId, nearestAreaId)] : []),
-          // sql`${distanceSql} < 15`,
-        ),
-      )
+      .where(whereConditions) // <-- Sử dụng điều kiện đã định nghĩa
       .$dynamic();
 
     if (reqDto.isBestSeller) {
@@ -229,41 +245,20 @@ export class StoresService implements OnModuleInit {
       asc`);
     }
 
-    withPagination(baseQb, reqDto.limit, reqDto.offset);
+    withPagination(baseQb, setting.numberStores, reqDto.offset);
 
     // Execute queries in parallel
     const [entities, { totalCount }] = await Promise.all([
-      await baseQb,
-      await this.db
+      baseQb,
+      // <-- THAY ĐỔI 3: Câu lệnh đếm tổng số cũng phải có điều kiện về khoảng cách ---
+      this.db
         .select({ totalCount: count() })
         .from(stores)
-        .leftJoin(users, eq(users.id, stores.userId))
-        .where(
-          and(
-            ...(reqDto.categoryItemId
-              ? [
-                  exists(
-                    this.db
-                      .select()
-                      .from(products)
-                      .where(
-                        and(
-                          eq(products.storeId, stores.id),
-                          eq(products.categoryItemId, reqDto.categoryItemId),
-                          isNull(products.deletedAt),
-                          eq(products.isLocked, false),
-                        ),
-                      ),
-                  ),
-                ]
-              : []),
-            eq(stores.isLocked, false),
-            isNotNull(stores.location),
-            ...(nearestAreaId ? [eq(stores.areaId, nearestAreaId)] : []),
-          ),
-        )
-        .then((res) => res[0]),
+        // distanceSql cần select từ stores nên cần join
+        .where(whereConditions) // <-- Tái sử dụng điều kiện để đảm bảo count chính xác
+        .then((res) => res[0] ?? { totalCount: 0 }),
     ]);
+
     const entitiesWithDistance = entities.map((e) => ({
       ...e,
       distance: formatDistance(e.distance),

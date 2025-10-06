@@ -74,7 +74,6 @@ import {
   gte,
   ilike,
   inArray,
-  isNotNull,
   lte,
   SQL,
   sql,
@@ -338,6 +337,7 @@ export class OrdersService implements OnModuleInit {
     const setting = await this.db.query.settings.findFirst({
       where: eq(settings.areaId, area.id),
     });
+
     if (!setting) {
       throw new ValidationException(ErrorCode.ST001, HttpStatus.NOT_FOUND);
     }
@@ -352,6 +352,7 @@ export class OrdersService implements OnModuleInit {
         },
       },
     });
+
     if (!serviceFeeWithTypeFood) {
       throw new ValidationException(ErrorCode.SF001, HttpStatus.NOT_FOUND);
     }
@@ -381,7 +382,6 @@ export class OrdersService implements OnModuleInit {
   }
 
   async findNearestArea(reqDto: CalculateOrderReqDto) {
-    console.log('Finding nearest area for origins:', reqDto);
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
     let area: Area & {
       distance?: number;
@@ -391,8 +391,9 @@ export class OrdersService implements OnModuleInit {
     // B1 : Nếu tồn tại areaId thì lấy thông tin khu vực đó
     //------------------------------------------------------------
     if (
-      reqDto.areaId &&
-      [OrderTypeEnum.FOOD, OrderTypeEnum.ANOTHER_SHOP].includes(reqDto.orderType)
+      reqDto.areaId
+      // &&
+      // [OrderTypeEnum.FOOD, OrderTypeEnum.ANOTHER_SHOP].includes(reqDto.orderType)
     ) {
       area = await this.db.query.areas.findFirst({
         where: eq(areas.id, reqDto.areaId),
@@ -410,42 +411,41 @@ export class OrdersService implements OnModuleInit {
     //------------------------------------------------------------
     // B2 : Nếu không có areaId thì tìm khu vực gần nhất
     //------------------------------------------------------------
-    if (!area) {
-      const distanceSql = sql.raw(`
-    6371 * acos(
-      least(
-        greatest(
-          cos(radians(${latitude})) *
-          cos(radians(CAST(split_part(areas.location, ',', 1) AS double precision))) *
-          cos(radians(CAST(split_part(areas.location, ',', 2) AS double precision)) - radians(${longitude})) +
-          sin(radians(${latitude})) *
-          sin(radians(CAST(split_part(areas.location, ',', 1) AS double precision))),
-          -1
-        ),
-        1
-      )
-    )
-  `);
+    //   if (!area) {
+    //     const distanceSql = sql.raw(`
+    //   6371 * acos(
+    //     least(
+    //       greatest(
+    //         cos(radians(${latitude})) *
+    //         cos(radians(CAST(split_part(areas.location, ',', 1) AS double precision))) *
+    //         cos(radians(CAST(split_part(areas.location, ',', 2) AS double precision)) - radians(${longitude})) +
+    //         sin(radians(${latitude})) *
+    //         sin(radians(CAST(split_part(areas.location, ',', 1) AS double precision))),
+    //         -1
+    //       ),
+    //       1
+    //     )
+    //   )
+    // `);
 
-      area = await this.db
-        .select({
-          ...getTableColumns(areas),
-          distance: distanceSql.mapWith(Number).as('distance'),
-        })
-        .from(areas)
-        .leftJoin(settings, eq(areas.id, settings.areaId))
-        .where(
-          and(
-            // eq(settings.openFullTime, true),
-            isNotNull(areas.location),
-            // eq(areas.status, AreaStatusEnum.ACTIVE),
-          ),
-        )
-        .orderBy(sql`${sql.raw('distance ASC')}`)
-        .limit(1)
-        .then((res) => res[0]);
-    }
-    console.log('Nearest area found:', area);
+    //     area = await this.db
+    //       .select({
+    //         ...getTableColumns(areas),
+    //         distance: distanceSql.mapWith(Number).as('distance'),
+    //       })
+    //       .from(areas)
+    //       .leftJoin(settings, eq(areas.id, settings.areaId))
+    //       .where(
+    //         and(
+    //           // eq(settings.openFullTime, true),
+    //           isNotNull(areas.location),
+    //           // eq(areas.status, AreaStatusEnum.ACTIVE),
+    //         ),
+    //       )
+    //       .orderBy(sql`${sql.raw('distance ASC')}`)
+    //       .limit(1)
+    //       .then((res) => res[0]);
+    //   }
     return area;
   }
 
@@ -633,7 +633,7 @@ export class OrdersService implements OnModuleInit {
 
     // chuẩn hóa start / end time (giữ ngày hiện tại ban đầu)
     let startNight = this.normalizeTime(setting.startNightTime, now, zone);
-    let endNight = this.normalizeTime(setting.endNightTime, now, zone);
+    const endNight = this.normalizeTime(setting.endNightTime, now, zone);
 
     let isNight: boolean;
 
@@ -650,7 +650,7 @@ export class OrdersService implements OnModuleInit {
       }
     }
 
-    const nightFee = setting.isNight && isNight ? setting.nightFee : 0;
+    const nightFee = setting.isNight || isNight ? setting.nightFee : 0;
     const rainFee = setting.isRain ? setting.rainFee : 0;
 
     // ===== Debug log =====
@@ -666,7 +666,7 @@ export class OrdersService implements OnModuleInit {
     console.log('============================');
 
     return {
-      isNight: setting.isNight && isNight,
+      isNight: setting.isNight || isNight,
       isRain: setting.isRain,
       nightFee,
       rainFee,
@@ -720,6 +720,7 @@ export class OrdersService implements OnModuleInit {
   }
 
   async create(payload: JwtPayloadType, reqDto: OrderCreateReqDto) {
+    console.log(reqDto);
     const calculateOrder = await this.cache.get<CalculateResponse>(reqDto.sessionId);
     if (!calculateOrder) {
       throw new ValidationException(
@@ -752,7 +753,7 @@ export class OrdersService implements OnModuleInit {
 
       // Tạo chi tiết đơn hàng
       if (reqDto.items && reqDto.items.length > 0) {
-        await this.createOrderDetails(order.id, reqDto.items, tx);
+        await this.createOrderDetails(order.id, reqDto.items, tx, payload.id);
       }
 
       const [serviceFeeWithType] = await tx
@@ -933,7 +934,7 @@ export class OrdersService implements OnModuleInit {
         })
         .where(eq(orders.id, order.id));
 
-      await this.emitter.emitAsync('order.created', order);
+      // await this.emitter.emitAsync('order.created', order);
       const orderDetail = await tx.query.orders.findFirst({
         where: eq(orders.id, order.id),
         with: {
@@ -1031,7 +1032,7 @@ export class OrdersService implements OnModuleInit {
         })),
       }));
 
-      await this.createOrderDetails(newOrder.id, items, tx);
+      await this.createOrderDetails(newOrder.id, items, tx, payload.id);
     });
   }
 
@@ -1056,7 +1057,12 @@ export class OrdersService implements OnModuleInit {
     return Math.min(user.coin, totalDelivery - totalVoucherApp);
   }
 
-  async createOrderDetails(orderId: number, items: CreateOrderDetailReqDto[], tx: Transaction) {
+  async createOrderDetails(
+    orderId: number,
+    items: CreateOrderDetailReqDto[],
+    tx: Transaction,
+    userId: number,
+  ) {
     for (const item of items) {
       // 1. Lấy product
       const [product] = await tx
@@ -1083,6 +1089,7 @@ export class OrdersService implements OnModuleInit {
         .values({
           ...item,
           orderId,
+          userId,
         })
         .returning();
 

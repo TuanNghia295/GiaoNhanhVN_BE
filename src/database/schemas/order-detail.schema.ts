@@ -14,6 +14,7 @@ import {
   serial,
   timestamp,
 } from 'drizzle-orm/pg-core';
+import { users } from './user.schema';
 
 export const orderDetails = pgTable(
   'order_details',
@@ -31,6 +32,7 @@ export const orderDetails = pgTable(
     optionId: integer('option_id'),
     productId: integer('product_id'),
     orderId: integer('order_id'),
+    userId: integer('user_id'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at')
       .notNull()
@@ -56,6 +58,10 @@ export const orderDetailsRelations = relations(orderDetails, ({ one, many }) => 
   order: one(orders, {
     fields: [orderDetails.orderId],
     references: [orders.id],
+  }),
+  user: one(users, {
+    fields: [orderDetails.userId],
+    references: [users.id],
   }),
   product: one(products, {
     fields: [orderDetails.productId],

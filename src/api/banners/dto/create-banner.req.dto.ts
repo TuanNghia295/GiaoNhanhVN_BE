@@ -4,6 +4,7 @@ import {
   FileField,
   NumberFieldOptional,
   StringField,
+  StringFieldOptional,
 } from '@/decorators/field.decorators';
 
 export class CreateBannerReqDto {
@@ -18,4 +19,7 @@ export class CreateBannerReqDto {
 
   @FileField()
   image: Express.Multer.File;
+
+  @StringFieldOptional()
+  link_store: string;
 }

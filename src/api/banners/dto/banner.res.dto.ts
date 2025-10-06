@@ -11,4 +11,7 @@ export class BannerResDto extends AbstractResDto {
 
   @FileField()
   images: string;
+
+  @StringField()
+  link_store: string;
 }
