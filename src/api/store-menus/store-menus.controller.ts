@@ -6,7 +6,7 @@ import { StoreMenuResDto } from '@/api/store-menus/dto/store-menu.res.dto';
 import { UpdateStoreMenuReqDto } from '@/api/store-menus/dto/update-store-menu-req.dto';
 import { RoleEnum } from '@/database/schemas';
 import { CurrentUser } from '@/decorators/current-user.decorator';
-import { ApiAuth, ApiPublic } from '@/decorators/http.decorators';
+import { ApiAuth } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
 import {
   Body,
@@ -25,13 +25,16 @@ import { StoreMenusService } from './store-menus.service';
 export class StoreMenusController {
   constructor(private readonly storeMenusService: StoreMenusService) {}
 
-  @ApiPublic({
+  @ApiAuth({
     summary: 'Lấy danh sách menu của cửa hàng theo storeId [PUBLIC]',
     type: StoreMenuResDto,
   })
   @Get()
-  async getStoreMenus(@Query() reqDto: PageStoreMenuReqDto) {
-    return await this.storeMenusService.getPageStoreMenus(reqDto);
+  async getStoreMenus(
+    @Query() reqDto: PageStoreMenuReqDto,
+    @CurrentUser() payload: JwtPayloadType,
+  ) {
+    return await this.storeMenusService.getPageStoreMenus(reqDto, payload.id);
   }
 
   @Roles(RoleEnum.USER)

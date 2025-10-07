@@ -7,6 +7,7 @@ import { SortProductReqDto } from '@/api/products/dto/sort-product.req.dto';
 import { UpdateProductReqDto } from '@/api/products/dto/update-product.req.dto';
 import { UploadImageReqDto } from '@/api/products/dto/upload-image.req.dto';
 import { RoleEnum } from '@/database/schemas';
+import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth, ApiPublic } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
 import {
@@ -25,6 +26,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
+import { JwtPayloadType } from '../auth/types/jwt-payload.type';
 import { ProductsService } from './products.service';
 
 @Controller('products')
@@ -42,14 +44,17 @@ export class ProductsController {
   }
 
   // flash sale
-  @ApiPublic({
+  @ApiAuth({
     summary: 'Lấy danh sách sản phẩm flash sale',
     isPaginated: true,
     type: ProductResDto,
   })
   @Get('flash-sale')
-  async getFlashSaleProducts(@Query() reqDto: FlashSaleProductReqDto) {
-    return await this.productsService.getFlashSaleProducts(reqDto);
+  async getFlashSaleProducts(
+    @Query() reqDto: FlashSaleProductReqDto,
+    @CurrentUser() payload: JwtPayloadType,
+  ) {
+    return await this.productsService.getFlashSaleProducts(reqDto, payload.id);
   }
 
   @ApiPublic({

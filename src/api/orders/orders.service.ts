@@ -720,7 +720,6 @@ export class OrdersService implements OnModuleInit {
   }
 
   async create(payload: JwtPayloadType, reqDto: OrderCreateReqDto) {
-    console.log(reqDto);
     const calculateOrder = await this.cache.get<CalculateResponse>(reqDto.sessionId);
     if (!calculateOrder) {
       throw new ValidationException(
@@ -1089,7 +1088,6 @@ export class OrdersService implements OnModuleInit {
         .values({
           ...item,
           orderId,
-          userId,
         })
         .returning();
 
@@ -1104,7 +1102,21 @@ export class OrdersService implements OnModuleInit {
         );
       }
 
-      // 4. Kiểm tra thời gian sale
+      // 4. Kiểm tra xem user đã mua sản phẩm này với giá sale chưa
+      const hasUserBoughtWithSale = await tx
+        .select({ id: orderDetails.id })
+        .from(orderDetails)
+        .where(
+          and(
+            eq(orderDetails.userId, userId),
+            eq(orderDetails.productId, item.productId),
+            eq(orderDetails.isSale, true),
+          ),
+        )
+        .limit(1)
+        .then((res) => res.length > 0);
+
+      // 5. Kiểm tra thời gian sale
       const now = new Date();
       const hasSalePrice = product.salePrice !== null && product.salePrice !== undefined;
       const isSalePeriod =
@@ -1112,9 +1124,19 @@ export class OrdersService implements OnModuleInit {
         !!product.startDate &&
         !!product.endDate &&
         product.startDate <= now &&
-        product.endDate >= now;
+        product.endDate >= now &&
+        !hasUserBoughtWithSale; // Chỉ cho phép mua sale nếu user chưa từng mua với giá sale
 
-      // 5. Atomic update trừ kho
+      // 6. Kiểm tra quantity khi flash sale (chỉ cho phép mua 1 sản phẩm)
+      if (isSalePeriod && item.quantity > 1) {
+        throw new ValidationException(
+          ErrorCode.P002,
+          HttpStatus.BAD_REQUEST,
+          'Flash sale chỉ cho phép mua tối đa 1 sản phẩm',
+        );
+      }
+
+      // 7. Atomic update trừ kho (chỉ khi được phép mua sale)
       if (isSalePeriod) {
         const updated = await tx
           .update(products)
@@ -1147,11 +1169,12 @@ export class OrdersService implements OnModuleInit {
           .set({
             salePrice: product.salePrice,
             isSale: true,
+            userId,
           })
           .where(eq(orderDetails.id, orderDetail.id));
       }
 
-      // 6. Cập nhật total cho order_detail
+      // 8. Cập nhật total cho order_detail
       await tx.execute(sql`
         UPDATE order_details
         SET total = (

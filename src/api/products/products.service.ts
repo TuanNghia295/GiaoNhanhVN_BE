@@ -14,7 +14,7 @@ import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagi
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE, storeIsOpenSql, Transaction } from '@/database/global';
-import { areas, products, stores } from '@/database/schemas';
+import { areas, orderDetails, products, stores } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { deleteIfExists, normalizeImagePath } from '@/utils/util';
@@ -32,6 +32,7 @@ import {
   isNull,
   lt,
   lte,
+  notExists,
   or,
   sql,
 } from 'drizzle-orm';
@@ -234,6 +235,24 @@ export class ProductsService implements OnModuleInit {
         .returning();
 
       //---------------------------------------------------
+      // Nếu cập nhật flash sale (startDate, endDate, salePrice) thì reset orderDetails
+      //---------------------------------------------------
+      const isFlashSaleUpdated =
+        reqDto.startDate !== undefined ||
+        reqDto.endDate !== undefined ||
+        reqDto.salePrice !== undefined;
+
+      if (isFlashSaleUpdated) {
+        await tx
+          .update(orderDetails)
+          .set({
+            isSale: false,
+            userId: null,
+          })
+          .where(eq(orderDetails.productId, productId));
+      }
+
+      //---------------------------------------------------
       // Update options if provided
       //---------------------------------------------------
       await this.optionsService.updateForProduct(productId, reqDto.options, tx);
@@ -352,7 +371,7 @@ export class ProductsService implements OnModuleInit {
     return nearestArea.length > 0 ? nearestArea[0].id : null;
   }
 
-  async getFlashSaleProducts(reqDto: FlashSaleProductReqDto) {
+  async getFlashSaleProducts(reqDto: FlashSaleProductReqDto, userId: number) {
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
     if (isNaN(latitude) || isNaN(longitude)) {
       throw new ValidationException(ErrorCode.CV002);
@@ -407,6 +426,19 @@ export class ProductsService implements OnModuleInit {
           gt(products.quantity, 0),
           // còn trong giới hạn số lượng sale đã bán
           lt(products.usedSaleQuantity, products.quantity),
+
+          notExists(
+            this.db
+              .select({ id: orderDetails?.id })
+              .from(orderDetails)
+              .where(
+                and(
+                  eq(orderDetails?.productId, products?.id),
+                  eq(orderDetails?.userId, userId),
+                  eq(orderDetails?.isSale, true),
+                ),
+              ),
+          ),
         ),
       )
       .limit(15);

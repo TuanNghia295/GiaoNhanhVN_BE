@@ -9,7 +9,7 @@ import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagi
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
-import { products, storeMenus } from '@/database/schemas';
+import { orderDetails, products, storeMenus } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable } from '@nestjs/common';
@@ -23,7 +23,7 @@ export class StoreMenusService {
     @Inject(DRIZZLE) private readonly db: DrizzleDB, // Replace with actual type
   ) {}
 
-  async getPageStoreMenus(reqDto: PageStoreMenuReqDto) {
+  async getPageStoreMenus(reqDto: PageStoreMenuReqDto, userId: number) {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.storeMenus> = {
       where: and(eq(storeMenus.storeId, reqDto.storeId), isNull(storeMenus.deletedAt)),
       with: {
@@ -38,6 +38,7 @@ export class StoreMenusService {
             extras: true,
             options: true,
           },
+
           // lấy ra sản phẩm chưa soft delete
           where: and(
             isNull(products.deletedAt),
@@ -62,11 +63,37 @@ export class StoreMenusService {
       this.db.select({ totalCount: count() }).from(sql`${qCount}`),
     ]);
 
+    // Lấy danh sách productId mà user đã đặt
+    const orderedProductIds = await this.db
+      .select({ productId: orderDetails.productId })
+      .from(orderDetails)
+      .where(and(eq(orderDetails.userId, userId), eq(orderDetails.isSale, true)))
+      .then(
+        (results) =>
+          new Set(results.map((r) => r.productId).filter((id): id is number => id !== null)),
+      );
+
+    // Xử lý dữ liệu: nếu user đã đặt sản phẩm rồi thì set salePrice, startDate, endDate = null
+    const processedEntities = entities.map((menu) => ({
+      ...menu,
+      products: menu.products.map((product) => {
+        if (product.id && orderedProductIds.has(product.id as number)) {
+          return {
+            ...product,
+            salePrice: null,
+            startDate: null,
+            endDate: null,
+          };
+        }
+        return product;
+      }),
+    }));
+
     if (reqDto.limit !== 10) {
       const meta = new OffsetPaginationDto(totalCount, reqDto);
-      return new OffsetPaginatedDto(entities, meta);
+      return new OffsetPaginatedDto(processedEntities, meta);
     } else {
-      return entities;
+      return processedEntities;
     }
   }
 
