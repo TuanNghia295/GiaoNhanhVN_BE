@@ -981,7 +981,7 @@ export class StoresService implements OnModuleInit {
     });
   }
 
-  async getNearbyProductsWithMostOrdersThisWeek(reqDto: NearbyStoresReqDto) {
+  async getNearbyProductsWithMostOrdersThisWeek(reqDto: NearbyStoresReqDto, userId: number) {
     if (!reqDto.origins || !reqDto.origins.includes(',')) {
       throw new ValidationException(
         ErrorCode.S007,
@@ -1029,6 +1029,16 @@ export class StoresService implements OnModuleInit {
            ORDER BY v.value DESC LIMIT 1)
         `.mapWith((val) => val ?? null),
         orderCount: sql`COALESCE(oc.order_count, 0)`.mapWith(Number).as('order_count'),
+        isUseSale: sql`
+          EXISTS(
+            SELECT 1 FROM order_details od
+            WHERE od.product_id = ${products.id}
+              AND od.user_id = ${userId}
+              AND od.is_sale = true
+          )
+        `
+          .mapWith((val) => Boolean(val))
+          .as('isUseSale'),
       })
       .from(products)
       .leftJoin(stores, eq(stores.id, products.storeId))

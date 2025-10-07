@@ -78,8 +78,11 @@ export class StoresController {
     type: StoreResDto,
   })
   @Get('nearby/products-with-most-vouchers-random')
-  async getNearbyProductsWithMostVouchersRandom(@Query() reqDto: NearbyStoresReqDto) {
-    return await this.storesService.getNearbyProductsWithMostOrdersThisWeek(reqDto);
+  async getNearbyProductsWithMostVouchersRandom(
+    @Query() reqDto: NearbyStoresReqDto,
+    @CurrentUser() payload: JwtPayloadType,
+  ) {
+    return await this.storesService.getNearbyProductsWithMostOrdersThisWeek(reqDto, payload.id);
   }
 
   @Roles(RoleEnum.STORE)
