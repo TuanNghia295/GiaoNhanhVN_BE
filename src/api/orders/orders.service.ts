@@ -666,7 +666,7 @@ export class OrdersService implements OnModuleInit {
     console.log('============================');
 
     return {
-      isNight: setting.isNight || isNight,
+      isNight: setting.isNight ? setting.isNight : isNight,
       isRain: setting.isRain,
       nightFee,
       rainFee,
