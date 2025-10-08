@@ -650,7 +650,7 @@ export class OrdersService implements OnModuleInit {
       }
     }
 
-    const nightFee = setting.isNight || isNight ? setting.nightFee : 0;
+    const nightFee = setting.isNight && isNight ? setting.nightFee : 0;
     const rainFee = setting.isRain ? setting.rainFee : 0;
 
     // ===== Debug log =====
@@ -666,7 +666,7 @@ export class OrdersService implements OnModuleInit {
     console.log('============================');
 
     return {
-      isNight: setting.isNight ? setting.isNight : isNight,
+      isNight: setting.isNight && isNight ? true : false,
       isRain: setting.isRain,
       nightFee,
       rainFee,
