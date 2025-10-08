@@ -933,7 +933,7 @@ export class OrdersService implements OnModuleInit {
         })
         .where(eq(orders.id, order.id));
 
-      // await this.emitter.emitAsync('order.created', order);
+      await this.emitter.emitAsync('order.created', order);
       const orderDetail = await tx.query.orders.findFirst({
         where: eq(orders.id, order.id),
         with: {
