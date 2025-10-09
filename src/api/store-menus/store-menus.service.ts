@@ -63,27 +63,42 @@ export class StoreMenusService {
       this.db.select({ totalCount: count() }).from(sql`${qCount}`),
     ]);
 
-    // Lấy danh sách productId mà user đã đặt
-    const orderedProductIds = await this.db
-      .select({ productId: orderDetails.productId })
+    // Lấy danh sách productId và tổng số lượng flash sale mà user đã mua
+    const userPurchasedQuantities = await this.db
+      .select({
+        productId: orderDetails.productId,
+        totalQuantity: sql<number>`SUM(${orderDetails.quantity})`.as('totalQuantity'),
+      })
       .from(orderDetails)
       .where(and(eq(orderDetails.userId, userId), eq(orderDetails.isSale, true)))
-      .then(
-        (results) =>
-          new Set(results.map((r) => r.productId).filter((id): id is number => id !== null)),
-      );
+      .groupBy(orderDetails.productId)
+      .then((results) => {
+        const map = new Map<number, number>();
+        results.forEach((r) => {
+          if (r.productId !== null) {
+            map.set(r.productId, Number(r.totalQuantity) || 0);
+          }
+        });
+        return map;
+      });
 
-    // Xử lý dữ liệu: nếu user đã đặt sản phẩm rồi thì set salePrice, startDate, endDate = null
+    // Xử lý dữ liệu: chỉ ẩn sale khi user đã mua đủ limitedFlashSaleQuantity
     const processedEntities = entities.map((menu) => ({
       ...menu,
       products: menu.products.map((product) => {
-        if (product.id && orderedProductIds.has(product.id as number)) {
-          return {
-            ...product,
-            salePrice: null,
-            startDate: null,
-            endDate: null,
-          };
+        if (product.id) {
+          const userPurchasedQty = userPurchasedQuantities.get(product.id as number) || 0;
+          const limitedQty = Number(product.limitedFlashSaleQuantity) || 0;
+
+          // Chỉ ẩn sale khi user đã mua đủ giới hạn
+          if (limitedQty > 0 && userPurchasedQty >= limitedQty) {
+            return {
+              ...product,
+              salePrice: null,
+              startDate: null,
+              endDate: null,
+            };
+          }
         }
         return product;
       }),

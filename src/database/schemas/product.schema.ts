@@ -33,7 +33,7 @@ export const products = pgTable(
     startDate: timestamp('start_date'),
     endDate: timestamp('end_date'),
     description: text('description'),
-
+    limitedFlashSaleQuantity: integer('limited_flash_sale_quantity').default(0),
     usedSaleQuantity: integer('used_sale_quantity').default(0), // số lượng sale đã sử dụng
 
     // số lượng sale tối đa

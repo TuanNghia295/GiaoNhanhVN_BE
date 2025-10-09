@@ -32,7 +32,6 @@ import {
   isNull,
   lt,
   lte,
-  notExists,
   or,
   sql,
 } from 'drizzle-orm';
@@ -240,7 +239,8 @@ export class ProductsService implements OnModuleInit {
       const isFlashSaleUpdated =
         reqDto.startDate !== undefined ||
         reqDto.endDate !== undefined ||
-        reqDto.salePrice !== undefined;
+        reqDto.salePrice !== undefined ||
+        reqDto.limitedFlashSaleQuantity !== undefined;
 
       if (isFlashSaleUpdated) {
         await tx
@@ -400,13 +400,26 @@ export class ProductsService implements OnModuleInit {
     const nearestAreaId = await this.getNearestAreaId(latitude, longitude);
     console.log(`Nearest area ID: ${nearestAreaId}`);
 
+    // Subquery để tính tổng số lượng user đã mua của từng sản phẩm
+    const userPurchasedSubquery = this.db
+      .select({
+        productId: orderDetails.productId,
+        totalQuantity: sql<number>`COALESCE(SUM(${orderDetails.quantity}), 0)`.as('totalQuantity'),
+      })
+      .from(orderDetails)
+      .where(and(eq(orderDetails.userId, userId), eq(orderDetails.isSale, true)))
+      .groupBy(orderDetails.productId)
+      .as('user_purchased');
+
     return this.db
       .select({
         ...getTableColumns(products),
         store: stores,
+        userPurchasedQuantity: sql<number>`COALESCE(${userPurchasedSubquery.totalQuantity}, 0)`,
       })
       .from(products)
       .innerJoin(stores, eq(products.storeId, stores.id))
+      .leftJoin(userPurchasedSubquery, eq(products.id, userPurchasedSubquery.productId))
       .where(
         and(
           isNull(products.deletedAt),
@@ -426,19 +439,10 @@ export class ProductsService implements OnModuleInit {
           gt(products.quantity, 0),
           // còn trong giới hạn số lượng sale đã bán
           lt(products.usedSaleQuantity, products.quantity),
-
-          notExists(
-            this.db
-              .select({ id: orderDetails?.id })
-              .from(orderDetails)
-              .where(
-                and(
-                  eq(orderDetails?.productId, products?.id),
-                  eq(orderDetails?.userId, userId),
-                  eq(orderDetails?.isSale, true),
-                ),
-              ),
-          ),
+          // Phải có giới hạn số lượng flash sale
+          gt(products.limitedFlashSaleQuantity, 0),
+          // User chưa mua đủ giới hạn
+          sql`COALESCE(${userPurchasedSubquery.totalQuantity}, 0) < ${products.limitedFlashSaleQuantity}`,
         ),
       )
       .limit(15);

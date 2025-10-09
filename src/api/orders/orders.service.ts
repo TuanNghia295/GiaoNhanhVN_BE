@@ -1073,6 +1073,7 @@ export class OrdersService implements OnModuleInit {
           quantity: products.quantity,
           salePrice: products.salePrice,
           price: products.price,
+          limitedFlashSaleQuantity: products.limitedFlashSaleQuantity,
         })
         .from(products)
         .where(eq(products.id, item.productId))
@@ -1102,9 +1103,9 @@ export class OrdersService implements OnModuleInit {
         );
       }
 
-      // 4. Kiểm tra xem user đã mua sản phẩm này với giá sale chưa
-      const hasUserBoughtWithSale = await tx
-        .select({ id: orderDetails.id })
+      // 4. Tính tổng số lượng flash sale user đã mua của sản phẩm này
+      const userPurchasedQuantity = await tx
+        .select({ quantity: orderDetails.quantity })
         .from(orderDetails)
         .where(
           and(
@@ -1113,27 +1114,31 @@ export class OrdersService implements OnModuleInit {
             eq(orderDetails.isSale, true),
           ),
         )
-        .limit(1)
-        .then((res) => res.length > 0);
+        .then((res) => res.reduce((sum, row) => sum + (row.quantity || 0), 0));
 
       // 5. Kiểm tra thời gian sale
       const now = new Date();
       const hasSalePrice = product.salePrice !== null && product.salePrice !== undefined;
+      const limitedQuantity = product.limitedFlashSaleQuantity || 0;
       const isSalePeriod =
         hasSalePrice &&
         !!product.startDate &&
         !!product.endDate &&
         product.startDate <= now &&
         product.endDate >= now &&
-        !hasUserBoughtWithSale; // Chỉ cho phép mua sale nếu user chưa từng mua với giá sale
+        limitedQuantity > 0 && // Phải có giới hạn số lượng
+        userPurchasedQuantity < limitedQuantity; // Chỉ cho phép mua nếu chưa vượt giới hạn
 
-      // 6. Kiểm tra quantity khi flash sale (chỉ cho phép mua 1 sản phẩm)
-      if (isSalePeriod && item.quantity > 1) {
-        throw new ValidationException(
-          ErrorCode.P002,
-          HttpStatus.BAD_REQUEST,
-          'Flash sale chỉ cho phép mua tối đa 1 sản phẩm',
-        );
+      // 6. Kiểm tra quantity khi flash sale
+      if (isSalePeriod) {
+        const remainingQuantity = limitedQuantity - userPurchasedQuantity;
+        if (item.quantity > remainingQuantity) {
+          throw new ValidationException(
+            ErrorCode.P002,
+            HttpStatus.BAD_REQUEST,
+            `Flash sale chỉ cho phép mua tối đa ${limitedQuantity} sản phẩm. Bạn đã mua ${userPurchasedQuantity}, còn lại ${remainingQuantity}`,
+          );
+        }
       }
 
       // 7. Atomic update trừ kho (chỉ khi được phép mua sale)

@@ -42,6 +42,11 @@ export class CreateProductReqDto {
   @StringFieldOptional()
   description?: string;
 
+  @NumberFieldOptional({
+    isPositive: true,
+  })
+  limitedFlashSaleQuantity?: number;
+
   @ClassFieldOptional(() => CreateOptionReqDto, {
     default: [
       {

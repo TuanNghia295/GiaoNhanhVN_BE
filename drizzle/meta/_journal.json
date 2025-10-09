@@ -288,6 +288,13 @@
       "when": 1759736030924,
       "tag": "0040_tricky_star_brand",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1759992634080,
+      "tag": "0041_workable_shotgun",
+      "breakpoints": true
     }
   ]
 }

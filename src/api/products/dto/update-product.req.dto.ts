@@ -40,6 +40,11 @@ export class UpdateProductReqDto {
   @StringFieldOptional()
   description?: string;
 
+  @NumberFieldOptional({
+    isPositive: true,
+  })
+  limitedFlashSaleQuantity?: number;
+
   @ClassFieldOptional(() => CreateOptionReqDto, {
     default: [
       {

@@ -3,9 +3,12 @@ import { OptionResDto } from '@/api/options/dto/option.res.dto';
 import { WrapperType } from '@/common/types/types';
 import { AbstractResDto } from '@/database/dto/abstract.res.dto';
 import {
+  BooleanFieldOptional,
   ClassField,
   ClassFieldOptional,
+  DateFieldOptional,
   NumberField,
+  NumberFieldOptional,
   StringField,
   StringFieldOptional,
 } from '@/decorators/field.decorators';
@@ -24,6 +27,54 @@ export class ProductResDto extends AbstractResDto {
   @Expose()
   @StringFieldOptional()
   description?: string;
+
+  @Expose()
+  @StringFieldOptional()
+  image?: string;
+
+  @Expose()
+  @NumberFieldOptional()
+  quantity?: number;
+
+  @Expose()
+  @NumberFieldOptional()
+  salePrice?: number;
+
+  @Expose()
+  @DateFieldOptional()
+  startDate?: Date;
+
+  @Expose()
+  @DateFieldOptional()
+  endDate?: Date;
+
+  @Expose()
+  @NumberFieldOptional()
+  limitedFlashSaleQuantity?: number;
+
+  @Expose()
+  @NumberFieldOptional()
+  usedSaleQuantity?: number;
+
+  @Expose()
+  @NumberFieldOptional()
+  index?: number;
+
+  @Expose()
+  @BooleanFieldOptional()
+  isLocked?: boolean;
+
+  @Expose()
+  @NumberFieldOptional()
+  storeId?: number;
+
+  @Expose()
+  @NumberFieldOptional()
+  storeMenuId?: number;
+
+  @Expose()
+  @NumberFieldOptional()
+  categoryItemId?: number;
 
   @ClassFieldOptional(() => OptionResDto)
   @Expose()
