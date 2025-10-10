@@ -378,7 +378,7 @@ export class ProductsService implements OnModuleInit {
     }
 
     // Công thức distance có clamp [-1,1]
-    const distanceSql = sql.raw(`
+    const _distanceSql = sql.raw(`
     6371 * acos(
       least(
         greatest(
@@ -411,11 +411,11 @@ export class ProductsService implements OnModuleInit {
       .groupBy(orderDetails.productId)
       .as('user_purchased');
 
-    return this.db
+    const flashSaleProducts = await this.db
       .select({
         ...getTableColumns(products),
         store: stores,
-        userPurchasedQuantity: sql<number>`COALESCE(${userPurchasedSubquery.totalQuantity}, 0)`,
+        userPurchasedQty: sql<number>`COALESCE(${userPurchasedSubquery.totalQuantity}, 0)`,
       })
       .from(products)
       .innerJoin(stores, eq(products.storeId, stores.id))
@@ -446,6 +446,34 @@ export class ProductsService implements OnModuleInit {
         ),
       )
       .limit(15);
+
+    // Thêm canOrderMoreFlashSale cho mỗi product
+    // Logic:
+    // - limitedFlashSaleQuantity = 0: Không có flash sale → canOrderMoreFlashSale = false
+    // - limitedFlashSaleQuantity > 0: Có flash sale → check startDate, endDate và userPurchasedQty
+    return flashSaleProducts.map((product) => {
+      const userPurchasedQuantity = Number(product.userPurchasedQty) || 0;
+      const limitedQty = Number(product.limitedFlashSaleQuantity) || 0;
+      const now = new Date();
+      const startDate = product.startDate ? new Date(product.startDate as Date) : null;
+      const endDate = product.endDate ? new Date(product.endDate as Date) : null;
+
+      // Check flash sale còn hiệu lực không
+      const isFlashSaleActive =
+        startDate && endDate && now >= startDate && now <= endDate && limitedQty > 0;
+
+      // Chỉ true khi: có flash sale đang active VÀ user chưa mua đủ giới hạn
+      const canOrderMoreFlashSale = Boolean(
+        isFlashSaleActive && userPurchasedQuantity < limitedQty,
+      );
+
+      // Loại bỏ userPurchasedQty khỏi response, chỉ trả về canOrderMoreFlashSale
+      const { userPurchasedQty: _userPurchasedQty, ...productWithoutUserQty } = product;
+      return {
+        ...productWithoutUserQty,
+        canOrderMoreFlashSale,
+      };
+    });
   }
 
   async deleteByStoreId(storeId: number, tx: Transaction) {

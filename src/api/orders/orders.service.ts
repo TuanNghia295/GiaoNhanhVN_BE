@@ -1135,7 +1135,7 @@ export class OrdersService implements OnModuleInit {
         if (item.quantity > remainingQuantity) {
           throw new ValidationException(
             ErrorCode.P002,
-            HttpStatus.BAD_REQUEST,
+            HttpStatus.BAD_REQUEST, 
             `Flash sale chỉ cho phép mua tối đa ${limitedQuantity} sản phẩm. Bạn đã mua ${userPurchasedQuantity}, còn lại ${remainingQuantity}`,
           );
         }

@@ -130,6 +130,9 @@ export class DeliversService implements OnModuleInit {
     });
 
     // Check xem user có còn được mua flash sale không
+    // Logic:
+    // - limitedFlashSaleQuantity = 0: Không có flash sale → canOrderMoreFlashSale = false
+    // - limitedFlashSaleQuantity > 0: Có flash sale → check startDate, endDate và số lượng đã mua
     return Promise.all(
       ordersList.map(async (order) => {
         let canOrderMoreFlashSale = true;
@@ -138,9 +141,20 @@ export class DeliversService implements OnModuleInit {
         if (order.orderDetails && order.userId) {
           for (const detail of order.orderDetails) {
             const limitedQty = Number(detail.product?.limitedFlashSaleQuantity) || 0;
+            const now = new Date();
+            const startDate = detail.product?.startDate ? new Date(detail.product.startDate) : null;
+            const endDate = detail.product?.endDate ? new Date(detail.product.endDate) : null;
 
-            // Chỉ check những sản phẩm có giới hạn flash sale
-            if (limitedQty <= 0) continue;
+            // Check flash sale còn hiệu lực không
+            const isFlashSaleActive = Boolean(
+              startDate && endDate && now >= startDate && now <= endDate && limitedQty > 0,
+            );
+
+            // limitedQty = 0 hoặc flash sale hết hạn → set false và break
+            if (!isFlashSaleActive) {
+              canOrderMoreFlashSale = false;
+              break;
+            }
 
             // Đếm số lượng user đã mua với giá flash sale
             const userPurchased = await this.db
@@ -418,6 +432,9 @@ export class DeliversService implements OnModuleInit {
     });
 
     // Check xem user có còn được mua flash sale không
+    // Logic:
+    // - limitedFlashSaleQuantity = 0: Không có flash sale → canOrderMoreFlashSale = false
+    // - limitedFlashSaleQuantity > 0: Có flash sale → check startDate, endDate và số lượng đã mua
     return Promise.all(
       ordersList.map(async (order) => {
         let canOrderMoreFlashSale = true;
@@ -426,9 +443,20 @@ export class DeliversService implements OnModuleInit {
         if (order.orderDetails && order.userId) {
           for (const detail of order.orderDetails) {
             const limitedQty = Number(detail.product?.limitedFlashSaleQuantity) || 0;
+            const now = new Date();
+            const startDate = detail.product?.startDate ? new Date(detail.product.startDate) : null;
+            const endDate = detail.product?.endDate ? new Date(detail.product.endDate) : null;
 
-            // Chỉ check những sản phẩm có giới hạn flash sale
-            if (limitedQty <= 0) continue;
+            // Check flash sale còn hiệu lực không
+            const isFlashSaleActive = Boolean(
+              startDate && endDate && now >= startDate && now <= endDate && limitedQty > 0,
+            );
+
+            // limitedQty = 0 hoặc flash sale hết hạn → set false và break
+            if (!isFlashSaleActive) {
+              canOrderMoreFlashSale = false;
+              break;
+            }
 
             // Đếm số lượng user đã mua với giá flash sale
             const userPurchased = await this.db

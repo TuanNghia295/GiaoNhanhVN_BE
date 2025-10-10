@@ -83,24 +83,42 @@ export class StoreMenusService {
       });
 
     // Xử lý dữ liệu: chỉ ẩn sale khi user đã mua đủ limitedFlashSaleQuantity
+    // Logic canOrderMoreFlashSale:
+    // - limitedFlashSaleQuantity = 0: Không có flash sale → canOrderMoreFlashSale = false
+    // - limitedFlashSaleQuantity > 0: Có flash sale → check startDate, endDate và userPurchasedQty
     const processedEntities = entities.map((menu) => ({
       ...menu,
       products: menu.products.map((product) => {
-        if (product.id) {
-          const userPurchasedQty = userPurchasedQuantities.get(product.id as number) || 0;
-          const limitedQty = Number(product.limitedFlashSaleQuantity) || 0;
+        const userPurchasedQty = product.id
+          ? userPurchasedQuantities.get(product.id as number) || 0
+          : 0;
+        const limitedQty = Number(product.limitedFlashSaleQuantity) || 0;
+        const now = new Date();
+        const startDate = product.startDate ? new Date(product.startDate as Date) : null;
+        const endDate = product.endDate ? new Date(product.endDate as Date) : null;
 
-          // Chỉ ẩn sale khi user đã mua đủ giới hạn
-          if (limitedQty > 0 && userPurchasedQty >= limitedQty) {
-            return {
-              ...product,
-              salePrice: null,
-              startDate: null,
-              endDate: null,
-            };
-          }
+        // Check flash sale còn hiệu lực không
+        const isFlashSaleActive =
+          startDate && endDate && now >= startDate && now <= endDate && limitedQty > 0;
+
+        // Chỉ true khi: có flash sale đang active VÀ user chưa mua đủ giới hạn
+        const canOrderMoreFlashSale = Boolean(isFlashSaleActive && userPurchasedQty < limitedQty);
+
+        // Chỉ ẩn sale khi user đã mua đủ giới hạn (limitedQty > 0 và đã mua đủ)
+        if (limitedQty > 0 && userPurchasedQty >= limitedQty) {
+          return {
+            ...product,
+            salePrice: null,
+            startDate: null,
+            endDate: null,
+            canOrderMoreFlashSale,
+          };
         }
-        return product;
+
+        return {
+          ...product,
+          canOrderMoreFlashSale,
+        };
       }),
     }));
 

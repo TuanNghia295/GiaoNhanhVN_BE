@@ -337,7 +337,12 @@ export class StoresController {
     summary: 'Tìm kiếm sản phẩm kèm theo thông tin store (public)',
     type: StoreResDto,
   })
-  async searchStore(@Query() reqDto: SearchPageStoresReqDto) {
-    return await this.storesService.searchStore(reqDto);
+  async searchStore(
+    @Query() reqDto: SearchPageStoresReqDto,
+    @CurrentUser() payload: JwtPayloadType,
+  ) {
+    // Xử lý trường hợp user chưa đăng nhập (public endpoint)
+    const userId = payload?.id || 0;
+    return await this.storesService.searchStore(reqDto, userId);
   }
 }

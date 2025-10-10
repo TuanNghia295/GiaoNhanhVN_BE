@@ -14,6 +14,7 @@ import { DRIZZLE, storeIsOpenSql, Transaction, withPagination } from '@/database
 import {
   areas,
   DiscountTypeEnum,
+  orderDetails,
   orders,
   OrderStatusEnum,
   products,
@@ -346,7 +347,7 @@ export class StoresService implements OnModuleInit {
     });
   }
 
-  async searchStore(reqDto: SearchPageStoresReqDto) {
+  async searchStore(reqDto: SearchPageStoresReqDto, userId: number) {
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
 
     if (isNaN(latitude) || isNaN(longitude)) {
@@ -393,10 +394,11 @@ export class StoresService implements OnModuleInit {
                       'startDate', p.start_date,
                       'endDate', p.end_date,
                       'salePrice', p.sale_price,
-                      'image', p.image
+                      'image', p.image,
+                      'limitedFlashSaleQuantity', p.limited_flash_sale_quantity
                     )
                   )
-           FROM (SELECT id, name, price, image , quantity, start_date , end_date, sale_price
+           FROM (SELECT id, name, price, image, quantity, start_date, end_date, sale_price, limited_flash_sale_quantity
                  FROM products p
                  WHERE p.store_id = ${stores.id}
                    AND p.is_locked = false
@@ -493,7 +495,60 @@ export class StoresService implements OnModuleInit {
         ),
     ]);
 
-    const entitiesWithDistance = entities.map((e) => ({
+    // Lấy danh sách productId và tổng số lượng flash sale mà user đã mua (chỉ khi đã đăng nhập)
+    let userPurchasedQuantities = new Map<number, number>();
+
+    if (userId > 0) {
+      userPurchasedQuantities = await this.db
+        .select({
+          productId: orderDetails.productId,
+          totalQuantity: sql<number>`SUM(${orderDetails.quantity})`.as('totalQuantity'),
+        })
+        .from(orderDetails)
+        .where(and(eq(orderDetails.userId, userId), eq(orderDetails.isSale, true)))
+        .groupBy(orderDetails.productId)
+        .then((results) => {
+          const map = new Map<number, number>();
+          results.forEach((r) => {
+            if (r.productId !== null) {
+              map.set(r.productId, Number(r.totalQuantity) || 0);
+            }
+          });
+          return map;
+        });
+    }
+
+    // Xử lý dữ liệu: thêm canOrderMoreFlashSale cho từng product
+    // Logic:
+    // - limitedFlashSaleQuantity = 0: Không có flash sale → canOrderMoreFlashSale = false
+    // - limitedFlashSaleQuantity > 0: Có flash sale → check startDate, endDate và userPurchasedQty
+    const entitiesWithFlashSaleCheck = entities.map((store) => ({
+      ...store,
+      products:
+        (store.products as any[])?.map((product: any) => {
+          const userPurchasedQty = product.id
+            ? userPurchasedQuantities.get(product.id as number) || 0
+            : 0;
+          const limitedQty = Number(product.limitedFlashSaleQuantity) || 0;
+          const now = new Date();
+          const startDate = product.startDate ? new Date(product.startDate as string) : null;
+          const endDate = product.endDate ? new Date(product.endDate as string) : null;
+
+          // Check flash sale còn hiệu lực không
+          const isFlashSaleActive =
+            startDate && endDate && now >= startDate && now <= endDate && limitedQty > 0;
+
+          // Chỉ true khi: có flash sale đang active VÀ user chưa mua đủ giới hạn
+          const canOrderMoreFlashSale = Boolean(isFlashSaleActive && userPurchasedQty < limitedQty);
+
+          return {
+            ...product,
+            canOrderMoreFlashSale,
+          };
+        }) || [],
+    }));
+
+    const entitiesWithDistance = entitiesWithFlashSaleCheck.map((e) => ({
       ...e,
       distance: formatDistance(e.distance),
     }));
