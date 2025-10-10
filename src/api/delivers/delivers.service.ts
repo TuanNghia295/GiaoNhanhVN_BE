@@ -12,6 +12,7 @@ import { decrement, DRIZZLE, increment, Transaction } from '@/database/global';
 import {
   delivers,
   locations,
+  orderDetails,
   orders,
   OrderStatusEnum,
   ratings,
@@ -107,7 +108,7 @@ export class DeliversService implements OnModuleInit {
     if (!(await this.checkStatusActive(payload.id))) {
       return [];
     }
-    return this.db.query.orders.findMany({
+    const ordersList = await this.db.query.orders.findMany({
       where: and(eq(orders.status, OrderStatusEnum.PENDING), eq(orders.areaId, payload.areaId)),
       orderBy: asc(orders.createdAt),
       with: {
@@ -127,6 +128,49 @@ export class DeliversService implements OnModuleInit {
         },
       },
     });
+
+    // Check xem user có còn được mua flash sale không
+    return Promise.all(
+      ordersList.map(async (order) => {
+        let canOrderMoreFlashSale = true;
+
+        // Check tất cả sản phẩm trong đơn hàng có phải là flash sale product không
+        if (order.orderDetails && order.userId) {
+          for (const detail of order.orderDetails) {
+            const limitedQty = Number(detail.product?.limitedFlashSaleQuantity) || 0;
+
+            // Chỉ check những sản phẩm có giới hạn flash sale
+            if (limitedQty <= 0) continue;
+
+            // Đếm số lượng user đã mua với giá flash sale
+            const userPurchased = await this.db
+              .select({
+                totalQuantity: sql<number>`COALESCE(SUM(${orderDetails.quantity}), 0)`,
+              })
+              .from(orderDetails)
+              .where(
+                and(
+                  eq(orderDetails.userId, order.userId),
+                  eq(orderDetails.productId, detail.productId!),
+                  eq(orderDetails.isSale, true),
+                ),
+              )
+              .then((res) => Number(res[0]?.totalQuantity) || 0);
+
+            // Nếu user đã mua đủ giới hạn bất kỳ sản phẩm flash sale nào
+            if (userPurchased >= limitedQty) {
+              canOrderMoreFlashSale = false;
+              break;
+            }
+          }
+        }
+
+        return {
+          ...order,
+          canOrderMoreFlashSale,
+        };
+      }),
+    );
   }
 
   async findById(deliverId: number) {
@@ -345,7 +389,7 @@ export class DeliversService implements OnModuleInit {
   }
 
   async getAcceptedOrders(payload: JwtPayloadType) {
-    return this.db.query.orders.findMany({
+    const ordersList = await this.db.query.orders.findMany({
       where: and(
         eq(orders.deliverId, payload.id),
         notInArray(orders.status, [OrderStatusEnum.CANCELED, OrderStatusEnum.DELIVERED]),
@@ -372,6 +416,49 @@ export class DeliversService implements OnModuleInit {
         },
       },
     });
+
+    // Check xem user có còn được mua flash sale không
+    return Promise.all(
+      ordersList.map(async (order) => {
+        let canOrderMoreFlashSale = true;
+
+        // Check tất cả sản phẩm trong đơn hàng có phải là flash sale product không
+        if (order.orderDetails && order.userId) {
+          for (const detail of order.orderDetails) {
+            const limitedQty = Number(detail.product?.limitedFlashSaleQuantity) || 0;
+
+            // Chỉ check những sản phẩm có giới hạn flash sale
+            if (limitedQty <= 0) continue;
+
+            // Đếm số lượng user đã mua với giá flash sale
+            const userPurchased = await this.db
+              .select({
+                totalQuantity: sql<number>`COALESCE(SUM(${orderDetails.quantity}), 0)`,
+              })
+              .from(orderDetails)
+              .where(
+                and(
+                  eq(orderDetails.userId, order.userId),
+                  eq(orderDetails.productId, detail.productId!),
+                  eq(orderDetails.isSale, true),
+                ),
+              )
+              .then((res) => Number(res[0]?.totalQuantity) || 0);
+
+            // Nếu user đã mua đủ giới hạn bất kỳ sản phẩm flash sale nào
+            if (userPurchased >= limitedQty) {
+              canOrderMoreFlashSale = false;
+              break;
+            }
+          }
+        }
+
+        return {
+          ...order,
+          canOrderMoreFlashSale,
+        };
+      }),
+    );
   }
 
   private async checkStatusActive(deliverId: number) {
