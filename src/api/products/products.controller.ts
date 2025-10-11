@@ -33,14 +33,14 @@ import { ProductsService } from './products.service';
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
-  @ApiPublic({
+  @ApiAuth({
     summary: 'Lấy danh sách sản phẩm [PUBLIC]',
     isPaginated: true,
     type: ProductResDto,
   })
   @Get()
-  async getProducts(@Query() reqDto: PageProductReqDto) {
-    return await this.productsService.getPageProducts(reqDto);
+  async getProducts(@Query() reqDto: PageProductReqDto, @CurrentUser() payload: JwtPayloadType) {
+    return await this.productsService.getPageProducts(reqDto, payload.id);
   }
 
   // flash sale

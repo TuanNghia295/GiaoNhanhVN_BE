@@ -61,7 +61,7 @@ export class ProductsService implements OnModuleInit {
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
   ) {}
 
-  async getPageProducts(reqDto: PageProductReqDto) {
+  async getPageProducts(reqDto: PageProductReqDto, userId: number) {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.products> = {
       where: and(
         isNull(products.deletedAt),
@@ -90,9 +90,63 @@ export class ProductsService implements OnModuleInit {
       this.db.select({ totalCount: count() }).from(sql`${qCount}`),
     ]);
 
+    // Subquery để tính tổng số lượng user đã mua của từng sản phẩm flash sale
+    const productIds = entities.map((e) => e.id);
+    let userPurchasedMap: Record<number, number> = {};
+
+    if (productIds.length > 0) {
+      const userPurchased = await this.db
+        .select({
+          productId: orderDetails.productId,
+          totalQuantity: sql<number>`COALESCE(SUM(${orderDetails.quantity}), 0)`.as(
+            'totalQuantity',
+          ),
+        })
+        .from(orderDetails)
+        .where(
+          and(
+            eq(orderDetails.userId, userId),
+            eq(orderDetails.isSale, true),
+            sql`${orderDetails.productId} IN ${sql.raw(`(${productIds.join(',')})`)}`,
+          ),
+        )
+        .groupBy(orderDetails.productId);
+
+      userPurchasedMap = userPurchased.reduce(
+        (acc, item) => {
+          acc[item.productId] = Number(item.totalQuantity) || 0;
+          return acc;
+        },
+        {} as Record<number, number>,
+      );
+    }
+
+    // Thêm canOrderMoreFlashSale cho mỗi product
+    const entitiesWithFlashSaleCheck = entities.map((product) => {
+      const userPurchasedQuantity = userPurchasedMap[Number(product.id)] || 0;
+      const limitedQty = Number(product.limitedFlashSaleQuantity) || 0;
+      const now = new Date();
+      const startDate = product.startDate ? new Date(product.startDate as Date) : null;
+      const endDate = product.endDate ? new Date(product.endDate as Date) : null;
+
+      // Check flash sale còn hiệu lực không
+      const isFlashSaleActive =
+        startDate && endDate && now >= startDate && now <= endDate && limitedQty > 0;
+
+      // Chỉ true khi: có flash sale đang active VÀ user chưa mua đủ giới hạn
+      const canOrderMoreFlashSale = Boolean(
+        isFlashSaleActive && userPurchasedQuantity < limitedQty,
+      );
+
+      return {
+        ...product,
+        canOrderMoreFlashSale,
+      };
+    });
+
     const meta = new OffsetPaginationDto(totalCount, reqDto);
     return new OffsetPaginatedDto(
-      entities.map((e) => plainToInstance(ProductResDto, e)),
+      entitiesWithFlashSaleCheck.map((e) => plainToInstance(ProductResDto, e)),
       meta,
     );
   }
