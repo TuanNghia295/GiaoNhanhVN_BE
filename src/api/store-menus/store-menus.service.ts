@@ -215,8 +215,8 @@ export class StoreMenusService {
         .set({
           deletedAt: new Date(),
         })
-        .returning()
         .where(eq(storeMenus.id, storeMenuId))
+        .returning()
         .then((result) => plainToInstance(StoreMenuResDto, result[0]));
     });
   }

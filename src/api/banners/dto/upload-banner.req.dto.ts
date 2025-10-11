@@ -1,6 +1,10 @@
 import { BannerEnum } from '@/database/schemas';
-import { EnumField, FileFieldOptional, StringField } from '@/decorators/field.decorators';
-import { IsOptional, IsString } from 'class-validator';
+import {
+  EnumField,
+  FileFieldOptional,
+  StringField,
+  StringFieldOptional,
+} from '@/decorators/field.decorators';
 
 export class UploadBannerReqDto {
   @EnumField(() => BannerEnum)
@@ -12,7 +16,6 @@ export class UploadBannerReqDto {
   @FileFieldOptional()
   image?: Express.Multer.File;
 
-  @IsOptional()
-  @IsString()
+  @StringFieldOptional()
   link_store: string;
 }

@@ -151,7 +151,7 @@ export class ProductsService implements OnModuleInit {
     );
   }
 
-  async getProductById(productId: number) {
+  async getProductById(productId: number, userId?: number) {
     const product = await this.db.query.products.findFirst({
       where: and(
         isNull(products.deletedAt),
@@ -166,6 +166,46 @@ export class ProductsService implements OnModuleInit {
     });
 
     if (!product) throw new ValidationException(ErrorCode.P001);
+
+    // Chỉ tính flash sale khi có userId
+    if (userId) {
+      // Lấy tổng số lượng user đã mua của sản phẩm này
+      const userPurchased = await this.db
+        .select({
+          totalQuantity: sql<number>`COALESCE(SUM(${orderDetails.quantity}), 0)`.as(
+            'totalQuantity',
+          ),
+        })
+        .from(orderDetails)
+        .where(
+          and(
+            eq(orderDetails.userId, userId),
+            eq(orderDetails.isSale, true),
+            eq(orderDetails.productId, productId),
+          ),
+        );
+
+      const userPurchasedQuantity = Number(userPurchased[0]?.totalQuantity) || 0;
+      const limitedQty = Number(product.limitedFlashSaleQuantity) || 0;
+      const now = new Date();
+      const startDate = product.startDate ? new Date(product.startDate as Date) : null;
+      const endDate = product.endDate ? new Date(product.endDate as Date) : null;
+
+      // Check flash sale còn hiệu lực không
+      const isFlashSaleActive =
+        startDate && endDate && now >= startDate && now <= endDate && limitedQty > 0;
+
+      // Chỉ true khi: có flash sale đang active VÀ user chưa mua đủ giới hạn
+      const canOrderMoreFlashSale = Boolean(
+        isFlashSaleActive && userPurchasedQuantity < limitedQty,
+      );
+
+      return plainToInstance(ProductResDto, {
+        ...product,
+        canOrderMoreFlashSale,
+      });
+    }
+
     return plainToInstance(ProductResDto, product);
   }
 
@@ -275,7 +315,7 @@ export class ProductsService implements OnModuleInit {
         const existStore = await this.storesService.existById(reqDto.storeId);
         if (!existStore) throw new ValidationException(ErrorCode.S001);
       }
-
+      console.log('💕💕💕💕', reqDto);
       const [updateProduct] = await tx
         .update(products)
         .set({

@@ -8,7 +8,7 @@ import { UpdateProductReqDto } from '@/api/products/dto/update-product.req.dto';
 import { UploadImageReqDto } from '@/api/products/dto/upload-image.req.dto';
 import { RoleEnum } from '@/database/schemas';
 import { CurrentUser } from '@/decorators/current-user.decorator';
-import { ApiAuth, ApiPublic } from '@/decorators/http.decorators';
+import { ApiAuth } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
 import {
   Body,
@@ -57,15 +57,16 @@ export class ProductsController {
     return await this.productsService.getFlashSaleProducts(reqDto, payload.id);
   }
 
-  @ApiPublic({
+  @ApiAuth({
     summary: 'Lấy thông tin sản phẩm',
     type: ProductResDto,
   })
   @Get(':productId')
   async getProductById(
     @Param('productId', ParseIntPipe) productId: number,
+    @CurrentUser() payload: JwtPayloadType,
   ): Promise<ProductResDto> {
-    return await this.productsService.getProductById(productId);
+    return await this.productsService.getProductById(productId, payload?.id);
   }
 
   // api sắp xếp sản phẩm index

@@ -4,8 +4,8 @@ import {
   FileField,
   NumberFieldOptional,
   StringField,
+  StringFieldOptional,
 } from '@/decorators/field.decorators';
-import { IsOptional, IsString } from 'class-validator';
 
 export class CreateBannerReqDto {
   @EnumField(() => BannerEnum)
@@ -20,7 +20,6 @@ export class CreateBannerReqDto {
   @FileField()
   image: Express.Multer.File;
 
-  @IsOptional()
-  @IsString()
+  @StringFieldOptional()
   link_store: string;
 }

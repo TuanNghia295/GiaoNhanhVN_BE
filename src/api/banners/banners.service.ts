@@ -146,6 +146,7 @@ export class BannersService implements OnModuleInit {
       .update(banners)
       .set({
         ...reqDto,
+        link_store: !reqDto.link_store ? null : reqDto.link_store,
         image: normalizedPath,
       })
       .where(eq(banners.id, bannerId))

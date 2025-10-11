@@ -1065,7 +1065,18 @@ export class StoresService implements OnModuleInit {
     //   )
     // `);
 
-    return this.db
+    // Subquery để tính tổng số lượng user đã mua của từng sản phẩm
+    const userPurchasedSubquery = this.db
+      .select({
+        productId: orderDetails.productId,
+        totalQuantity: sql<number>`COALESCE(SUM(${orderDetails.quantity}), 0)`.as('totalQuantity'),
+      })
+      .from(orderDetails)
+      .where(and(eq(orderDetails.userId, userId), eq(orderDetails.isSale, true)))
+      .groupBy(orderDetails.productId)
+      .as('user_purchased');
+
+    const nearbyProducts = await this.db
       .select({
         ...getTableColumns(products),
         store: stores,
@@ -1084,19 +1095,11 @@ export class StoresService implements OnModuleInit {
            ORDER BY v.value DESC LIMIT 1)
         `.mapWith((val) => val ?? null),
         orderCount: sql`COALESCE(oc.order_count, 0)`.mapWith(Number).as('order_count'),
-        isUseSale: sql`
-          EXISTS(
-            SELECT 1 FROM order_details od
-            WHERE od.product_id = ${products.id}
-              AND od.user_id = ${userId}
-              AND od.is_sale = true
-          )
-        `
-          .mapWith((val) => Boolean(val))
-          .as('isUseSale'),
+        userPurchasedQty: sql<number>`COALESCE(${userPurchasedSubquery.totalQuantity}, 0)`,
       })
       .from(products)
       .leftJoin(stores, eq(stores.id, products.storeId))
+      .leftJoin(userPurchasedSubquery, eq(products.id, userPurchasedSubquery.productId))
       .leftJoin(
         sql`
           (SELECT od.product_id, COUNT(DISTINCT od.order_id) AS order_count
@@ -1128,6 +1131,31 @@ export class StoresService implements OnModuleInit {
       )
       .orderBy(desc(sql`order_count`))
       .limit(15);
+
+    // Thêm canOrderMoreFlashSale cho mỗi product
+    return nearbyProducts.map((product) => {
+      const userPurchasedQuantity = Number(product.userPurchasedQty) || 0;
+      const limitedQty = Number(product.limitedFlashSaleQuantity) || 0;
+      const now = new Date();
+      const startDate = product.startDate ? new Date(product.startDate as Date) : null;
+      const endDate = product.endDate ? new Date(product.endDate as Date) : null;
+
+      // Check flash sale còn hiệu lực không
+      const isFlashSaleActive =
+        startDate && endDate && now >= startDate && now <= endDate && limitedQty > 0;
+
+      // Chỉ true khi: có flash sale đang active VÀ user chưa mua đủ giới hạn
+      const canOrderMoreFlashSale = Boolean(
+        isFlashSaleActive && userPurchasedQuantity < limitedQty,
+      );
+
+      // Loại bỏ userPurchasedQty khỏi response, chỉ trả về canOrderMoreFlashSale
+      const { userPurchasedQty: _userPurchasedQty, ...productWithoutUserQty } = product;
+      return {
+        ...productWithoutUserQty,
+        canOrderMoreFlashSale,
+      };
+    });
   }
 
   async deleteByUserId(userId: number, tx: Transaction) {
