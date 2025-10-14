@@ -1135,7 +1135,7 @@ export class OrdersService implements OnModuleInit {
         if (item.quantity > remainingQuantity) {
           throw new ValidationException(
             ErrorCode.P002,
-            HttpStatus.BAD_REQUEST, 
+            HttpStatus.BAD_REQUEST,
             `Flash sale chỉ cho phép mua tối đa ${limitedQuantity} sản phẩm. Bạn đã mua ${userPurchasedQuantity}, còn lại ${remainingQuantity}`,
           );
         }
@@ -1913,6 +1913,7 @@ export class OrdersService implements OnModuleInit {
       )
       .where(eq(orders.id, existOrder.id))
       .groupBy(orders.id);
+
     if (this.configService.get('app.nodeEnv', { infer: true }) === Environment.DEVELOPMENT) {
       console.group('♻️ Refund Point Issued');
       console.log('🚚 Deliver ID   :', existDeliver.id);
@@ -1922,7 +1923,8 @@ export class OrdersService implements OnModuleInit {
     //---------------------------------------------------
     // Hoàn lại điểm cho người giao hàng
     //---------------------------------------------------
-    const totalRefundPoint = existOrder.coinUsed + refund.refundPoint;
+    const totalRefundPoint =
+      existOrder.coinUsed + Math.min(refund.refundPoint, existOrder.totalDelivery);
     await this.deliversService.addPoint(existDeliver.id, totalRefundPoint, tx);
   }
 
