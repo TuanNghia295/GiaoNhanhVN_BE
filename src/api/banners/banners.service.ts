@@ -124,9 +124,16 @@ export class BannersService implements OnModuleInit {
 
   async update(bannerId: number, reqDto: UploadBannerReqDto, image?: Express.Multer.File) {
     const banner = await this.existById(bannerId);
+
     if (!banner) {
       throw new ValidationException(ErrorCode.B001);
     }
+
+    let storeId = null;
+    if (reqDto?.link_store) {
+      storeId = Number(reqDto.link_store.split('/').pop());
+    }
+
     let normalizedPath = banner.image; // Keep old image if new one isn't provided
     if (image?.buffer) {
       const fileName = await this.buildFileName('banner');
@@ -146,6 +153,7 @@ export class BannersService implements OnModuleInit {
       .update(banners)
       .set({
         ...reqDto,
+        storeId,
         link_store: !reqDto.link_store ? null : reqDto.link_store,
         image: normalizedPath,
       })
