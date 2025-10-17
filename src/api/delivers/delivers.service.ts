@@ -129,62 +129,52 @@ export class DeliversService implements OnModuleInit {
       },
     });
 
+    // ✅ OPTIMIZED: Fetch all user purchases at once
+    const userPurchasesMap = await this.fetchUserPurchasesForOrders(ordersList);
+
     // Check xem user có còn được mua flash sale không
     // Logic:
     // - limitedFlashSaleQuantity = 0: Không có flash sale → canOrderMoreFlashSale = false
     // - limitedFlashSaleQuantity > 0: Có flash sale → check startDate, endDate và số lượng đã mua
-    return Promise.all(
-      ordersList.map(async (order) => {
-        let canOrderMoreFlashSale = true;
+    return ordersList.map((order) => {
+      let canOrderMoreFlashSale = true;
 
-        // Check tất cả sản phẩm trong đơn hàng có phải là flash sale product không
-        if (order.orderDetails && order.userId) {
-          for (const detail of order.orderDetails) {
-            const limitedQty = Number(detail.product?.limitedFlashSaleQuantity) || 0;
-            const now = new Date();
-            const startDate = detail.product?.startDate ? new Date(detail.product.startDate) : null;
-            const endDate = detail.product?.endDate ? new Date(detail.product.endDate) : null;
+      // Check tất cả sản phẩm trong đơn hàng có phải là flash sale product không
+      if (order.orderDetails && order.userId) {
+        for (const detail of order.orderDetails) {
+          const limitedQty = Number(detail.product?.limitedFlashSaleQuantity) || 0;
+          const now = new Date();
+          const startDate = detail.product?.startDate ? new Date(detail.product.startDate) : null;
+          const endDate = detail.product?.endDate ? new Date(detail.product.endDate) : null;
 
-            // Check flash sale còn hiệu lực không
-            const isFlashSaleActive = Boolean(
-              startDate && endDate && now >= startDate && now <= endDate && limitedQty > 0,
-            );
+          // Check flash sale còn hiệu lực không
+          const isFlashSaleActive = Boolean(
+            startDate && endDate && now >= startDate && now <= endDate && limitedQty > 0,
+          );
 
-            // limitedQty = 0 hoặc flash sale hết hạn → set false và break
-            if (!isFlashSaleActive) {
-              canOrderMoreFlashSale = false;
-              break;
-            }
+          // limitedQty = 0 hoặc flash sale hết hạn → set false và break
+          if (!isFlashSaleActive) {
+            canOrderMoreFlashSale = false;
+            break;
+          }
 
-            // Đếm số lượng user đã mua với giá flash sale
-            const userPurchased = await this.db
-              .select({
-                totalQuantity: sql<number>`COALESCE(SUM(${orderDetails.quantity}), 0)`,
-              })
-              .from(orderDetails)
-              .where(
-                and(
-                  eq(orderDetails.userId, order.userId),
-                  eq(orderDetails.productId, detail.productId!),
-                  eq(orderDetails.isSale, true),
-                ),
-              )
-              .then((res) => Number(res[0]?.totalQuantity) || 0);
+          // ✅ OPTIMIZED: Lookup from Map instead of querying DB
+          const purchaseKey = `${order.userId}-${detail.productId}`;
+          const userPurchased = userPurchasesMap.get(purchaseKey) || 0;
 
-            // Nếu user đã mua đủ giới hạn bất kỳ sản phẩm flash sale nào
-            if (userPurchased >= limitedQty) {
-              canOrderMoreFlashSale = false;
-              break;
-            }
+          // Nếu user đã mua đủ giới hạn bất kỳ sản phẩm flash sale nào
+          if (userPurchased >= limitedQty) {
+            canOrderMoreFlashSale = false;
+            break;
           }
         }
+      }
 
-        return {
-          ...order,
-          canOrderMoreFlashSale,
-        };
-      }),
-    );
+      return {
+        ...order,
+        canOrderMoreFlashSale,
+      };
+    });
   }
 
   async findById(deliverId: number) {
@@ -240,7 +230,7 @@ export class DeliversService implements OnModuleInit {
     return plainToInstance(DeliverResDto, result);
   }
 
-  async update(deliverId: number, reqDto: UpdateDeliverReqDto, payload: JwtPayloadType) {
+  async update(deliverId: number, reqDto: UpdateDeliverReqDto, _payload: JwtPayloadType) {
     return this.db.transaction(async (tx) => {
       if (reqDto.location) {
         await tx
@@ -431,62 +421,52 @@ export class DeliversService implements OnModuleInit {
       },
     });
 
+    // ✅ OPTIMIZED: Fetch all user purchases at once
+    const userPurchasesMap = await this.fetchUserPurchasesForOrders(ordersList);
+
     // Check xem user có còn được mua flash sale không
     // Logic:
     // - limitedFlashSaleQuantity = 0: Không có flash sale → canOrderMoreFlashSale = false
     // - limitedFlashSaleQuantity > 0: Có flash sale → check startDate, endDate và số lượng đã mua
-    return Promise.all(
-      ordersList.map(async (order) => {
-        let canOrderMoreFlashSale = true;
+    return ordersList.map((order) => {
+      let canOrderMoreFlashSale = true;
 
-        // Check tất cả sản phẩm trong đơn hàng có phải là flash sale product không
-        if (order.orderDetails && order.userId) {
-          for (const detail of order.orderDetails) {
-            const limitedQty = Number(detail.product?.limitedFlashSaleQuantity) || 0;
-            const now = new Date();
-            const startDate = detail.product?.startDate ? new Date(detail.product.startDate) : null;
-            const endDate = detail.product?.endDate ? new Date(detail.product.endDate) : null;
+      // Check tất cả sản phẩm trong đơn hàng có phải là flash sale product không
+      if (order.orderDetails && order.userId) {
+        for (const detail of order.orderDetails) {
+          const limitedQty = Number(detail.product?.limitedFlashSaleQuantity) || 0;
+          const now = new Date();
+          const startDate = detail.product?.startDate ? new Date(detail.product.startDate) : null;
+          const endDate = detail.product?.endDate ? new Date(detail.product.endDate) : null;
 
-            // Check flash sale còn hiệu lực không
-            const isFlashSaleActive = Boolean(
-              startDate && endDate && now >= startDate && now <= endDate && limitedQty > 0,
-            );
+          // Check flash sale còn hiệu lực không
+          const isFlashSaleActive = Boolean(
+            startDate && endDate && now >= startDate && now <= endDate && limitedQty > 0,
+          );
 
-            // limitedQty = 0 hoặc flash sale hết hạn → set false và break
-            if (!isFlashSaleActive) {
-              canOrderMoreFlashSale = false;
-              break;
-            }
+          // limitedQty = 0 hoặc flash sale hết hạn → set false và break
+          if (!isFlashSaleActive) {
+            canOrderMoreFlashSale = false;
+            break;
+          }
 
-            // Đếm số lượng user đã mua với giá flash sale
-            const userPurchased = await this.db
-              .select({
-                totalQuantity: sql<number>`COALESCE(SUM(${orderDetails.quantity}), 0)`,
-              })
-              .from(orderDetails)
-              .where(
-                and(
-                  eq(orderDetails.userId, order.userId),
-                  eq(orderDetails.productId, detail.productId!),
-                  eq(orderDetails.isSale, true),
-                ),
-              )
-              .then((res) => Number(res[0]?.totalQuantity) || 0);
+          // ✅ OPTIMIZED: Lookup from Map instead of querying DB
+          const purchaseKey = `${order.userId}-${detail.productId}`;
+          const userPurchased = userPurchasesMap.get(purchaseKey) || 0;
 
-            // Nếu user đã mua đủ giới hạn bất kỳ sản phẩm flash sale nào
-            if (userPurchased >= limitedQty) {
-              canOrderMoreFlashSale = false;
-              break;
-            }
+          // Nếu user đã mua đủ giới hạn bất kỳ sản phẩm flash sale nào
+          if (userPurchased >= limitedQty) {
+            canOrderMoreFlashSale = false;
+            break;
           }
         }
+      }
 
-        return {
-          ...order,
-          canOrderMoreFlashSale,
-        };
-      }),
-    );
+      return {
+        ...order,
+        canOrderMoreFlashSale,
+      };
+    });
   }
 
   private async checkStatusActive(deliverId: number) {
@@ -499,6 +479,75 @@ export class DeliversService implements OnModuleInit {
         and(eq(delivers.id, deliverId), eq(delivers.activated, true), isNull(delivers.deletedAt)),
       )
       .then((res) => res[0]);
+  }
+
+  /**
+   * ✅ OPTIMIZED: Fetch all user purchases for multiple orders in a single query
+   * This eliminates N+1 query problem by batching all user-product purchase lookups
+   *
+   * @param ordersList - List of orders with orderDetails
+   * @returns Map<string, number> where key is "userId-productId" and value is total quantity purchased
+   */
+  private async fetchUserPurchasesForOrders(
+    ordersList: Array<{
+      userId?: number;
+      orderDetails?: Array<{ productId?: number }>;
+    }>,
+  ): Promise<Map<string, number>> {
+    // Early return if no orders
+    if (!ordersList || ordersList.length === 0) {
+      return new Map();
+    }
+
+    // Collect all unique user-product pairs
+    const userProductPairs = new Set<string>();
+    const userIds = new Set<number>();
+    const productIds = new Set<number>();
+
+    for (const order of ordersList) {
+      if (order.userId && order.orderDetails) {
+        for (const detail of order.orderDetails) {
+          if (detail.productId) {
+            userProductPairs.add(`${order.userId}-${detail.productId}`);
+            userIds.add(order.userId);
+            productIds.add(detail.productId);
+          }
+        }
+      }
+    }
+
+    // Early return if no valid pairs
+    if (userProductPairs.size === 0) {
+      return new Map();
+    }
+
+    // Query all purchases in a single DB call
+    const purchases = await this.db
+      .select({
+        userId: orderDetails.userId,
+        productId: orderDetails.productId,
+        totalQuantity: sql<number>`COALESCE(SUM(${orderDetails.quantity}), 0)`.as('totalQuantity'),
+      })
+      .from(orderDetails)
+      .where(
+        and(
+          inArray(orderDetails.userId, Array.from(userIds)),
+          inArray(orderDetails.productId, Array.from(productIds)),
+          eq(orderDetails.isSale, true),
+        ),
+      )
+      .groupBy(orderDetails.userId, orderDetails.productId);
+
+    // Build Map for O(1) lookup
+    const purchasesMap = new Map<string, number>();
+    for (const purchase of purchases) {
+      if (purchase.userId && purchase.productId) {
+        const key = `${purchase.userId}-${purchase.productId}`;
+        purchasesMap.set(key, Number(purchase.totalQuantity) || 0);
+      }
+    }
+
+    return purchasesMap;
   }
 
   async selectFcmTokenByAreaId(areaId: number) {

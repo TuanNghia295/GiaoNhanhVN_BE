@@ -381,31 +381,10 @@ export class StoresService implements OnModuleInit {
     )
   `);
 
+    // ✅ OPTIMIZED: Fetch stores WITHOUT products (no JSON aggregation)
     const qb = this.db
       .select({
         ...getTableColumns(stores),
-        products: sql`
-          (SELECT json_agg(
-                    jsonb_build_object(
-                      'id', p.id,
-                      'name', p.name,
-                      'price', p.price,
-                      'quantity', p.quantity,
-                      'startDate', p.start_date,
-                      'endDate', p.end_date,
-                      'salePrice', p.sale_price,
-                      'image', p.image,
-                      'limitedFlashSaleQuantity', p.limited_flash_sale_quantity
-                    )
-                  )
-           FROM (SELECT id, name, price, image, quantity, start_date, end_date, sale_price, limited_flash_sale_quantity
-                 FROM products p
-                 WHERE p.store_id = ${stores.id}
-                   AND p.is_locked = false
-                   AND p.deleted_at IS NULL
-                   AND p.name ILIKE '%' || ${escapedQuery} || '%'
-                   LIMIT 5 -- Thêm giới hạn 5 sản phẩm ở đây
-                ) p)`.mapWith((val) => val ?? []),
         rating: sql`COALESCE
           (avg(
         ${ratings.storeRate}
@@ -495,6 +474,12 @@ export class StoresService implements OnModuleInit {
         ),
     ]);
 
+    // ✅ OPTIMIZED: Batch fetch products for all stores in one query
+    const productsMap = await this.batchFetchStoreProducts(
+      entities.map((s) => s.id),
+      escapedQuery,
+    );
+
     // Lấy danh sách productId và tổng số lượng flash sale mà user đã mua (chỉ khi đã đăng nhập)
     let userPurchasedQuantities = new Map<number, number>();
 
@@ -518,6 +503,7 @@ export class StoresService implements OnModuleInit {
         });
     }
 
+    // ✅ OPTIMIZED: Combine stores with products from Map
     // Xử lý dữ liệu: thêm canOrderMoreFlashSale cho từng product
     // Logic:
     // - limitedFlashSaleQuantity = 0: Không có flash sale → canOrderMoreFlashSale = false
@@ -525,7 +511,7 @@ export class StoresService implements OnModuleInit {
     const entitiesWithFlashSaleCheck = entities.map((store) => ({
       ...store,
       products:
-        (store.products as any[])?.map((product: any) => {
+        (productsMap.get(store.id) || [])?.map((product: any) => {
           const userPurchasedQty = product.id
             ? userPurchasedQuantities.get(product.id as number) || 0
             : 0;
@@ -1175,5 +1161,75 @@ export class StoresService implements OnModuleInit {
     }
     const [deletedStore] = await tx.delete(stores).where(eq(stores.userId, userId)).returning();
     return deletedStore;
+  }
+
+  /**
+   * ✅ OPTIMIZED: Batch fetch products for multiple stores in a single query
+   * Eliminates N+1 correlated subquery problem in searchStore()
+   *
+   * @param storeIds - Array of store IDs to fetch products for
+   * @param searchQuery - Optional search query to filter products by name
+   * @returns Map<storeId, products[]> with max 5 products per store
+   */
+  private async batchFetchStoreProducts(
+    storeIds: number[],
+    searchQuery?: string,
+  ): Promise<Map<number, any[]>> {
+    // Early return if no stores
+    if (!storeIds || storeIds.length === 0) {
+      return new Map();
+    }
+
+    // ✅ Single query to fetch products for all stores
+    const allProducts = await this.db
+      .select({
+        id: products.id,
+        name: products.name,
+        price: products.price,
+        quantity: products.quantity,
+        startDate: products.startDate,
+        endDate: products.endDate,
+        salePrice: products.salePrice,
+        image: products.image,
+        limitedFlashSaleQuantity: products.limitedFlashSaleQuantity,
+        storeId: products.storeId,
+      })
+      .from(products)
+      .where(
+        and(
+          inArray(products.storeId, storeIds),
+          eq(products.isLocked, false),
+          isNull(products.deletedAt),
+          ...(searchQuery ? [ilike(products.name, `%${searchQuery}%`)] : []),
+        ),
+      )
+      .orderBy(desc(products.createdAt)); // Order by createdAt to get latest products
+
+    // ✅ Group products by storeId and limit to 5 per store
+    const productsMap = new Map<number, any[]>();
+
+    for (const product of allProducts) {
+      if (!productsMap.has(product.storeId)) {
+        productsMap.set(product.storeId, []);
+      }
+
+      const storeProducts = productsMap.get(product.storeId)!;
+      // Limit to 5 products per store
+      if (storeProducts.length < 5) {
+        storeProducts.push({
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          quantity: product.quantity,
+          startDate: product.startDate,
+          endDate: product.endDate,
+          salePrice: product.salePrice,
+          image: product.image,
+          limitedFlashSaleQuantity: product.limitedFlashSaleQuantity,
+        });
+      }
+    }
+
+    return productsMap;
   }
 }

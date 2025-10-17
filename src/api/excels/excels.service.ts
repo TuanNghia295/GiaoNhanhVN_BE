@@ -149,25 +149,250 @@ export class ExcelsService {
   }
 
   async parseExcelBufferToData(buffer: Buffer): Promise<ParsedProductRow[]> {
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    // ✅ CHECK 1: Validate buffer exists and has content
+    if (!buffer || buffer.length === 0) {
+      throw new ValidationException(ErrorCode.EX001, 400, 'File Excel trống hoặc không hợp lệ');
+    }
+
+    // ✅ CHECK 2: Parse Excel file
+    let workbook: XLSX.WorkBook;
+    try {
+      workbook = XLSX.read(buffer, { type: 'buffer' });
+    } catch (_error) {
+      throw new ValidationException(
+        ErrorCode.EX001,
+        400,
+        'Không thể đọc file Excel. Vui lòng kiểm tra lại định dạng file.',
+      );
+    }
+
+    // ✅ CHECK 3: Validate workbook has sheets
+    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+      throw new ValidationException(
+        ErrorCode.EX001,
+        400,
+        'File Excel không có sheet nào. Vui lòng thêm dữ liệu.',
+      );
+    }
+
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
+
+    // ✅ CHECK 4: Validate worksheet exists
+    if (!worksheet) {
+      throw new ValidationException(
+        ErrorCode.EX001,
+        400,
+        'Không thể đọc sheet đầu tiên trong file Excel.',
+      );
+    }
+
+    // ✅ CHECK 5: Parse sheet to JSON
     const jsonData = XLSX.utils.sheet_to_json(worksheet, {
       header: 1,
       raw: false,
+      defval: '', // Default value for empty cells
     });
+
+    // ✅ CHECK 6: Validate has data
+    if (!jsonData || jsonData.length === 0) {
+      throw new ValidationException(
+        ErrorCode.EX001,
+        400,
+        'File Excel không có dữ liệu. Vui lòng thêm ít nhất 1 sản phẩm.',
+      );
+    }
+
+    // ✅ CHECK 7: Validate headers row exists
+    if (jsonData.length < 2) {
+      throw new ValidationException(
+        ErrorCode.EX001,
+        400,
+        'File Excel phải có ít nhất 2 dòng (1 dòng tiêu đề + 1 dòng dữ liệu).',
+      );
+    }
+
     const headers = jsonData[0] as string[];
-    return jsonData
-      .slice(1)
-      .filter((row: string[]) => row.length > 0)
-      .map((row: string[]) => {
+
+    // ✅ CHECK 8: Validate headers are not empty
+    if (!headers || headers.length === 0) {
+      throw new ValidationException(
+        ErrorCode.EX001,
+        400,
+        'Dòng tiêu đề (header) trong Excel bị trống.',
+      );
+    }
+
+    // ✅ CHECK 9: Validate required headers exist
+    const requiredHeaders = [
+      ImportHeaderLabels[ImportHeaderKeys.STORE_PHONE],
+      ImportHeaderLabels[ImportHeaderKeys.PRODUCT_NAME],
+      ImportHeaderLabels[ImportHeaderKeys.CATEGORY_NAME],
+      ImportHeaderLabels[ImportHeaderKeys.BASE_PRICE],
+      ImportHeaderLabels[ImportHeaderKeys.MENU_NAME],
+    ];
+
+    const missingHeaders = requiredHeaders.filter((reqHeader) => !headers.includes(reqHeader));
+
+    if (missingHeaders.length > 0) {
+      throw new ValidationException(
+        ErrorCode.EX001,
+        400,
+        `File Excel thiếu các cột bắt buộc: ${missingHeaders.join(', ')}`,
+      );
+    }
+
+    // ✅ CHECK 10: Validate unknown headers
+    const validHeaders = Object.values(ImportHeaderLabels);
+    const unknownHeaders = headers.filter(
+      (header) => header && header.trim() && !validHeaders.includes(header),
+    );
+
+    if (unknownHeaders.length > 0) {
+      console.warn('Warning: File Excel có các cột không xác định:', unknownHeaders);
+      // Note: This is just a warning, not blocking import
+    }
+
+    // ✅ CHECK 11: Parse and validate rows
+    const parsedRows: ParsedProductRow[] = [];
+    const errors: string[] = [];
+    const seenProducts = new Set<string>(); // Track duplicates
+
+    jsonData
+      .slice(1) // Skip header row
+      .forEach((row: any[], rowIndex) => {
+        const actualRowNumber = rowIndex + 2; // +2 because: +1 for slice, +1 for Excel 1-based
+
+        // Skip completely empty rows
+        const isEmptyRow = !row || row.every((cell) => !cell || String(cell).trim() === '');
+        if (isEmptyRow) {
+          return; // Skip this row
+        }
+
+        // Parse row data
         const rowData: Record<string, string> = {};
         headers.forEach((header, index) => {
           const key = ImportProductHeaderMap[header];
-          rowData[key] = row[index];
+          if (key) {
+            rowData[key] = row[index] ? String(row[index]).trim() : '';
+          }
         });
-        return rowData;
+
+        // ✅ CHECK 12: Validate required fields in row
+        const requiredFields = {
+          storePhone: 'Số điện thoại của cửa hàng',
+          productName: 'Tên sản phẩm',
+          categoryName: 'Danh mục sản phẩm',
+          basePrice: 'Giá',
+          menuName: 'Menu của sản phẩm',
+        };
+
+        for (const [field, label] of Object.entries(requiredFields)) {
+          if (!rowData[field] || rowData[field].trim() === '') {
+            errors.push(`Dòng ${actualRowNumber}: Thiếu "${label}"`);
+          }
+        }
+
+        // ✅ CHECK 13: Validate phone format (basic check)
+        if (rowData.storePhone && !/^[0-9]{10,11}$/.test(rowData.storePhone.replace(/\s/g, ''))) {
+          errors.push(
+            `Dòng ${actualRowNumber}: Số điện thoại "${rowData.storePhone}" không hợp lệ (phải là 10-11 chữ số)`,
+          );
+        }
+
+        // ✅ CHECK 14: Validate price is a number
+        if (rowData.basePrice) {
+          const price = Number(rowData.basePrice.replace(/,/g, ''));
+          if (isNaN(price) || price < 0) {
+            errors.push(
+              `Dòng ${actualRowNumber}: Giá "${rowData.basePrice}" không hợp lệ (phải là số >= 0)`,
+            );
+          }
+        }
+
+        // ✅ CHECK 15: Validate sizes and sizePrices match
+        if (rowData.sizes || rowData.sizePrices) {
+          const sizes = rowData.sizes ? rowData.sizes.split(',').filter((s) => s.trim()) : [];
+          const sizePrices = rowData.sizePrices
+            ? rowData.sizePrices.split(',').filter((s) => s.trim())
+            : [];
+
+          if (sizes.length !== sizePrices.length) {
+            errors.push(
+              `Dòng ${actualRowNumber}: Số lượng Size (${sizes.length}) không khớp với số lượng Giá size (${sizePrices.length})`,
+            );
+          }
+
+          // Validate each size price is a number
+          sizePrices.forEach((priceStr, idx) => {
+            const price = Number(priceStr.replace(/,/g, ''));
+            if (isNaN(price) || price < 0) {
+              errors.push(
+                `Dòng ${actualRowNumber}: Giá size thứ ${idx + 1} "${priceStr}" không hợp lệ`,
+              );
+            }
+          });
+        }
+
+        // ✅ CHECK 16: Validate toppings and toppingPrices match
+        if (rowData.toppings || rowData.toppingPrices) {
+          const toppings = rowData.toppings
+            ? rowData.toppings.split(',').filter((t) => t.trim())
+            : [];
+          const toppingPrices = rowData.toppingPrices
+            ? rowData.toppingPrices.split(',').filter((t) => t.trim())
+            : [];
+
+          if (toppings.length !== toppingPrices.length) {
+            errors.push(
+              `Dòng ${actualRowNumber}: Số lượng Topping (${toppings.length}) không khớp với số lượng Giá topping (${toppingPrices.length})`,
+            );
+          }
+
+          // Validate each topping price is a number
+          toppingPrices.forEach((priceStr, idx) => {
+            const price = Number(priceStr.replace(/,/g, ''));
+            if (isNaN(price) || price < 0) {
+              errors.push(
+                `Dòng ${actualRowNumber}: Giá topping thứ ${idx + 1} "${priceStr}" không hợp lệ`,
+              );
+            }
+          });
+        }
+
+        // ✅ CHECK 17: Check for duplicate products in file
+        if (rowData.storePhone && rowData.productName && rowData.menuName) {
+          const productKey = `${rowData.storePhone}-${rowData.menuName}-${rowData.productName}`;
+          if (seenProducts.has(productKey)) {
+            errors.push(
+              `Dòng ${actualRowNumber}: Sản phẩm "${rowData.productName}" trong menu "${rowData.menuName}" của cửa hàng "${rowData.storePhone}" bị trùng lặp trong file`,
+            );
+          }
+          seenProducts.add(productKey);
+        }
+
+        parsedRows.push(rowData);
       });
+
+    // ✅ CHECK 18: Throw all validation errors at once
+    if (errors.length > 0) {
+      throw new ValidationException(
+        ErrorCode.EX001,
+        400,
+        `File Excel có ${errors.length} lỗi:\n${errors.slice(0, 10).join('\n')}${errors.length > 10 ? `\n... và ${errors.length - 10} lỗi khác` : ''}`,
+      );
+    }
+
+    // ✅ CHECK 19: Validate has at least 1 valid row
+    if (parsedRows.length === 0) {
+      throw new ValidationException(
+        ErrorCode.EX001,
+        400,
+        'File Excel không có dòng dữ liệu hợp lệ nào.',
+      );
+    }
+
+    return parsedRows;
   }
 
   async createMainDetailSheet(worksheet: ExcelJS.Worksheet, all: OrderStatusRevenueResDto[]) {

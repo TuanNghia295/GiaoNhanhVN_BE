@@ -137,6 +137,29 @@ export class OrdersService implements OnModuleInit {
   private readonly logger = new Logger(OrdersService.name);
 
   async getPageOrders(reqDto: PageOrderReqDto, payload: JwtPayloadType) {
+    // ✅ OPTIMIZED: Fetch storeIds once if user is STORE role
+    // This eliminates N+1 subquery problem
+    let storeIds: number[] = [];
+    if (payload.role === RoleEnum.STORE) {
+      storeIds = await this.db
+        .select({ id: stores.id })
+        .from(stores)
+        .where(eq(stores.userId, payload.id))
+        .then((res) => res.map((r) => r.id));
+
+      // Early return if store owner has no stores
+      if (storeIds.length === 0) {
+        return new OrdersOffsetPaginatedResDto([], new OffsetPaginationDto(0, reqDto), {
+          totalOrders: 0,
+          totalOrdersPending: 0,
+          totalOrdersAccepted: 0,
+          totalOrdersDelivering: 0,
+          totalOrdersDelivered: 0,
+          totalOrdersCancelled: 0,
+        });
+      }
+    }
+
     const baseConfig: FindManyQueryConfig<typeof this.db.query.orders> = {
       with: {
         deliveryRegion: true,
@@ -180,6 +203,7 @@ export class OrdersService implements OnModuleInit {
       .endOf('day')
       .toJSDate();
 
+    // ✅ OPTIMIZED: Build where clauses with pre-fetched storeIds
     const whereClauses: SQL[] = [
       between(orders.createdAt, fromDate, toDate),
       ...(reqDto.q ? [ilike(orders.code, `%${reqDto.q}%`)] : []),
@@ -187,18 +211,25 @@ export class OrdersService implements OnModuleInit {
       ...(reqDto.status ? [eq(orders.status, reqDto.status)] : []),
       ...(reqDto.type ? [eq(orders.type, reqDto.type)] : []),
       ...(payload.role === RoleEnum.MANAGEMENT ? [eq(orders.areaId, payload.areaId)] : []),
-      ...(payload.role === RoleEnum.STORE
-        ? [
-            inArray(
-              orders.storeId,
-              this.db.select({ id: stores.id }).from(stores).where(eq(stores.userId, payload.id)),
-            ),
-          ]
+      ...(payload.role === RoleEnum.STORE && storeIds.length > 0
+        ? [inArray(orders.storeId, storeIds)]
         : []),
     ];
 
     const baseWhere = and(...whereClauses);
     baseConfig.where = baseWhere;
+
+    // ✅ OPTIMIZED: Build status count where clause separately to reuse storeIds
+    const statusCountWhereClauses: SQL[] = [
+      between(orders.createdAt, fromDate, toDate),
+      ...(reqDto.q ? [ilike(orders.code, `%${reqDto.q}%`)] : []),
+      ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
+      ...(reqDto.type ? [eq(orders.type, reqDto.type)] : []),
+      ...(payload.role === RoleEnum.MANAGEMENT ? [eq(orders.areaId, payload.areaId)] : []),
+      ...(payload.role === RoleEnum.STORE && storeIds.length > 0
+        ? [inArray(orders.storeId, storeIds)]
+        : []),
+    ];
 
     const [entities, [{ totalCount }], statusCounts] = await Promise.all([
       this.db.query.orders.findMany({
@@ -211,26 +242,7 @@ export class OrdersService implements OnModuleInit {
       this.db
         .select({ status: orders.status, count: count(orders.id) })
         .from(orders)
-        .where(
-          and(
-            between(orders.createdAt, fromDate, toDate),
-            ...(reqDto.q ? [ilike(orders.code, `%${reqDto.q}%`)] : []),
-            ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
-            ...(reqDto.type ? [eq(orders.type, reqDto.type)] : []),
-            ...(payload.role === RoleEnum.MANAGEMENT ? [eq(orders.areaId, payload.areaId)] : []),
-            ...(payload.role === RoleEnum.STORE
-              ? [
-                  inArray(
-                    orders.storeId,
-                    this.db
-                      .select({ id: stores.id })
-                      .from(stores)
-                      .where(eq(stores.userId, payload.id)),
-                  ),
-                ]
-              : []),
-          ),
-        )
+        .where(and(...statusCountWhereClauses))
         .groupBy(orders.status),
     ]);
 
@@ -1062,62 +1074,33 @@ export class OrdersService implements OnModuleInit {
     tx: Transaction,
     userId: number,
   ) {
+    // ✅ OPTIMIZED: Batch fetch products for all items at once
+    const productIds = items.map((item) => item.productId);
+    const productsMap = await this.batchFetchProducts(productIds, tx);
+
+    // ✅ OPTIMIZED: Batch fetch user purchased quantities at once
+    const userPurchasedMap = await this.batchFetchUserPurchasedQuantities(productIds, userId, tx);
+
+    const now = new Date();
+
+    // ✅ OPTIMIZED: Validate all items first before any DB operations
+    const validatedItems: Array<{
+      item: CreateOrderDetailReqDto;
+      product: any;
+      isSalePeriod: boolean;
+      userPurchasedQuantity: number;
+    }> = [];
+
     for (const item of items) {
-      // 1. Lấy product
-      const [product] = await tx
-        .select({
-          id: products.id,
-          startDate: products.startDate,
-          endDate: products.endDate,
-          usedSaleQuantity: products.usedSaleQuantity,
-          quantity: products.quantity,
-          salePrice: products.salePrice,
-          price: products.price,
-          limitedFlashSaleQuantity: products.limitedFlashSaleQuantity,
-        })
-        .from(products)
-        .where(eq(products.id, item.productId))
-        .limit(1);
+      const product = productsMap.get(item.productId);
 
       if (!product) {
         throw new ValidationException(ErrorCode.P001, HttpStatus.NOT_FOUND);
       }
 
-      // 2. Insert order_detail
-      const [orderDetail] = await tx
-        .insert(orderDetails)
-        .values({
-          ...item,
-          orderId,
-        })
-        .returning();
+      const userPurchasedQuantity = userPurchasedMap.get(item.productId) || 0;
 
-      // 3. Insert extras nếu có
-      if (item.extras.length > 0) {
-        await tx.insert(extrasToOrderDetails).values(
-          item.extras.map((extra) => ({
-            orderDetailId: orderDetail.id,
-            extraId: extra.extraId,
-            quantity: extra.quantity,
-          })),
-        );
-      }
-
-      // 4. Tính tổng số lượng flash sale user đã mua của sản phẩm này
-      const userPurchasedQuantity = await tx
-        .select({ quantity: orderDetails.quantity })
-        .from(orderDetails)
-        .where(
-          and(
-            eq(orderDetails.userId, userId),
-            eq(orderDetails.productId, item.productId),
-            eq(orderDetails.isSale, true),
-          ),
-        )
-        .then((res) => res.reduce((sum, row) => sum + (row.quantity || 0), 0));
-
-      // 5. Kiểm tra thời gian sale
-      const now = new Date();
+      // Kiểm tra thời gian sale
       const hasSalePrice = product.salePrice !== null && product.salePrice !== undefined;
       const limitedQuantity = product.limitedFlashSaleQuantity || 0;
       const isSalePeriod =
@@ -1126,10 +1109,10 @@ export class OrdersService implements OnModuleInit {
         !!product.endDate &&
         product.startDate <= now &&
         product.endDate >= now &&
-        limitedQuantity > 0 && // Phải có giới hạn số lượng
-        userPurchasedQuantity < limitedQuantity; // Chỉ cho phép mua nếu chưa vượt giới hạn
+        limitedQuantity > 0 &&
+        userPurchasedQuantity < limitedQuantity;
 
-      // 6. Kiểm tra quantity khi flash sale
+      // Kiểm tra quantity khi flash sale
       if (isSalePeriod) {
         const remainingQuantity = limitedQuantity - userPurchasedQuantity;
         if (item.quantity > remainingQuantity) {
@@ -1141,45 +1124,112 @@ export class OrdersService implements OnModuleInit {
         }
       }
 
-      // 7. Atomic update trừ kho (chỉ khi được phép mua sale)
+      validatedItems.push({
+        item,
+        product,
+        isSalePeriod,
+        userPurchasedQuantity,
+      });
+    }
+
+    // ✅ OPTIMIZED: Batch insert all order details at once
+    const insertedOrderDetails = await tx
+      .insert(orderDetails)
+      .values(
+        items.map((item) => ({
+          ...item,
+          orderId,
+        })),
+      )
+      .returning();
+
+    // ✅ OPTIMIZED: Batch insert all extras at once
+    const allExtras: Array<{
+      orderDetailId: number;
+      extraId: number;
+      quantity: number;
+    }> = [];
+
+    insertedOrderDetails.forEach((orderDetail, index) => {
+      const item = items[index];
+      if (item.extras.length > 0) {
+        allExtras.push(
+          ...item.extras.map((extra) => ({
+            orderDetailId: orderDetail.id,
+            extraId: extra.extraId,
+            quantity: extra.quantity,
+          })),
+        );
+      }
+    });
+
+    if (allExtras.length > 0) {
+      await tx.insert(extrasToOrderDetails).values(allExtras);
+    }
+
+    // ✅ OPTIMIZED: Batch update products for flash sale items
+    const saleOrderDetailUpdates: Array<{
+      orderDetailId: number;
+      salePrice: number;
+    }> = [];
+    const productsToClearSale = new Set<number>();
+
+    for (let i = 0; i < validatedItems.length; i++) {
+      const { item, product, isSalePeriod } = validatedItems[i];
+      const orderDetail = insertedOrderDetails[i];
+
       if (isSalePeriod) {
+        // Update product inventory atomically
         const updated = await tx
           .update(products)
           .set({
             usedSaleQuantity: increment(products.usedSaleQuantity, item.quantity),
-            // ...(product.quantity - product.usedSaleQuantity - item.quantity <= 0
-            //   ? { salePrice: null, startDate: null, endDate: null }
-            //   : {}),
           })
           .where(
             and(
               eq(products.id, item.productId),
-              gte(
-                sql`${products.quantity}
-              -
-              ${products.usedSaleQuantity}`,
-                item.quantity,
-              ),
+              gte(sql`${products.quantity} - ${products.usedSaleQuantity}`, item.quantity),
             ),
           )
           .returning();
 
         if (updated.length === 0) {
-          throw new ValidationException(ErrorCode.P002, HttpStatus.BAD_REQUEST); // hết số lượt sale
+          throw new ValidationException(ErrorCode.P002, HttpStatus.BAD_REQUEST);
         }
 
-        // đánh dấu chi tiết này là hàng sale
-        await tx
-          .update(orderDetails)
-          .set({
-            salePrice: product.salePrice,
-            isSale: true,
-            userId,
-          })
-          .where(eq(orderDetails.id, orderDetail.id));
-      }
+        saleOrderDetailUpdates.push({
+          orderDetailId: orderDetail.id,
+          salePrice: product.salePrice!,
+        });
 
-      // 8. Cập nhật total cho order_detail
+        // Check if need to clear sale
+        const needClearSale = product.quantity - product.usedSaleQuantity - item.quantity <= 0;
+        if (needClearSale) {
+          productsToClearSale.add(item.productId);
+        }
+      }
+    }
+
+    // ✅ OPTIMIZED: Batch update order details for sale items using SQL CASE
+    if (saleOrderDetailUpdates.length > 0) {
+      const orderDetailIdsForSale = saleOrderDetailUpdates.map((u) => u.orderDetailId);
+      const salePriceCases = saleOrderDetailUpdates
+        .map((u) => `WHEN ${u.orderDetailId} THEN ${u.salePrice}`)
+        .join(' ');
+
+      await tx.execute(sql`
+        UPDATE order_details
+        SET 
+          sale_price = CASE id ${sql.raw(salePriceCases)} END,
+          is_sale = true,
+          user_id = ${userId}
+        WHERE id = ANY(${sql.raw(`ARRAY[${orderDetailIdsForSale.join(',')}]`)})
+      `);
+    }
+
+    // ✅ OPTIMIZED: Batch update total for all order details
+    const orderDetailIds = insertedOrderDetails.map((od) => od.id);
+    if (orderDetailIds.length > 0) {
       await tx.execute(sql`
         UPDATE order_details
         SET total = (
@@ -1198,32 +1248,23 @@ export class OrdersService implements OnModuleInit {
                     FROM extras_to_order_details etod
                            JOIN extras ex ON ex.id = etod.extra_id
                     WHERE etod.order_detail_id = order_details.id), 0)
-          ) FROM products p
-        WHERE order_details.id = ${orderDetail.id}
-          AND order_details.product_id = p.id
+          ) 
+        FROM products p
+        WHERE order_details.product_id = p.id
+          AND order_details.id = ANY(${sql.raw(`ARRAY[${orderDetailIds.join(',')}]`)})
       `);
+    }
 
-      if (isSalePeriod) {
-        const needClearSale = product.quantity - product.usedSaleQuantity - item.quantity <= 0;
-        console.log(
-          `Product ID ${product.id} needClearSale:`,
-          needClearSale,
-          product.quantity,
-          product.usedSaleQuantity,
-          item.quantity,
-        );
-
-        if (needClearSale) {
-          await tx
-            .update(products)
-            .set({
-              salePrice: null,
-              startDate: null,
-              endDate: null,
-            })
-            .where(eq(products.id, item.productId));
-        }
-      }
+    // ✅ OPTIMIZED: Batch clear sale for products that sold out
+    if (productsToClearSale.size > 0) {
+      await tx
+        .update(products)
+        .set({
+          salePrice: null,
+          startDate: null,
+          endDate: null,
+        })
+        .where(inArray(products.id, Array.from(productsToClearSale)));
     }
   }
 
@@ -1943,6 +1984,28 @@ export class OrdersService implements OnModuleInit {
   }
 
   async countOrdersByStatus(reqDto: CountOrderReqDto, payload: JwtPayloadType) {
+    // ✅ OPTIMIZED: Fetch storeIds once if user is STORE role
+    let storeIds: number[] = [];
+    if (payload.role === RoleEnum.STORE) {
+      storeIds = await this.db
+        .select({ id: stores.id })
+        .from(stores)
+        .where(eq(stores.userId, payload.id))
+        .then((res) => res.map((r) => r.id));
+
+      // Early return if store owner has no stores
+      if (storeIds.length === 0) {
+        return {
+          totalOrders: 0,
+          totalOrdersPending: 0,
+          totalOrdersAccepted: 0,
+          totalOrdersDelivering: 0,
+          totalOrdersDelivered: 0,
+          totalOrdersCancelled: 0,
+        };
+      }
+    }
+
     // Date range
     const now = DateTime.now();
 
@@ -1956,6 +2019,7 @@ export class OrdersService implements OnModuleInit {
       .endOf('day')
       .toJSDate();
 
+    // ✅ OPTIMIZED: Use pre-fetched storeIds instead of subquery
     const statusCounts = await this.db
       .select({ status: orders.status, count: count(orders.id) })
       .from(orders)
@@ -1966,16 +2030,8 @@ export class OrdersService implements OnModuleInit {
           ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
           ...(reqDto.type ? [eq(orders.type, reqDto.type)] : []),
           ...(payload.role === RoleEnum.MANAGEMENT ? [eq(orders.areaId, payload.areaId)] : []),
-          ...(payload.role === RoleEnum.STORE
-            ? [
-                inArray(
-                  orders.storeId,
-                  this.db
-                    .select({ id: stores.id })
-                    .from(stores)
-                    .where(eq(stores.userId, payload.id)),
-                ),
-              ]
+          ...(payload.role === RoleEnum.STORE && storeIds.length > 0
+            ? [inArray(orders.storeId, storeIds)]
             : []),
         ),
       )
@@ -2059,5 +2115,106 @@ export class OrdersService implements OnModuleInit {
       .returning();
 
     return updatedOrder[0];
+  }
+
+  /**
+   * ✅ OPTIMIZED: Batch fetch products for multiple items in a single query
+   * Eliminates N+1 query problem in createOrderDetails()
+   *
+   * @param productIds - Array of product IDs to fetch
+   * @param tx - Transaction instance
+   * @returns Map<productId, product> for O(1) lookup
+   */
+  private async batchFetchProducts(
+    productIds: number[],
+    tx: Transaction,
+  ): Promise<
+    Map<
+      number,
+      {
+        id: number;
+        startDate: Date | null;
+        endDate: Date | null;
+        usedSaleQuantity: number;
+        quantity: number;
+        salePrice: number | null;
+        price: number;
+        limitedFlashSaleQuantity: number | null;
+      }
+    >
+  > {
+    // Early return if no products
+    if (!productIds || productIds.length === 0) {
+      return new Map();
+    }
+
+    // ✅ Single query to fetch all products
+    const allProducts = await tx
+      .select({
+        id: products.id,
+        startDate: products.startDate,
+        endDate: products.endDate,
+        usedSaleQuantity: products.usedSaleQuantity,
+        quantity: products.quantity,
+        salePrice: products.salePrice,
+        price: products.price,
+        limitedFlashSaleQuantity: products.limitedFlashSaleQuantity,
+      })
+      .from(products)
+      .where(inArray(products.id, productIds));
+
+    // Build Map for O(1) lookup
+    const productsMap = new Map();
+    for (const product of allProducts) {
+      productsMap.set(product.id, product);
+    }
+
+    return productsMap;
+  }
+
+  /**
+   * ✅ OPTIMIZED: Batch fetch user purchased quantities for multiple products
+   * Eliminates N+1 query problem in createOrderDetails()
+   *
+   * @param productIds - Array of product IDs
+   * @param userId - User ID to check purchases for
+   * @param tx - Transaction instance
+   * @returns Map<productId, totalQuantity> for O(1) lookup
+   */
+  private async batchFetchUserPurchasedQuantities(
+    productIds: number[],
+    userId: number,
+    tx: Transaction,
+  ): Promise<Map<number, number>> {
+    // Early return if no products
+    if (!productIds || productIds.length === 0) {
+      return new Map();
+    }
+
+    // ✅ Single query to fetch all user purchased quantities
+    const purchases = await tx
+      .select({
+        productId: orderDetails.productId,
+        totalQuantity: sql<number>`SUM(${orderDetails.quantity})`.as('totalQuantity'),
+      })
+      .from(orderDetails)
+      .where(
+        and(
+          eq(orderDetails.userId, userId),
+          inArray(orderDetails.productId, productIds),
+          eq(orderDetails.isSale, true),
+        ),
+      )
+      .groupBy(orderDetails.productId);
+
+    // Build Map for O(1) lookup
+    const purchasesMap = new Map<number, number>();
+    for (const purchase of purchases) {
+      if (purchase.productId !== null) {
+        purchasesMap.set(purchase.productId, Number(purchase.totalQuantity) || 0);
+      }
+    }
+
+    return purchasesMap;
   }
 }
