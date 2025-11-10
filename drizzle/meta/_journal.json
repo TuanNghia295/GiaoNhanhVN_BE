@@ -295,6 +295,13 @@
       "when": 1759992634080,
       "tag": "0041_workable_shotgun",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1762742050439,
+      "tag": "0042_slow_retro_girl",
+      "breakpoints": true
     }
   ]
 }
