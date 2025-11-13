@@ -5,6 +5,7 @@ import {
   ClassField,
   DateField,
   NumberField,
+  NumberFieldOptional,
   StringField,
   StringFieldOptional,
 } from '@/decorators/field.decorators';
@@ -71,6 +72,10 @@ export class StoreResDto extends AbstractResDto {
   @NumberField()
   @Expose()
   areaId: number;
+
+  @NumberFieldOptional()
+  @Expose()
+  storeServiceFee?: number | null;
 
   @ClassField(() => UserResDto)
   @Expose()

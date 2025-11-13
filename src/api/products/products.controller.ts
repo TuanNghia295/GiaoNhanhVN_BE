@@ -40,7 +40,7 @@ export class ProductsController {
   })
   @Get()
   async getProducts(@Query() reqDto: PageProductReqDto, @CurrentUser() payload: JwtPayloadType) {
-    return await this.productsService.getPageProducts(reqDto, payload.id);
+    return await this.productsService.getPageProducts(reqDto, payload);
   }
 
   // flash sale

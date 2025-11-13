@@ -1,6 +1,7 @@
 import {
   BooleanFieldOptional,
   DateFieldOptional,
+  NumberFieldOptional,
   StringFieldOptional,
 } from '@/decorators/field.decorators';
 
@@ -51,4 +52,7 @@ export class UpdateStoreReqDto {
 
   @BooleanFieldOptional()
   status?: boolean;
+
+  @NumberFieldOptional({ nullable: true })
+  storeServiceFee?: number | null;
 }

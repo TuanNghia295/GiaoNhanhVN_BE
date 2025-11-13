@@ -41,6 +41,26 @@ export class OrdersController {
     return await this.ordersService.calculate(reqDto);
   }
 
+  @Get('debug/store-service-fee')
+  @ApiPublic({
+    summary: 'Debug tính phí dịch vụ cửa hàng (tạm thời)',
+  })
+  async debugStoreServiceFee(
+    @Query('storeId') storeId?: string,
+    @Query('totalProduct') totalProduct?: string,
+    @Query('basePct') basePct?: string,
+  ) {
+    const parsedStoreId = storeId ? Number(storeId) : null;
+    const parsedTotalProduct = Number(totalProduct ?? 0);
+    const parsedBasePct = Number(basePct ?? 0);
+
+    return await this.ordersService.debugStoreServiceFee(
+      parsedStoreId,
+      parsedTotalProduct,
+      parsedBasePct,
+    );
+  }
+
   @Roles(RoleEnum.STORE)
   @ApiAuth({
     summary: 'Thống kê đếm số lượng đơn hàng theo trạng thái',

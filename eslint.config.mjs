@@ -8,7 +8,7 @@ const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
 
 export default tseslint.config(
   {
-    ignores: ['eslint.config.mjs'],
+    ignores: ['eslint.config.mjs', 'commitlint.config.mjs'],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,

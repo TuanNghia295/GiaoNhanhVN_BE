@@ -23,7 +23,14 @@ export class StoreMenusService {
     @Inject(DRIZZLE) private readonly db: DrizzleDB, // Replace with actual type
   ) {}
 
-  async getPageStoreMenus(reqDto: PageStoreMenuReqDto, userId: number) {
+  async getStoreMenus(storeId: number) {
+    return await this.db.query.storeMenus.findMany({
+      where: and(eq(storeMenus.storeId, storeId), isNull(storeMenus.deletedAt)),
+      orderBy: [asc(storeMenus.index), desc(storeMenus.createdAt)],
+    });
+  }
+
+  async getPageStoreMenusWithProducts(reqDto: PageStoreMenuReqDto, userId: number) {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.storeMenus> = {
       where: and(eq(storeMenus.storeId, reqDto.storeId), isNull(storeMenus.deletedAt)),
       with: {

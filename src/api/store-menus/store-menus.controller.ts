@@ -30,11 +30,20 @@ export class StoreMenusController {
     type: StoreMenuResDto,
   })
   @Get()
-  async getStoreMenus(
+  async getStoreMenusWithProducts(
     @Query() reqDto: PageStoreMenuReqDto,
     @CurrentUser() payload: JwtPayloadType,
   ) {
-    return await this.storeMenusService.getPageStoreMenus(reqDto, payload.id);
+    return await this.storeMenusService.getPageStoreMenusWithProducts(reqDto, payload.id);
+  }
+
+  @ApiAuth({
+    summary: 'Lấy danh sách menu của cửa hàng không kèm sản phẩm [PUBLIC]',
+    type: StoreMenuResDto,
+  })
+  @Get('simple')
+  async getStoreMenus(@Query('storeId', ParseIntPipe) storeId: number) {
+    return await this.storeMenusService.getStoreMenus(storeId);
   }
 
   @Roles(RoleEnum.USER)

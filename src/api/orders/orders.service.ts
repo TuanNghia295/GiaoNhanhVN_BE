@@ -876,16 +876,17 @@ export class OrdersService implements OnModuleInit {
       //-------------------------------------------------
       const totalProductTax = roundUp(totalProduct * 0.015, 3);
 
-      const storeServiceFee =
-        reqDto.type === OrderTypeEnum.FOOD
-          ? _.round(
-              Math.max(
-                totalProduct * ((serviceFeeWithType.pricePct ?? 0) / 100) +
-                  (serviceFeeWithType.price ?? 0),
-                0,
-              ),
-            )
-          : 0;
+      //-------------------------------------------------
+      // Mặt định phí dịch vụ cửa hàng
+      //-------------------------------------------------
+
+      const storeServiceFee = await this.calculateStoreServiceFee(
+        totalProduct,
+        serviceFeeWithType.pricePct,
+        reqDto.type,
+        reqDto.storeId,
+        tx,
+      );
 
       //-------------------------------------------------
       // Tính tiền shipper phải đưa cho shop - chỉ tính đơn đò ăn
@@ -1500,7 +1501,7 @@ export class OrdersService implements OnModuleInit {
           }
           break;
         }
-        default:
+        default: {
           const mergeFcmTokens = [validUserFcmToken?.fcmToken].filter((token) => token); // Lọc các token hợp lệ
           if (mergeFcmTokens.length > 0) {
             this.notifyOrderStatus(
@@ -1511,8 +1512,105 @@ export class OrdersService implements OnModuleInit {
             );
           }
           await this.emitter.emitAsync('order.updated_status', updatedOrder);
+          break;
+        }
       }
       return updatedOrder;
+    });
+  }
+
+  private async getStoreServiceFeeOverridePct(
+    storeId: number | null | undefined,
+    tx: Transaction,
+  ): Promise<number | null> {
+    if (storeId == null) {
+      return null;
+    }
+
+    const store = await tx
+      .select({
+        storeServiceFee: stores.storeServiceFee,
+      })
+      .from(stores)
+      .where(eq(stores.id, storeId))
+      .limit(1)
+      .then((res) => res[0]);
+
+    if (store?.storeServiceFee === undefined || store?.storeServiceFee === null) {
+      return null;
+    }
+
+    return Number(store.storeServiceFee);
+  }
+
+  private computeStoreServiceFee(
+    totalProduct: number,
+    storeServiceFeePct: number,
+    orderType: OrderTypeEnum,
+  ): number {
+    if (orderType !== OrderTypeEnum.FOOD) {
+      return 0;
+    }
+
+    const calculated = totalProduct * (storeServiceFeePct / 100);
+    return _.round(Math.max(calculated, 0));
+  }
+
+  private async calculateStoreServiceFee(
+    totalProduct: number,
+    storeServiceFeePct: number,
+    orderType: OrderTypeEnum,
+    storeId: number | null | undefined,
+    tx: Transaction,
+  ): Promise<number> {
+    const overrideStoreServiceFeePct = await this.getStoreServiceFeeOverridePct(storeId, tx);
+    const effectivePct =
+      overrideStoreServiceFeePct !== null && overrideStoreServiceFeePct !== undefined
+        ? overrideStoreServiceFeePct
+        : storeServiceFeePct;
+
+    const calculatedStoreServiceFee = this.computeStoreServiceFee(
+      totalProduct,
+      effectivePct,
+      orderType,
+    );
+
+    console.log('🧪 Fake store service fee log', {
+      totalProduct,
+      baseStoreServiceFeePct: storeServiceFeePct,
+      overrideStoreServiceFeePct,
+      effectiveStoreServiceFeePct: effectivePct,
+      calculatedStoreServiceFee,
+    });
+
+    return calculatedStoreServiceFee;
+  }
+
+  async debugStoreServiceFee(
+    storeId: number | null,
+    totalProduct: number,
+    baseStoreServiceFeePct: number,
+  ) {
+    return this.db.transaction(async (tx) => {
+      const overrideStoreServiceFeePct = await this.getStoreServiceFeeOverridePct(storeId, tx);
+      const effectivePct =
+        overrideStoreServiceFeePct !== null && overrideStoreServiceFeePct !== undefined
+          ? overrideStoreServiceFeePct
+          : baseStoreServiceFeePct;
+
+      const calculated = this.computeStoreServiceFee(
+        totalProduct,
+        effectivePct,
+        OrderTypeEnum.FOOD,
+      );
+
+      return {
+        totalProduct,
+        baseStoreServiceFeePct,
+        overrideStoreServiceFeePct,
+        effectiveStoreServiceFeePct: effectivePct,
+        calculatedStoreServiceFee: calculated,
+      };
     });
   }
 

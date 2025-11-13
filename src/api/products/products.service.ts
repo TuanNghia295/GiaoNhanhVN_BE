@@ -28,6 +28,7 @@ import {
   getTableColumns,
   gt,
   gte,
+  ilike,
   isNotNull,
   isNull,
   lt,
@@ -40,6 +41,7 @@ import { DateTime } from 'luxon';
 import { join } from 'path';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
+import { JwtPayloadType } from '../auth/types/jwt-payload.type';
 
 @Injectable()
 export class ProductsService implements OnModuleInit {
@@ -61,13 +63,24 @@ export class ProductsService implements OnModuleInit {
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
   ) {}
 
-  async getPageProducts(reqDto: PageProductReqDto, userId: number) {
+  async getPageProducts(reqDto: PageProductReqDto, payload: JwtPayloadType) {
+    const filters = [
+      isNull(products.deletedAt),
+      ...(reqDto.storeId ? [eq(products.storeId, reqDto.storeId)] : []),
+      ...(reqDto.categoryItemId ? [eq(products.categoryItemId, reqDto.categoryItemId)] : []),
+      ...(reqDto.storeMenuId ? [eq(products.storeMenuId, reqDto.storeMenuId)] : []),
+      ...(reqDto.q
+        ? [
+            or(
+              ilike(products.name, `%${reqDto.q.trim().replace(/\s+/g, '%')}%`),
+              ilike(products.description, `%${reqDto.q.trim().replace(/\s+/g, '%')}%`),
+            ),
+          ]
+        : []),
+    ];
+
     const baseConfig: FindManyQueryConfig<typeof this.db.query.products> = {
-      where: and(
-        isNull(products.deletedAt),
-        eq(products.isLocked, false),
-        ...(reqDto.storeId ? [eq(products.storeId, reqDto.storeId)] : []),
-      ),
+      where: and(...filters),
       with: {
         categoryItem: true,
         options: true,
@@ -105,7 +118,7 @@ export class ProductsService implements OnModuleInit {
         .from(orderDetails)
         .where(
           and(
-            eq(orderDetails.userId, userId),
+            eq(orderDetails.userId, payload.id),
             eq(orderDetails.isSale, true),
             sql`${orderDetails.productId} IN ${sql.raw(`(${productIds.join(',')})`)}`,
           ),
@@ -153,11 +166,7 @@ export class ProductsService implements OnModuleInit {
 
   async getProductById(productId: number, userId?: number) {
     const product = await this.db.query.products.findFirst({
-      where: and(
-        isNull(products.deletedAt),
-        eq(products.isLocked, false),
-        eq(products.id, productId),
-      ),
+      where: and(isNull(products.deletedAt), eq(products.id, productId)),
       with: {
         categoryItem: true,
         options: true,

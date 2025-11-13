@@ -51,6 +51,11 @@ export const stores = pgTable(
     userId: integer('user_id')
       .notNull()
       .references(() => users.id),
+    storeServiceFee: numeric('store_service_fee', {
+      precision: 15,
+      scale: 2,
+      mode: 'number',
+    }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at')
       .notNull()
