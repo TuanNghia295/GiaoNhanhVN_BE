@@ -1,4 +1,5 @@
 import { ExtraResDto } from '@/api/extras/dto/extra.res.dto';
+import { OptionGroupResDto } from '@/api/option-groups/dto/option-group.res.dto';
 import { OptionResDto } from '@/api/options/dto/option.res.dto';
 import { WrapperType } from '@/common/types/types';
 import { AbstractResDto } from '@/database/dto/abstract.res.dto';
@@ -83,6 +84,10 @@ export class ProductResDto extends AbstractResDto {
   @ClassField(() => ExtraResDto)
   @Expose()
   extras?: WrapperType<ExtraResDto[]>;
+
+  @ClassFieldOptional(() => OptionGroupResDto)
+  @Expose()
+  optionGroups?: WrapperType<OptionGroupResDto[]>;
 
   @Expose()
   @ClassField(() => CategoryItemResDto)

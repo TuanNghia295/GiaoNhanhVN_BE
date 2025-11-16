@@ -3,8 +3,8 @@ import { LockStoreReqDto } from '@/api/stores/dto/lock-store.req.dto';
 import { NearbyStoresReqDto } from '@/api/stores/dto/nearby-stores.req.dto';
 import { PageStoreManagerReqDto } from '@/api/stores/dto/page-store-manager.req.dto';
 import { PageStoreReqDto } from '@/api/stores/dto/page-store.req.dto';
-import { QueryListStore } from '@/api/stores/dto/query-list-store.req.dto';
 import { SearchPageStoresReqDto } from '@/api/stores/dto/search-page-stores-req.dto';
+import { SelectStoresReqDto } from '@/api/stores/dto/select-stores.req.dto';
 import { StoreResDto } from '@/api/stores/dto/store.res.dto';
 import { UpdateStoreReqDto } from '@/api/stores/dto/update-store.req.dto';
 import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
@@ -542,8 +542,7 @@ export class StoresService implements OnModuleInit {
     return new OffsetPaginatedDto(entitiesWithDistance, meta);
   }
 
-  async getStoresForList(reqDto: QueryListStore, payload: JwtPayloadType) {
-    console.log('reqDto', reqDto);
+  async getSelectStores(reqDto: SelectStoresReqDto, payload: JwtPayloadType) {
     const qb = this.db
       .select({
         name: stores.name,
@@ -595,7 +594,13 @@ export class StoresService implements OnModuleInit {
         throw new UnauthorizedException();
     }
 
-    qb.limit(20);
+    // Ưu tiên những cửa hàng đã có tên (name không null và không rỗng)
+    qb.orderBy(
+      desc(sql`case when ${stores.name} is not null and ${stores.name} != '' then 1 else 0 end`),
+      stores.name,
+    );
+
+    qb.limit(30);
     return qb;
   }
 

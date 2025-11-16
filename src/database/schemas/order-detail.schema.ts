@@ -1,4 +1,5 @@
 import { extrasToOrderDetails } from '@/database/schemas/extra.schema';
+import { optionGroupOptions, optionGroups } from '@/database/schemas/option-group.schema';
 import { options } from '@/database/schemas/option.schema';
 import { orders } from '@/database/schemas/order.schema';
 import { products } from '@/database/schemas/product.schema';
@@ -44,13 +45,38 @@ export const orderDetails = pgTable(
     index('order_details_product_id_idx').on(table.productId),
     index('order_details_option_id_idx').on(table.optionId),
     foreignKey({
-      // managers_areaId_areas_fk
       name: 'order_details_order_id_orders_pk',
       columns: [table.orderId],
       foreignColumns: [orders.id],
     })
       .onUpdate('no action')
       .onDelete('cascade'),
+  ],
+);
+
+export const orderDetailSelectedOptions = pgTable(
+  'order_detail_selected_options',
+  {
+    id: serial('id').primaryKey().notNull(),
+    orderDetailId: integer('order_detail_id')
+      .notNull()
+      .references(() => orderDetails.id, { onDelete: 'cascade' }),
+    optionGroupId: integer('option_group_id')
+      .notNull()
+      .references(() => optionGroups.id, { onDelete: 'cascade' }),
+    optionGroupOptionId: integer('option_group_option_id')
+      .notNull()
+      .references(() => optionGroupOptions.id, { onDelete: 'restrict' }),
+    price: numeric('price', { precision: 15, scale: 2, mode: 'number' }).notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at')
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index('order_detail_selected_options_detail_id_idx').on(table.orderDetailId),
+    index('order_detail_selected_options_option_idx').on(table.optionGroupOptionId),
   ],
 );
 
@@ -71,5 +97,20 @@ export const orderDetailsRelations = relations(orderDetails, ({ one, many }) => 
     fields: [orderDetails.optionId],
     references: [options.id],
   }),
+  selectedOptions: many(orderDetailSelectedOptions),
   extras: many(extrasToOrderDetails),
 }));
+
+export const orderDetailSelectedOptionsRelations = relations(
+  orderDetailSelectedOptions,
+  ({ one }) => ({
+    orderDetail: one(orderDetails, {
+      fields: [orderDetailSelectedOptions.orderDetailId],
+      references: [orderDetails.id],
+    }),
+    optionGroupOption: one(optionGroupOptions, {
+      fields: [orderDetailSelectedOptions.optionGroupOptionId],
+      references: [optionGroupOptions.id],
+    }),
+  }),
+);

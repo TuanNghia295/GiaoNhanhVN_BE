@@ -1,5 +1,6 @@
 import { categoryItems } from '@/database/schemas/category-item.schema';
 import { extras } from '@/database/schemas/extra.schema';
+import { optionGroups } from '@/database/schemas/option-group.schema';
 import { options } from '@/database/schemas/option.schema';
 import { storeMenus } from '@/database/schemas/store-menu.schema';
 import { stores } from '@/database/schemas/store.schema';
@@ -53,6 +54,7 @@ export const products = pgTable(
     deletedAt: timestamp('deleted_at'),
     storeId: integer('store_id'),
     storeMenuId: integer('store_menu_id'),
+    optionVersion: integer('option_version').notNull().default(1),
   },
   (table) => [
     index('idx_products_store_id').on(table.storeId),
@@ -75,6 +77,7 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   }),
   options: many(options),
   extras: many(extras),
+  optionGroups: many(optionGroups),
   storeMenu: one(storeMenus, {
     fields: [products.storeMenuId],
     references: [storeMenus.id],

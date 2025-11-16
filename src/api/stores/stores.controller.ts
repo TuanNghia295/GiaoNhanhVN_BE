@@ -3,8 +3,8 @@ import { LockStoreReqDto } from '@/api/stores/dto/lock-store.req.dto';
 import { NearbyStoresReqDto } from '@/api/stores/dto/nearby-stores.req.dto';
 import { PageStoreManagerReqDto } from '@/api/stores/dto/page-store-manager.req.dto';
 import { PageStoreReqDto } from '@/api/stores/dto/page-store.req.dto';
-import { QueryListStore } from '@/api/stores/dto/query-list-store.req.dto';
 import { SearchPageStoresReqDto } from '@/api/stores/dto/search-page-stores-req.dto';
+import { SelectStoresReqDto } from '@/api/stores/dto/select-stores.req.dto';
 import { StoreResDto } from '@/api/stores/dto/store.res.dto';
 import { UpdateAvatarReqDto } from '@/api/stores/dto/update-avatar.req.dto';
 import { UpdateBackgroundReqDto } from '@/api/stores/dto/update-background.req.dto';
@@ -328,8 +328,11 @@ export class StoresController {
     type: StoreResDto,
   })
   @Get('manager/list')
-  async getStoresForList(@CurrentUser() payload: JwtPayloadType, @Query() reqDto: QueryListStore) {
-    return await this.storesService.getStoresForList(reqDto, payload);
+  async getSelectStores(
+    @CurrentUser() payload: JwtPayloadType,
+    @Query() reqDto: SelectStoresReqDto,
+  ) {
+    return await this.storesService.getSelectStores(reqDto, payload);
   }
 
   @Get('search')

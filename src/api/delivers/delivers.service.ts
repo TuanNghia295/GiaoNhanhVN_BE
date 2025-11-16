@@ -49,6 +49,7 @@ import { join } from 'path';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
 import { JwtPayloadType } from '../auth/types/jwt-payload.type';
+import { SelectDeliversReqDto } from './dto/select-delivers.req.dto';
 
 @Injectable()
 export class DeliversService implements OnModuleInit {
@@ -692,14 +693,19 @@ export class DeliversService implements OnModuleInit {
     };
   }
 
-  async getDeliversByPhoneOrName(input: string, areaId: number, payload: JwtPayloadType) {
+  async getSelectDelivers(reqDto: SelectDeliversReqDto, payload: JwtPayloadType) {
     return this.db.query.delivers.findMany({
       where: and(
         isNull(delivers.deletedAt),
-        ...(areaId ? [eq(delivers.areaId, areaId)] : []),
+        ...(reqDto.areaId ? [eq(delivers.areaId, reqDto.areaId)] : []),
         ...(payload.role === RoleEnum.MANAGEMENT ? [eq(delivers.areaId, payload.areaId)] : []),
-        ...(input
-          ? [or(ilike(delivers.phone, `%${input}%`), ilike(delivers.fullName, `%${input}%`))]
+        ...(reqDto.input
+          ? [
+              or(
+                ilike(delivers.phone, `%${reqDto.input}%`),
+                ilike(delivers.fullName, `%${reqDto.input}%`),
+              ),
+            ]
           : []),
       ),
       limit: 20,

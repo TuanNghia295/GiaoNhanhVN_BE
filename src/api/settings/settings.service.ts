@@ -5,7 +5,7 @@ import { UpdateDistanceReqDto } from '@/api/settings/dto/update-distance.req.dto
 import { UpdateServiceFeeReqDto } from '@/api/settings/dto/update-service.fee.req.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
-import { areas, distances, RoleEnum, serviceFees, settings } from '@/database/schemas';
+import { areas, distances, RoleEnum, serviceFees, settings, stores } from '@/database/schemas';
 import { privateSetting } from '@/database/schemas/private-setting.schema';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
@@ -204,5 +204,28 @@ export class SettingsService {
     }
 
     return setting;
+  }
+
+  async resetStoreServiceFee(areaId: number) {
+    const area = await this.db
+      .select({ id: areas.id })
+      .from(areas)
+      .where(eq(areas.id, areaId))
+      .limit(1)
+      .then((res) => res[0] ?? null);
+
+    if (!area) {
+      throw new ValidationException(ErrorCode.AR001);
+    }
+
+    const result = await this.db
+      .update(stores)
+      .set({ storeServiceFee: null })
+      .where(eq(stores.areaId, areaId))
+      .execute();
+    console.log('result', result);
+    return {
+      affectedRows: 'rowCount' in result ? (result.rowCount ?? 0) : 0,
+    };
   }
 }

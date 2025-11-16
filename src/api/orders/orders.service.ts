@@ -29,8 +29,11 @@ import {
   deliveryRegions,
   distances,
   extrasToOrderDetails,
+  optionGroupOptions,
+  optionGroups,
   Order,
   orderDetails,
+  orderDetailSelectedOptions,
   orders,
   OrderStatusEnum,
   OrderTypeEnum,
@@ -103,6 +106,21 @@ export interface CalculateResponse {
   nightFee: number;
   areaId: number;
 }
+
+type ProductSummary = {
+  id: number;
+  startDate: Date | null;
+  endDate: Date | null;
+  usedSaleQuantity: number;
+  quantity: number;
+  salePrice: number | null;
+  price: number;
+  limitedFlashSaleQuantity: number | null;
+};
+
+type OptionGroupWithOptions = typeof optionGroups.$inferSelect & {
+  options: Array<typeof optionGroupOptions.$inferSelect>;
+};
 
 @Injectable()
 export class OrdersService implements OnModuleInit {
@@ -946,7 +964,7 @@ export class OrdersService implements OnModuleInit {
         })
         .where(eq(orders.id, order.id));
 
-      await this.emitter.emitAsync('order.created', order);
+      await this.emitter.emit('order.created', order);
       const orderDetail = await tx.query.orders.findFirst({
         where: eq(orders.id, order.id),
         with: {
@@ -1036,8 +1054,13 @@ export class OrdersService implements OnModuleInit {
 
       const items: CreateOrderDetailReqDto[] = existingOrder.orderDetails.map((detail) => ({
         productId: detail.productId,
-        optionId: detail.optionId,
         quantity: detail.quantity,
+        selectedOptions: Array.isArray(detail.selectedOptions)
+          ? detail.selectedOptions.map((selected) => ({
+              optionGroupId: selected.optionGroupId,
+              optionGroupOptionId: selected.optionGroupOptionId,
+            }))
+          : [],
         extras: detail.extras.map((e) => ({
           extraId: e.extraId,
           quantity: e.quantity,
@@ -1075,21 +1098,25 @@ export class OrdersService implements OnModuleInit {
     tx: Transaction,
     userId: number,
   ) {
-    // ✅ OPTIMIZED: Batch fetch products for all items at once
     const productIds = items.map((item) => item.productId);
     const productsMap = await this.batchFetchProducts(productIds, tx);
-
-    // ✅ OPTIMIZED: Batch fetch user purchased quantities at once
+    const productOptionGroupsMap = await this.batchFetchProductOptionGroups(productIds, tx);
     const userPurchasedMap = await this.batchFetchUserPurchasedQuantities(productIds, userId, tx);
 
     const now = new Date();
 
-    // ✅ OPTIMIZED: Validate all items first before any DB operations
+    type ResolvedSelectedOption = {
+      groupId: number;
+      groupName: string;
+      option: { id: number; name: string | null; price: number | null };
+    };
+
     const validatedItems: Array<{
       item: CreateOrderDetailReqDto;
-      product: any;
+      product: ProductSummary;
       isSalePeriod: boolean;
       userPurchasedQuantity: number;
+      resolvedOptions: ResolvedSelectedOption[];
     }> = [];
 
     for (const item of items) {
@@ -1099,9 +1126,92 @@ export class OrdersService implements OnModuleInit {
         throw new ValidationException(ErrorCode.P001, HttpStatus.NOT_FOUND);
       }
 
+      const productOptionGroups = productOptionGroupsMap.get(item.productId) ?? [];
+      const groupById = new Map<number, (typeof productOptionGroups)[number]>();
+      productOptionGroups.forEach((group) => {
+        if (typeof group.id === 'number') {
+          groupById.set(group.id, group);
+        }
+      });
+
+      const selectedOptions = item.selectedOptions ?? [];
+      const resolvedOptions: ResolvedSelectedOption[] = [];
+      const selectionCountByGroup = new Map<number, number>();
+
+      for (const selection of selectedOptions) {
+        const group = groupById.get(selection.optionGroupId);
+        if (!group) {
+          throw new ValidationException(
+            ErrorCode.P002,
+            HttpStatus.BAD_REQUEST,
+            `Lựa chọn không hợp lệ: nhóm ${selection.optionGroupId} không thuộc sản phẩm ${item.productId}`,
+          );
+        }
+
+        const option = (group.options ?? []).find(
+          (opt) => opt.id === selection.optionGroupOptionId,
+        );
+
+        if (!option) {
+          throw new ValidationException(
+            ErrorCode.P002,
+            HttpStatus.BAD_REQUEST,
+            `Lựa chọn không hợp lệ: option ${selection.optionGroupOptionId} không thuộc nhóm ${selection.optionGroupId}`,
+          );
+        }
+
+        resolvedOptions.push({
+          groupId: group.id,
+          groupName: group.displayName ?? group.name ?? '',
+          option: {
+            id: option.id,
+            name: option.name,
+            price: Number(option.price ?? 0),
+          },
+        });
+
+        selectionCountByGroup.set(group.id, (selectionCountByGroup.get(group.id) ?? 0) + 1);
+      }
+
+      for (const group of productOptionGroups) {
+        const groupId = group.id;
+        if (groupId === undefined || groupId === null) {
+          continue;
+        }
+        const selectionCount = selectionCountByGroup.get(groupId) ?? 0;
+        const isRequired = !!group.isRequired;
+        const minSelect =
+          typeof group.minSelect === 'number' ? group.minSelect : isRequired ? 1 : 0;
+        const maxSelect = typeof group.maxSelect === 'number' ? group.maxSelect : 1;
+        const totalOptions = (group.options ?? []).length;
+
+        if (isRequired && totalOptions > 0 && selectionCount === 0) {
+          throw new ValidationException(
+            ErrorCode.P002,
+            HttpStatus.BAD_REQUEST,
+            `Nhóm lựa chọn "${group.displayName ?? group.name ?? ''}" bắt buộc chọn ít nhất ${minSelect} option`,
+          );
+        }
+
+        if (minSelect && selectionCount < minSelect) {
+          throw new ValidationException(
+            ErrorCode.P002,
+            HttpStatus.BAD_REQUEST,
+            `Nhóm lựa chọn "${group.displayName ?? group.name ?? ''}" yêu cầu tối thiểu ${minSelect} option`,
+          );
+        }
+
+        if (maxSelect && selectionCount > maxSelect) {
+          throw new ValidationException(
+            ErrorCode.P002,
+            HttpStatus.BAD_REQUEST,
+            `Nhóm lựa chọn "${group.displayName ?? group.name ?? ''}" chỉ cho phép tối đa ${maxSelect} option`,
+          );
+        }
+      }
+
       const userPurchasedQuantity = userPurchasedMap.get(item.productId) || 0;
 
-      // Kiểm tra thời gian sale
       const hasSalePrice = product.salePrice !== null && product.salePrice !== undefined;
       const limitedQuantity = product.limitedFlashSaleQuantity || 0;
       const isSalePeriod =
@@ -1113,7 +1223,6 @@ export class OrdersService implements OnModuleInit {
         limitedQuantity > 0 &&
         userPurchasedQuantity < limitedQuantity;
 
-      // Kiểm tra quantity khi flash sale
       if (isSalePeriod) {
         const remainingQuantity = limitedQuantity - userPurchasedQuantity;
         if (item.quantity > remainingQuantity) {
@@ -1130,45 +1239,68 @@ export class OrdersService implements OnModuleInit {
         product,
         isSalePeriod,
         userPurchasedQuantity,
+        resolvedOptions,
       });
     }
 
-    // ✅ OPTIMIZED: Batch insert all order details at once
     const insertedOrderDetails = await tx
       .insert(orderDetails)
       .values(
-        items.map((item) => ({
-          ...item,
+        validatedItems.map(({ item }) => ({
           orderId,
+          productId: item.productId,
+          quantity: item.quantity,
+          optionId: null,
+          userId,
         })),
       )
       .returning();
 
-    // ✅ OPTIMIZED: Batch insert all extras at once
     const allExtras: Array<{
       orderDetailId: number;
       extraId: number;
       quantity: number;
     }> = [];
 
+    const selectedOptionRecords: Array<{
+      orderDetailId: number;
+      optionGroupId: number;
+      optionGroupOptionId: number;
+      price: number;
+    }> = [];
+
     insertedOrderDetails.forEach((orderDetail, index) => {
-      const item = items[index];
-      if (item.extras.length > 0) {
+      const { item, resolvedOptions } = validatedItems[index];
+      const extras = item.extras ?? [];
+
+      if (extras.length > 0) {
         allExtras.push(
-          ...item.extras.map((extra) => ({
+          ...extras.map((extra) => ({
             orderDetailId: orderDetail.id,
             extraId: extra.extraId,
             quantity: extra.quantity,
           })),
         );
       }
+
+      resolvedOptions.forEach((resolved) => {
+        selectedOptionRecords.push({
+          orderDetailId: orderDetail.id,
+          optionGroupId: resolved.groupId,
+          optionGroupOptionId: resolved.option.id,
+          price: Number(resolved.option.price ?? 0),
+        });
+      });
     });
 
     if (allExtras.length > 0) {
       await tx.insert(extrasToOrderDetails).values(allExtras);
     }
 
-    // ✅ OPTIMIZED: Batch update products for flash sale items
+    if (selectedOptionRecords.length > 0) {
+      await tx.insert(orderDetailSelectedOptions).values(selectedOptionRecords);
+    }
+
     const saleOrderDetailUpdates: Array<{
       orderDetailId: number;
       salePrice: number;
@@ -1180,7 +1312,6 @@ export class OrdersService implements OnModuleInit {
       const orderDetail = insertedOrderDetails[i];
 
       if (isSalePeriod) {
-        // Update product inventory atomically
         const updated = await tx
           .update(products)
           .set({
@@ -1198,20 +1329,22 @@ export class OrdersService implements OnModuleInit {
           throw new ValidationException(ErrorCode.P002, HttpStatus.BAD_REQUEST);
         }
 
+        const updatedProduct = updated[0];
+
         saleOrderDetailUpdates.push({
           orderDetailId: orderDetail.id,
-          salePrice: product.salePrice!,
+          salePrice: Number(updatedProduct?.salePrice ?? product.salePrice ?? 0),
         });
 
-        // Check if need to clear sale
-        const needClearSale = product.quantity - product.usedSaleQuantity - item.quantity <= 0;
-        if (needClearSale) {
+        const remainingQuantity =
+          Number(updatedProduct?.quantity ?? product.quantity ?? 0) -
+          Number(updatedProduct?.usedSaleQuantity ?? product.usedSaleQuantity ?? 0);
+        if (remainingQuantity <= 0) {
           productsToClearSale.add(item.productId);
         }
       }
     }
 
-    // ✅ OPTIMIZED: Batch update order details for sale items using SQL CASE
     if (saleOrderDetailUpdates.length > 0) {
       const orderDetailIdsForSale = saleOrderDetailUpdates.map((u) => u.orderDetailId);
       const salePriceCases = saleOrderDetailUpdates
@@ -1228,7 +1361,6 @@ export class OrdersService implements OnModuleInit {
       `);
     }
 
-    // ✅ OPTIMIZED: Batch update total for all order details
     const orderDetailIds = insertedOrderDetails.map((od) => od.id);
     if (orderDetailIds.length > 0) {
       await tx.execute(sql`
@@ -1239,24 +1371,35 @@ export class OrdersService implements OnModuleInit {
               CASE
                 WHEN order_details.is_sale = true THEN p.sale_price
                 ELSE p.price
-                END
-              ), 0
+              END
+            ),
+            0
           ) +
-          COALESCE(order_details.quantity * (SELECT o.price
-                                             FROM options o
-                                             WHERE o.id = order_details.option_id), 0) +
+          COALESCE(
+            (
+              SELECT COALESCE(SUM(odos.price), 0)
+              FROM order_detail_selected_options odos
+              WHERE odos.order_detail_id = order_details.id
+            ) * order_details.quantity,
+            0
+          ) +
+          COALESCE(
+            order_details.quantity * (SELECT o.price
+                                       FROM options o
+                                       WHERE o.id = order_details.option_id),
+            0
+          ) +
           COALESCE((SELECT SUM(ex.price * etod.quantity)
                     FROM extras_to_order_details etod
                            JOIN extras ex ON ex.id = etod.extra_id
                     WHERE etod.order_detail_id = order_details.id), 0)
-          ) 
+        ) 
         FROM products p
         WHERE order_details.product_id = p.id
           AND order_details.id = ANY(${sql.raw(`ARRAY[${orderDetailIds.join(',')}]`)})
       `);
     }
 
-    // ✅ OPTIMIZED: Batch clear sale for products that sold out
     if (productsToClearSale.size > 0) {
       await tx
         .update(products)
@@ -1291,6 +1434,15 @@ export class OrdersService implements OnModuleInit {
                 extra: true,
               },
             },
+            selectedOptions: {
+              with: {
+                optionGroupOption: {
+                  with: {
+                    group: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -1298,9 +1450,25 @@ export class OrdersService implements OnModuleInit {
     if (!orderDetail) {
       throw new ValidationException(ErrorCode.OD001, HttpStatus.NOT_FOUND);
     }
+    const normalizedOrderDetails = (orderDetail.orderDetails ?? []).map((detail) => ({
+      ...detail,
+      selectedOptions: Array.isArray(detail.selectedOptions)
+        ? detail.selectedOptions.map((selected) => ({
+            optionGroupId: selected.optionGroupId,
+            optionGroupName:
+              selected.optionGroupOption?.group?.displayName ??
+              selected.optionGroupOption?.group?.name ??
+              '',
+            optionGroupOptionId: selected.optionGroupOptionId,
+            optionName: selected.optionGroupOption?.name ?? '',
+            price: Number(selected.price ?? selected.optionGroupOption?.price ?? 0),
+          }))
+        : [],
+    }));
     // flatten vouchers array
     return {
       ...orderDetail,
+      orderDetails: normalizedOrderDetails,
       vouchers: Array.isArray(orderDetail.vouchers)
         ? orderDetail.vouchers.map((v) => v.voucher)
         : [],
@@ -1338,6 +1506,15 @@ export class OrdersService implements OnModuleInit {
                 extra: true,
               },
             },
+            selectedOptions: {
+              with: {
+                optionGroupOption: {
+                  with: {
+                    group: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -1370,6 +1547,23 @@ export class OrdersService implements OnModuleInit {
     const mappedEntities = entities.map((entity) => ({
       ...entity,
       vouchers: Array.isArray(entity.vouchers) ? entity.vouchers.map((v) => v.voucher) : [],
+      orderDetails: Array.isArray(entity.orderDetails)
+        ? entity.orderDetails.map((detail) => ({
+            ...detail,
+            selectedOptions: Array.isArray(detail.selectedOptions)
+              ? detail.selectedOptions.map((selected) => ({
+                  optionGroupId: selected.optionGroupId,
+                  optionGroupName:
+                    selected.optionGroupOption?.group?.displayName ??
+                    selected.optionGroupOption?.group?.name ??
+                    '',
+                  optionGroupOptionId: selected.optionGroupOptionId,
+                  optionName: selected.optionGroupOption?.name ?? '',
+                  price: Number(selected.price ?? selected.optionGroupOption?.price ?? 0),
+                }))
+              : [],
+          }))
+        : [],
     }));
     console.log('Mapped Entities:', mappedEntities);
 
@@ -2226,24 +2420,10 @@ export class OrdersService implements OnModuleInit {
   private async batchFetchProducts(
     productIds: number[],
     tx: Transaction,
-  ): Promise<
-    Map<
-      number,
-      {
-        id: number;
-        startDate: Date | null;
-        endDate: Date | null;
-        usedSaleQuantity: number;
-        quantity: number;
-        salePrice: number | null;
-        price: number;
-        limitedFlashSaleQuantity: number | null;
-      }
-    >
-  > {
+  ): Promise<Map<number, ProductSummary>> {
     // Early return if no products
     if (!productIds || productIds.length === 0) {
-      return new Map();
+      return new Map<number, ProductSummary>();
     }
 
     // ✅ Single query to fetch all products
@@ -2262,7 +2442,7 @@ export class OrdersService implements OnModuleInit {
       .where(inArray(products.id, productIds));
 
     // Build Map for O(1) lookup
-    const productsMap = new Map();
+    const productsMap = new Map<number, ProductSummary>();
     for (const product of allProducts) {
       productsMap.set(product.id, product);
     }
@@ -2314,5 +2494,36 @@ export class OrdersService implements OnModuleInit {
     }
 
     return purchasesMap;
+  }
+
+  private async batchFetchProductOptionGroups(
+    productIds: number[],
+    tx: Transaction,
+  ): Promise<Map<number, OptionGroupWithOptions[]>> {
+    if (!productIds || productIds.length === 0) {
+      return new Map<number, OptionGroupWithOptions[]>();
+    }
+
+    const groups = await tx.query.optionGroups.findMany({
+      where: inArray(optionGroups.productId, productIds),
+      with: {
+        options: true,
+      },
+    });
+
+    const map = new Map<number, OptionGroupWithOptions[]>();
+
+    for (const group of groups) {
+      const productId = group.productId;
+      if (typeof productId !== 'number') {
+        continue;
+      }
+      if (!map.has(productId)) {
+        map.set(productId, []);
+      }
+      map.get(productId)!.push(group as OptionGroupWithOptions);
+    }
+
+    return map;
   }
 }

@@ -36,6 +36,7 @@ import { memoryStorage } from 'multer';
 import { UAParser } from 'ua-parser-js';
 import { LoginResDto } from '../auth/dto/login.res.dto';
 import { DeliversService } from './delivers.service';
+import { SelectDeliversReqDto } from './dto/select-delivers.req.dto';
 
 @Controller('delivers')
 export class DeliversController {
@@ -238,11 +239,10 @@ export class DeliversController {
     type: DeliverResDto,
   })
   @Get('list')
-  async getDelivers(
+  async getSelectDelivers(
     @CurrentUser() payload: JwtPayloadType,
-    @Query('input') input: string,
-    @Query('areaId') areaId: number,
+    @Query() reqDto: SelectDeliversReqDto,
   ) {
-    return this.deliversService.getDeliversByPhoneOrName(input, areaId, payload);
+    return this.deliversService.getSelectDelivers(reqDto, payload);
   }
 }

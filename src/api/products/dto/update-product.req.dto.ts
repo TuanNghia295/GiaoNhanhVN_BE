@@ -1,5 +1,5 @@
 import { CreateExtraReqDto } from '@/api/extras/dto/create-extra.req.dto';
-import { CreateOptionReqDto } from '@/api/options/dto/create-option.req.dto';
+import { CreateOptionGroupReqDto } from '@/api/option-groups/dto/create-option-group.req.dto';
 import {
   ClassFieldOptional,
   DateFieldOptional,
@@ -45,31 +45,25 @@ export class UpdateProductReqDto {
   })
   limitedFlashSaleQuantity?: number;
 
-  @ClassFieldOptional(() => CreateOptionReqDto, {
-    default: [
-      {
-        name: 'Option 1',
-        price: 10,
-      },
-      {
-        name: 'Option 2',
-        price: 20,
-      },
-    ],
-  })
-  options?: CreateOptionReqDto[] = [];
-
   @ClassFieldOptional(() => CreateExtraReqDto, {
     default: [
       {
+        id: 101,
         name: 'Extra 1',
         price: 10,
       },
       {
+        id: 102,
         name: 'Extra 2',
         price: 20,
       },
     ],
   })
-  extras?: CreateExtraReqDto[] = [];
+  extras?: CreateExtraReqDto[];
+
+  @ClassFieldOptional(() => CreateOptionGroupReqDto, {
+    description: 'Danh sách các option group cần cập nhật (bao gồm id để diff)',
+    isArray: true,
+  })
+  optionGroups?: CreateOptionGroupReqDto[];
 }

@@ -1,5 +1,10 @@
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { SortStoreMenuReqDto } from '@/api/products/dto/sort-store-menu.req.dto';
+import {
+  StoreMenuActionEnum,
+  StoreMenuBatchItemReqDto,
+  StoreMenuBatchReqDto,
+} from '@/api/store-menus/dto/batch-store-menu.req.dto';
 import { CreateStoreMenuReqDto } from '@/api/store-menus/dto/create-store-menu-req.dto';
 import { PageStoreMenuReqDto } from '@/api/store-menus/dto/page-store-menu-req.dto';
 import { StoreMenuResDto } from '@/api/store-menus/dto/store-menu.res.dto';
@@ -9,7 +14,7 @@ import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagi
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
-import { orderDetails, products, storeMenus } from '@/database/schemas';
+import { StoreMenu, orderDetails, products, storeMenus } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable } from '@nestjs/common';
@@ -44,6 +49,11 @@ export class StoreMenusService {
             categoryItem: true,
             extras: true,
             options: true,
+            optionGroups: {
+              with: {
+                options: true,
+              },
+            },
           },
 
           // lấy ra sản phẩm chưa soft delete
@@ -208,23 +218,27 @@ export class StoreMenusService {
     }
 
     return await this.db.transaction(async (tx) => {
+      const now = new Date();
+
       // Soft delete all products associated with the store menu
       await tx
         .update(products)
         .set({
-          deletedAt: new Date(),
+          deletedAt: now,
           categoryItemId: null,
         })
         .where(eq(products.storeMenuId, storeMenuId));
+
       // Return the deleted store menu
-      return await tx
+      const [deleted] = await tx
         .update(storeMenus)
         .set({
-          deletedAt: new Date(),
+          deletedAt: now,
         })
         .where(eq(storeMenus.id, storeMenuId))
-        .returning()
-        .then((result) => plainToInstance(StoreMenuResDto, result[0]));
+        .returning();
+
+      return plainToInstance(StoreMenuResDto, deleted);
     });
   }
 
@@ -243,11 +257,25 @@ export class StoreMenusService {
   async sort(storeId: number, { items }: SortStoreMenuReqDto) {
     const existStore = await this.storesService.existById(storeId);
     if (!existStore) {
-      throw new ValidationException(ErrorCode.S001);
+      throw new ValidationException(ErrorCode.S002);
     }
 
     await this.db.transaction(async (tx) => {
+      // Kiểm tra tất cả menu có thuộc store không trước khi update
+      const existingMenus = await tx
+        .select({
+          id: storeMenus.id,
+        })
+        .from(storeMenus)
+        .where(and(eq(storeMenus.storeId, storeId), isNull(storeMenus.deletedAt)));
+
+      const validIds = new Set(existingMenus.map((m) => m.id));
+
       for (const update of items) {
+        if (!validIds.has(update.storeMenuId)) {
+          throw new ValidationException(ErrorCode.SM002);
+        }
+
         await tx
           .update(storeMenus)
           .set({
@@ -255,6 +283,158 @@ export class StoreMenusService {
           })
           .where(eq(storeMenus.id, update.storeMenuId));
       }
+    });
+  }
+
+  private async handleCreateBatchStoreMenu(
+    tx: DrizzleDB,
+    storeId: number,
+    item: StoreMenuBatchItemReqDto,
+    results: StoreMenu[],
+  ) {
+    if (!item.name) {
+      throw new ValidationException(ErrorCode.CV000);
+    }
+
+    const [createdStoreMenu] = await tx
+      .insert(storeMenus)
+      .values({
+        storeId,
+        name: item.name,
+      })
+      .returning();
+
+    results.push(createdStoreMenu);
+  }
+
+  private async handleUpdateBatchStoreMenu(
+    tx: DrizzleDB,
+    item: StoreMenuBatchItemReqDto,
+    validIds: Set<number>,
+    results: StoreMenu[],
+  ) {
+    if (!item.id || !item.name) {
+      throw new ValidationException(ErrorCode.CV000);
+    }
+
+    if (!validIds.has(item.id)) {
+      throw new ValidationException(ErrorCode.SM002);
+    }
+
+    const [updatedStoreMenu] = await tx
+      .update(storeMenus)
+      .set({
+        name: item.name,
+      })
+      .where(eq(storeMenus.id, item.id))
+      .returning();
+
+    results.push(updatedStoreMenu);
+  }
+
+  private async handleDeleteBatchStoreMenu(
+    tx: DrizzleDB,
+    item: StoreMenuBatchItemReqDto,
+    validIds: Set<number>,
+    now: Date,
+    results: StoreMenu[],
+  ) {
+    if (!item.id) {
+      throw new ValidationException(ErrorCode.CV000);
+    }
+
+    if (!validIds.has(item.id)) {
+      throw new ValidationException(ErrorCode.SM002);
+    }
+
+    await tx
+      .update(products)
+      .set({
+        deletedAt: now,
+        categoryItemId: null,
+      })
+      .where(eq(products.storeMenuId, item.id));
+
+    const [deletedStoreMenu] = await tx
+      .update(storeMenus)
+      .set({
+        deletedAt: now,
+      })
+      .where(eq(storeMenus.id, item.id))
+      .returning();
+
+    results.push(deletedStoreMenu);
+  }
+
+  private async handleSortBatchStoreMenu(
+    tx: DrizzleDB,
+    item: StoreMenuBatchItemReqDto,
+    validIds: Set<number>,
+  ) {
+    if (!item.id || typeof item.index !== 'number') {
+      throw new ValidationException(ErrorCode.CV000);
+    }
+
+    if (!validIds.has(item.id)) {
+      throw new ValidationException(ErrorCode.SM002);
+    }
+
+    await tx
+      .update(storeMenus)
+      .set({
+        index: item.index,
+      })
+      .where(eq(storeMenus.id, item.id));
+  }
+
+  async batchUpsert(payload: JwtPayloadType, reqDto: StoreMenuBatchReqDto, storeId: number) {
+    const existStore = await this.storesService.existById(storeId);
+    if (!existStore) {
+      throw new ValidationException(ErrorCode.S002);
+    }
+
+    return await this.db.transaction(async (tx) => {
+      const results: StoreMenu[] = [];
+      const now = new Date();
+
+      // Lấy trước danh sách menu thuộc store để validate cho UPDATE/DELETE/SORT
+      const existingMenus = await tx
+        .select({
+          id: storeMenus.id,
+        })
+        .from(storeMenus)
+        .where(and(eq(storeMenus.storeId, storeId), isNull(storeMenus.deletedAt)));
+
+      const validIds = new Set(existingMenus.map((m) => m.id));
+
+      for (const item of reqDto.items) {
+        switch (item.action) {
+          case StoreMenuActionEnum.CREATE: {
+            await this.handleCreateBatchStoreMenu(tx, storeId, item, results);
+            break;
+          }
+
+          case StoreMenuActionEnum.UPDATE: {
+            await this.handleUpdateBatchStoreMenu(tx, item, validIds, results);
+            break;
+          }
+
+          case StoreMenuActionEnum.DELETE: {
+            await this.handleDeleteBatchStoreMenu(tx, item, validIds, now, results);
+            break;
+          }
+
+          case StoreMenuActionEnum.SORT: {
+            await this.handleSortBatchStoreMenu(tx, item, validIds);
+            break;
+          }
+
+          default:
+            throw new ValidationException(ErrorCode.CV000);
+        }
+      }
+
+      return results;
     });
   }
 }

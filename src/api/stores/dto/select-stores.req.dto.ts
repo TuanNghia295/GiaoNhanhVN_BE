@@ -1,6 +1,6 @@
 import { NumberFieldOptional, StringFieldOptional } from 'src/decorators/field.decorators';
 
-export class QueryListStore {
+export class SelectStoresReqDto {
   @StringFieldOptional()
   input?: string;
 

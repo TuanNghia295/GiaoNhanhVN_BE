@@ -1,5 +1,6 @@
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { HotlineReqDto } from '@/api/settings/dto/hotline.req.dto';
+import { ResetStoreServiceFeeReqDto } from '@/api/settings/dto/reset-store-service-fee.req.dto';
 import { ServiceFeeResDto } from '@/api/settings/dto/service.fee.res.dto';
 import { SettingResDto } from '@/api/settings/dto/setting.res.dto';
 import { UpdateDistanceReqDto } from '@/api/settings/dto/update-distance.req.dto';
@@ -119,5 +120,14 @@ export class SettingsController {
   })
   async getShopByDistance() {
     return await this.settingsService.getShopByDistance();
+  }
+
+  @Roles(RoleEnum.ADMIN)
+  @Patch('store-service-fee/reset')
+  @ApiAuth({
+    summary: 'Reset storeServiceFee for all stores',
+  })
+  async resetStoreServiceFee(@Query() reqDto: ResetStoreServiceFeeReqDto) {
+    return await this.settingsService.resetStoreServiceFee(reqDto.areaId);
   }
 }

@@ -12,10 +12,14 @@ import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, count, desc, eq, ilike, isNull, sql } from 'drizzle-orm';
+import { AreasService } from '../areas/areas.service';
 
 @Injectable()
 export class DeliveryRegionsService {
-  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
+  constructor(
+    private readonly areasService: AreasService,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
+  ) {}
 
   async existByName(name: string) {
     return this.db
@@ -26,16 +30,36 @@ export class DeliveryRegionsService {
   }
 
   async create(reqDto: CreateDeliveryRegionsReqDto, payload: JwtPayloadType) {
+    console.log('reqDto', reqDto);
     const existRegion = await this.existByName(reqDto.name);
     if (existRegion) {
       throw new ValidationException(ErrorCode.AR001);
+    }
+
+    //-------------------------------------------------------
+    // Kiểm tra areaId nếu là ADMIN thì phải có areaId, nếu là MANAGEMENT thì phải có areaId trong payload
+    //-------------------------------------------------------
+    let areaId: number | null = null;
+    switch (payload.role) {
+      case RoleEnum.ADMIN:
+        const existArea = await this.areasService.existById(reqDto.areaId);
+        if (!existArea) {
+          throw new ValidationException(ErrorCode.AR001);
+        }
+        areaId = existArea.id;
+        break;
+      case RoleEnum.MANAGEMENT:
+        areaId = payload.areaId;
+        break;
+      default:
+        throw new ValidationException(ErrorCode.CM001);
     }
 
     const [newRegion] = await this.db
       .insert(deliveryRegions)
       .values({
         ...reqDto,
-        areaId: payload.areaId,
+        areaId,
       })
       .returning();
 
@@ -65,7 +89,7 @@ export class DeliveryRegionsService {
   async getPageDeliveryRegions(reqDto: PageDeliveryRegionReqDto, payload: JwtPayloadType) {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.deliveryRegions> = {
       where: and(
-        eq(deliveryRegions.areaId, reqDto.areaId),
+        ...(reqDto.areaId ? [eq(deliveryRegions.areaId, reqDto.areaId)] : []),
         isNull(deliveryRegions.deletedAt),
         ...(reqDto.q ? [ilike(deliveryRegions.name, `%${reqDto.q}%`)] : []),
         ...(payload.role === RoleEnum.MANAGEMENT
@@ -75,8 +99,6 @@ export class DeliveryRegionsService {
       with: {
         area: true,
       },
-      limit: reqDto.limit,
-      offset: reqDto.offset,
     };
 
     const qCount = this.db.query.deliveryRegions.findMany({
@@ -97,8 +119,9 @@ export class DeliveryRegionsService {
       }),
       this.db.select({ totalCount: count() }).from(sql`${qCount}`),
     ]);
-
+    console.log('entities', entities, totalCount);
     const meta = new OffsetPaginationDto(totalCount, reqDto);
+    console.log('meta', meta);
     return new OffsetPaginatedDto(entities, meta);
   }
 

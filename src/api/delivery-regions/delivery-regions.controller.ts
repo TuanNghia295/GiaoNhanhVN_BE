@@ -10,7 +10,6 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   Param,
   ParseIntPipe,
@@ -30,16 +29,10 @@ export class DeliveryRegionsController {
   })
   @Post()
   async create(
-    @CurrentUser() payload: JwtPayloadType, // Ensure you have a decorator to get the current user
-    @Body() reqDto: CreateDeliveryRegionsReqDto, // Replace with actual DTO type
+    @CurrentUser() payload: JwtPayloadType,
+    @Body() reqDto: CreateDeliveryRegionsReqDto,
   ) {
-    // Logic to create an area
-    switch (payload.role) {
-      case RoleEnum.MANAGEMENT:
-        return this.deliveryRegionsService.create(reqDto, payload);
-      default:
-        throw new ForbiddenException('You do not have permission to create a delivery region.');
-    }
+    return this.deliveryRegionsService.create(reqDto, payload);
   }
 
   @Put(':deliveryRegionId')

@@ -6,6 +6,10 @@ import { ProductResDto } from '@/api/products/dto/product.res.dto';
 import { SortProductReqDto } from '@/api/products/dto/sort-product.req.dto';
 import { UpdateProductReqDto } from '@/api/products/dto/update-product.req.dto';
 import { UploadImageReqDto } from '@/api/products/dto/upload-image.req.dto';
+import {
+  createProductExamples,
+  updateProductExamples,
+} from '@/api/products/examples/create-product.examples';
 import { RoleEnum } from '@/database/schemas';
 import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth } from '@/decorators/http.decorators';
@@ -24,7 +28,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiConsumes } from '@nestjs/swagger';
+import { ApiBody, ApiConsumes } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import { JwtPayloadType } from '../auth/types/jwt-payload.type';
 import { ProductsService } from './products.service';
@@ -85,6 +89,10 @@ export class ProductsController {
     summary: 'Tạo sản phẩm [STORE]',
     type: ProductResDto,
   })
+  @ApiBody({
+    type: CreateProductReqDto,
+    examples: createProductExamples,
+  })
   @Post()
   async createProduct(@Body() reqDto: CreateProductReqDto): Promise<any> {
     return await this.productsService.create(reqDto);
@@ -94,6 +102,10 @@ export class ProductsController {
   @ApiAuth({
     summary: 'Cập nhật thông tin sản phẩm',
     type: ProductResDto,
+  })
+  @ApiBody({
+    type: UpdateProductReqDto,
+    examples: updateProductExamples,
   })
   @Patch('update/:productId')
   async updateProduct(

@@ -262,6 +262,7 @@ export class AnalyticsService {
           inArray(orders.type, [OrderTypeEnum.FOOD, OrderTypeEnum.ANOTHER_SHOP]),
           ...(payload.role === RoleEnum.MANAGEMENT ? [eq(stores.areaId, payload.areaId)] : []),
           ...(reqDto.q ? [or(eq(users.phone, reqDto.q), eq(stores.name, reqDto.q))] : []),
+          ...(reqDto.storeId ? [eq(stores.id, reqDto.storeId)] : []),
           ...(reqDto.from && reqDto.to
             ? [
                 between(
@@ -513,7 +514,9 @@ export class AnalyticsService {
         and(
           isNull(delivers.deletedAt),
           ...(payload.role === RoleEnum.MANAGEMENT ? [eq(delivers.areaId, payload.areaId)] : []),
+          ...(reqDto.areaId ? [eq(delivers.areaId, reqDto.areaId)] : []),
           ...(reqDto.phone ? [eq(delivers.phone, reqDto.phone)] : []),
+          ...(reqDto.deliverId ? [eq(delivers.id, reqDto.deliverId)] : []),
           ...(reqDto.from && reqDto.to
             ? [
                 between(

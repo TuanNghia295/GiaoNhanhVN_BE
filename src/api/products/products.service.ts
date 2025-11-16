@@ -1,6 +1,7 @@
 import { CategoryItemsService } from '@/api/category-items/category-items.service';
 import { ExtrasService } from '@/api/extras/extras.service';
-import { OptionsService } from '@/api/options/options.service';
+import { CreateOptionGroupReqDto } from '@/api/option-groups/dto/create-option-group.req.dto';
+import { OptionGroupsService } from '@/api/option-groups/option-groups.service';
 import { CreateProductReqDto } from '@/api/products/dto/create-product.req.dto';
 import { FlashSaleProductReqDto } from '@/api/products/dto/flash-sale-product.req.dto';
 import { LockProductReqDto } from '@/api/products/dto/lock-product.req.dto';
@@ -14,7 +15,7 @@ import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagi
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE, storeIsOpenSql, Transaction } from '@/database/global';
-import { areas, orderDetails, products, stores } from '@/database/schemas';
+import { areas, options, orderDetails, products, stores } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { deleteIfExists, normalizeImagePath } from '@/utils/util';
@@ -56,7 +57,7 @@ export class ProductsService implements OnModuleInit {
 
   constructor(
     private readonly extrasService: ExtrasService,
-    private readonly optionsService: OptionsService,
+    private readonly optionGroupsService: OptionGroupsService,
     private readonly categoryItemsService: CategoryItemsService,
     private readonly storeMenusService: StoreMenusService,
     private readonly storesService: StoresService,
@@ -85,6 +86,11 @@ export class ProductsService implements OnModuleInit {
         categoryItem: true,
         options: true,
         extras: true,
+        optionGroups: {
+          with: {
+            options: true,
+          },
+        },
       },
     };
 
@@ -171,6 +177,11 @@ export class ProductsService implements OnModuleInit {
         categoryItem: true,
         options: true,
         extras: true,
+        optionGroups: {
+          with: {
+            options: true,
+          },
+        },
       },
     });
 
@@ -251,30 +262,36 @@ export class ProductsService implements OnModuleInit {
         .toJSDate();
     }
 
+    const { extras: extraPayload = [], optionGroups = [], ...productPayload } = reqDto;
+
+    const optionGroupPayload: CreateOptionGroupReqDto[] = optionGroups ?? [];
+
     return this.db.transaction(async (tx) => {
       const product = await tx
         .insert(products)
         .values({
-          ...reqDto,
+          ...productPayload,
+          optionVersion: 2,
           // nếu fe có cập nhật quantity thì cập nhật saleQuantity
           // cứng để làm thành slider
           // ...(reqDto.quantity && { saleQuantity: reqDto.quantity }),
-          storeMenuId: reqDto.storeMenuId,
-          storeId: reqDto.storeId,
+          storeMenuId: productPayload.storeMenuId,
+          storeId: productPayload.storeId,
         })
         .returning();
 
       //---------------------------------------------------
-      // Check if the options exist
-      //---------------------------------------------------
-      if (reqDto.options.length > 0) {
-        await this.optionsService.createForProduct(product[0].id, reqDto.options, tx);
-      }
-      //---------------------------------------------------
       // Check if the extras exist
       //---------------------------------------------------
-      if (reqDto.extras.length > 0) {
-        await this.extrasService.createForProduct(product[0].id, reqDto.extras, tx);
+      if (extraPayload.length > 0) {
+        await this.extrasService.createForProduct(product[0].id, extraPayload, tx);
+      }
+
+      //---------------------------------------------------
+      // Create option groups for the product
+      //---------------------------------------------------
+      if (optionGroupPayload.length > 0) {
+        await this.optionGroupsService.createForProduct(product[0].id, optionGroupPayload, tx);
       }
       return plainToInstance(ProductResDto, product[0]);
     });
@@ -303,6 +320,20 @@ export class ProductsService implements OnModuleInit {
       });
       if (!existProduct) throw new ValidationException(ErrorCode.P001);
 
+      const hasOptionGroupsField = Object.prototype.hasOwnProperty.call(reqDto, 'optionGroups');
+      const hasExtrasField = Object.prototype.hasOwnProperty.call(reqDto, 'extras');
+
+      const { extras: extrasPayloadFromDto, optionGroups = [], ...productPayload } = reqDto;
+
+      // Chỉ đồng bộ extras nếu FE gửi lên trường này (tránh vô tình xóa hết extras)
+      const extraPayload = hasExtrasField ? (extrasPayloadFromDto ?? []) : undefined;
+
+      const optionGroupsDefined = hasOptionGroupsField;
+
+      const optionGroupPayload: CreateOptionGroupReqDto[] = hasOptionGroupsField
+        ? (optionGroups ?? [])
+        : [];
+
       //---------------------------------------------------
       // Check if the store menu exists
       //---------------------------------------------------
@@ -328,9 +359,10 @@ export class ProductsService implements OnModuleInit {
       const [updateProduct] = await tx
         .update(products)
         .set({
-          ...reqDto,
+          ...productPayload,
+          optionVersion: 2,
           //  nếu fe có cập nhật quantity thì reset saleQuantity
-          ...(reqDto.quantity && { usedSaleQuantity: 0 }),
+          ...(productPayload.quantity && { usedSaleQuantity: 0 }),
           // ...(reqDto.quantity && { saleQuantity: reqDto.quantity }),
         })
         .where(eq(products.id, productId))
@@ -356,14 +388,20 @@ export class ProductsService implements OnModuleInit {
       }
 
       //---------------------------------------------------
-      // Update options if provided
+      // Update option groups if provided
       //---------------------------------------------------
-      await this.optionsService.updateForProduct(productId, reqDto.options, tx);
+      if (optionGroupsDefined) {
+        await tx.delete(options).where(eq(options.productId, productId)).execute();
+        await this.optionGroupsService.updateForProduct(productId, optionGroupPayload, tx);
+      }
 
       //---------------------------------------------------
       // Update extras if provided
       //---------------------------------------------------
-      await this.extrasService.updateForProduct(productId, reqDto.extras, tx);
+      if (hasExtrasField) {
+        // Dùng diff-based update: thêm/sửa/xóa theo payload gửi lên
+        await this.extrasService.updateForProduct(productId, extraPayload ?? [], tx);
+      }
 
       return plainToInstance(ProductResDto, updateProduct);
     });
@@ -487,7 +525,7 @@ export class ProductsService implements OnModuleInit {
         greatest(
           cos(radians(${latitude})) *
           cos(radians(CAST(split_part(stores.location, ',', 1) AS double precision))) *
-          cos(radians(CAST(split_part(stores.location, ',', 2) AS double precision)) - radians(${longitude})) +
+          cos(radians(CAST(split_part(stores.location}, ',', 2) AS double precision)) - radians(${longitude})) +
           sin(radians(${latitude})) *
           sin(radians(CAST(split_part(stores.location, ',', 1) AS double precision))),
           -1

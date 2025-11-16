@@ -1,4 +1,4 @@
-import { NumberField, StringField } from '@/decorators/field.decorators';
+import { NumberField, NumberFieldOptional, StringField } from '@/decorators/field.decorators';
 
 export class CreateDeliveryRegionsReqDto {
   @StringField()
@@ -6,4 +6,7 @@ export class CreateDeliveryRegionsReqDto {
 
   @NumberField()
   price: number;
+
+  @NumberFieldOptional()
+  areaId?: number;
 }

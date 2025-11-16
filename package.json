@@ -21,6 +21,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio --port 3005",
     "db:seed": "tsx ./src/database/seeds.ts",
+    "db:migrate-option-groups": "tsx ./src/database/seed-migrate-option-groups.ts",
     "db:clean-orders": "tsx ./src/database/seed-clean-orders.ts",
     "db:clean-coin-logs": "tsx ./src/database/seed-clean-coin-logs.ts",
     "deploy": "drizzle-kit generate && drizzle-kit migrate && nest build",
