@@ -17,7 +17,7 @@ import { DRIZZLE, storeIsOpenSql, Transaction } from '@/database/global';
 import { areas, orderDetails, products, stores } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
-import { deleteIfExists, normalizeImagePath } from '@/utils/util';
+import { deleteIfExists, normalizeImagePath, validateImageSize } from '@/utils/util';
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import {
@@ -374,12 +374,14 @@ export class ProductsService implements OnModuleInit {
     });
     if (!existProduct) throw new ValidationException(ErrorCode.P001);
 
+    validateImageSize(image, { fieldLabel: 'Ảnh sản phẩm' });
+
     if (existProduct.image) {
       deleteIfExists(existProduct.image, this.basePath);
     }
     const fileName = await this.buildFileName('product');
     const fullImagePath = join(this.basePath, fileName);
-    await sharp(image.buffer).jpeg({ quality: 80 }).toFile(fullImagePath);
+    await sharp(image.buffer).jpeg({ quality: 50 }).toFile(fullImagePath);
     const normalizedPath = normalizeImagePath(fullImagePath);
     return this.db
       .update(products)
