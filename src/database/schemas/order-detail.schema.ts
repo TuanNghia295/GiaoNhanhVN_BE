@@ -108,6 +108,8 @@ export const orderDetailSelectedOptionsRelations = relations(
       fields: [orderDetailSelectedOptions.orderDetailId],
       references: [orderDetails.id],
     }),
+    // info của option group option đã chọn
+
     optionGroupOption: one(optionGroupOptions, {
       fields: [orderDetailSelectedOptions.optionGroupOptionId],
       references: [optionGroupOptions.id],

@@ -66,7 +66,6 @@ export class UsersService implements OnModuleInit {
   }
 
   async create(reqDto: CreateUserReqDto, payload: JwtPayloadType): Promise<UserResDto> {
-    console.log('reqDto', await this.existsByPhone(reqDto.phone));
     if (await this.existsByPhone(reqDto.phone)) {
       throw new ValidationException(ErrorCode.U002, HttpStatus.CONFLICT);
     }
@@ -165,8 +164,7 @@ export class UsersService implements OnModuleInit {
     ]);
 
     const meta = new OffsetPaginationDto(totalCount, reqDto);
-    const newEntities = plainToInstance(UserResDto, entities);
-    return new OffsetPaginatedDto(newEntities, meta);
+    return new OffsetPaginatedDto(entities, meta);
   }
 
   async existsById(userId: number) {

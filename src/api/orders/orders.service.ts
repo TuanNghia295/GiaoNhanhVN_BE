@@ -197,7 +197,12 @@ export class OrdersService implements OnModuleInit {
         orderDetails: {
           with: {
             product: true,
-            option: true,
+            // lấy ra danh sách các option group đã chọn
+            selectedOptions: {
+              with: {
+                optionGroupOption: true,
+              },
+            },
             extras: {
               with: {
                 extra: true,
