@@ -3,6 +3,7 @@ import { AllConfigType } from '@/config/config.type';
 import { AuthService } from '@/api/auth/auth.service';
 import { StoresService } from '@/api/stores/stores.service';
 import { VerifyZaloResDto } from '@/api/zalo/dto/verify-otp.res.dto';
+import { Environment } from '@/constants/app.constant';
 import { CacheKey } from '@/constants/cache.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
@@ -106,12 +107,26 @@ export class ZaloService implements OnModuleInit {
     }
   }
 
+  private readonly MAX_OTP = 5; // tối đa 3 lần
+  private readonly WINDOW_SEC = 60 * 60 * 1000; // 1 giờ
+
   async sendZaloOtp(phone: string) {
     const zaloConfig = await this.findZaloToken();
     if (!zaloConfig?.accessToken) {
       throw new UnauthorizedException('Zalo access token is not available.');
     }
 
+    //-----------------------------------------------
+    // Kiểm tra và cập nhật rate limit
+    //-----------------------------------------------
+    const rateLimitKey = createCacheKey(CacheKey.OTP_RATE_LIMIT, phone);
+    const currentCount = (await this.cache.get<number>(rateLimitKey)) || 0;
+    // get info expire time
+    const expireTime = await this.cache.ttl(rateLimitKey);
+    console.log('expireTime', expireTime, 'seconds');
+    if (currentCount >= this.MAX_OTP) {
+      throw new ValidationException(ErrorCode.Z007, HttpStatus.TOO_MANY_REQUESTS);
+    }
     //-----------------------------------------------
     // Tạo mã OTP
     //------------------------------------------------
@@ -123,8 +138,16 @@ export class ZaloService implements OnModuleInit {
     const vietnamesePhone = formatVietnamPhoneNumber(phone);
     const cacheKey = createCacheKey(CacheKey.OTP_VERIFICATION, phone);
     console.log('cacheKey', cacheKey, phone);
+    ///1763643251909 = bao nhiêu giờ?
     await this.cache.set(cacheKey, otpCode, 5 * 60 * 1000); // Lưu mã OTP vào cache trong 5 phút
 
+    if (this.configService.getOrThrow('app.nodeEnv', { infer: true }) === Environment.DEVELOPMENT) {
+      await this.cache.set(rateLimitKey, currentCount + 1, this.WINDOW_SEC);
+      return {
+        message: 'OTP sent successfully',
+        otpCode: otpCode,
+      };
+    }
     const { data } = await firstValueFrom(
       this.httpService
         .post(
@@ -153,8 +176,32 @@ export class ZaloService implements OnModuleInit {
       console.error('Error sending OTP via Zalo:', data);
       throw new UnauthorizedException('Failed to send OTP via Zalo.');
     }
-
+    await this.cache.set(rateLimitKey, currentCount + 1, this.WINDOW_SEC);
     this.logger.log(`OTP sent successfully to ${vietnamesePhone}`);
+  }
+
+  /**
+   * Kiểm tra trạng thái rate limit của số điện thoại (API test)
+   */
+  async checkOtpRateLimit(phone: string) {
+    const rateLimitKey = createCacheKey(CacheKey.OTP_RATE_LIMIT, phone);
+    const currentCount = (await this.cache.get<number>(rateLimitKey)) || 0;
+    const MAX_OTP_REQUESTS = 3;
+    const RATE_LIMIT_WINDOW_MINUTES = 60; // 1 giờ
+    const remainingRequests = Math.max(0, MAX_OTP_REQUESTS - currentCount);
+    const isLimited = currentCount >= MAX_OTP_REQUESTS;
+
+    return {
+      phone,
+      currentCount,
+      maxRequests: MAX_OTP_REQUESTS,
+      remainingRequests,
+      isLimited,
+      rateLimitWindowMinutes: RATE_LIMIT_WINDOW_MINUTES,
+      message: isLimited
+        ? `Đã đạt giới hạn ${MAX_OTP_REQUESTS} lần gửi OTP. Vui lòng thử lại sau ${RATE_LIMIT_WINDOW_MINUTES} phút.`
+        : `Còn ${remainingRequests}/${MAX_OTP_REQUESTS} lần gửi OTP.`,
+    };
   }
 
   /**

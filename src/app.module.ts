@@ -13,9 +13,11 @@ import { createKeyv } from '@keyv/redis';
 import { CacheModule } from '@nestjs/cache-manager';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { CacheableMemory } from 'cacheable';
 import 'dotenv/config';
 import { Keyv } from 'keyv';
@@ -61,6 +63,14 @@ import { UserAgentMiddleware } from './ua.middleware';
       envFilePath: ['.env', `.env.${process.env.NODE_ENV}`],
       load: [appConfig, redisConfig, authConfig, goongConfig, zaloConfig, firebaseConfig],
       isGlobal: true,
+    }),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          ttl: 60, // thời gian tính theo giây
+          limit: 10, // tối đa 10 request / ttl
+        },
+      ],
     }),
     ScheduleModule.forRoot(),
     CacheModule.registerAsync({
@@ -133,7 +143,13 @@ import { UserAgentMiddleware } from './ua.middleware';
     DeliveryRegionsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

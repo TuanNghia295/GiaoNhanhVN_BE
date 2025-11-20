@@ -24,6 +24,7 @@ export enum ErrorCode {
   Z004 = 'zalo.error.otp_in_cooldown',
   Z005 = 'zalo.error.otp_invalid',
   Z006 = 'zalo.error.otp_send_failed',
+  Z007 = 'zalo.error.otp_rate_limit_exceeded',
 
   // Validation
   UV001 = 'user.validation.is_empty',
