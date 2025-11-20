@@ -17,7 +17,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { CacheableMemory } from 'cacheable';
 import 'dotenv/config';
 import { Keyv } from 'keyv';
@@ -55,6 +55,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import firebaseConfig from './firebase/config/firebase.config';
 import { FirebaseModule } from './firebase/firebase.module';
+import { ThrottlerBehindProxyGuard } from './guards/throttler-behind-proxy.guard';
 import { UserAgentMiddleware } from './ua.middleware';
 
 @Module({
@@ -147,7 +148,7 @@ import { UserAgentMiddleware } from './ua.middleware';
     AppService,
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: ThrottlerBehindProxyGuard,
     },
   ],
 })

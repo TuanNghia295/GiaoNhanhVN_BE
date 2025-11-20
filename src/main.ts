@@ -15,10 +15,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './filter/global-exception.filter';
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService<AllConfigType>);
   const reflector = app.get(Reflector);
   const isProduction = configService.get('app.nodeEnv', { infer: true }) === Environment.PRODUCTION;
@@ -69,6 +70,7 @@ async function bootstrap() {
   if (!isProduction) {
     setupSwagger(app);
   }
+  app.set('trust proxy', 'loopback'); // Trust requests from the loopback address
 
   await app.listen(configService.getOrThrow('app.port', { infer: true }), async () => {
     console.info(`
