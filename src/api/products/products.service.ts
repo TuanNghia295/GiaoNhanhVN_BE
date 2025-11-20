@@ -175,7 +175,7 @@ export class ProductsService implements OnModuleInit {
       where: and(isNull(products.deletedAt), eq(products.id, productId)),
       with: {
         categoryItem: true,
-        options: true,
+        // options: true,
         extras: true,
         optionGroups: {
           with: {
@@ -220,13 +220,13 @@ export class ProductsService implements OnModuleInit {
         isFlashSaleActive && userPurchasedQuantity < limitedQty,
       );
 
-      return plainToInstance(ProductResDto, {
+      return {
         ...product,
         canOrderMoreFlashSale,
-      });
+      };
     }
 
-    return plainToInstance(ProductResDto, product);
+    return product;
   }
 
   async create(reqDto: CreateProductReqDto) {
