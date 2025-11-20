@@ -4,6 +4,10 @@ import { Exclude, Expose } from 'class-transformer';
 
 @Exclude()
 export class OptionGroupOptionResDto extends AbstractResDto {
+  @NumberField()
+  @Expose()
+  optionGroupId!: number;
+
   @StringField()
   @Expose()
   name!: string;
