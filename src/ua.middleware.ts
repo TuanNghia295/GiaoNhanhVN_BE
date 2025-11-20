@@ -9,6 +9,7 @@ export class UserAgentMiddleware implements NestMiddleware {
     const ua = req.headers['user-agent'] || '';
     const parser = new UAParser(ua);
     req['deviceInfo'] = parser.getResult();
+    console.log('des', parser.getResult());
     next();
   }
 }

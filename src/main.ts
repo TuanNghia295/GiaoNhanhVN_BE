@@ -23,7 +23,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService<AllConfigType>);
   const reflector = app.get(Reflector);
   const isProduction = configService.get('app.nodeEnv', { infer: true }) === Environment.PRODUCTION;
-
+  app.set('trust proxy', true); // Trust requests from the loopback address
   // Use global prefix if you don't have subdomain
   app.setGlobalPrefix(configService.getOrThrow('app.apiPrefix', { infer: true }), {
     exclude: [
@@ -70,7 +70,6 @@ async function bootstrap() {
   if (!isProduction) {
     setupSwagger(app);
   }
-  app.set('trust proxy', 'loopback'); // Trust requests from the loopback address
 
   await app.listen(configService.getOrThrow('app.port', { infer: true }), async () => {
     console.info(`

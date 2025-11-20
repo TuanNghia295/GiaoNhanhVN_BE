@@ -11,7 +11,7 @@ import { DatabaseModule } from '@/database/database.module';
 import { SharedModule } from '@/shared/shared.module';
 import { createKeyv } from '@keyv/redis';
 import { CacheModule } from '@nestjs/cache-manager';
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -56,7 +56,6 @@ import { AppService } from './app.service';
 import firebaseConfig from './firebase/config/firebase.config';
 import { FirebaseModule } from './firebase/firebase.module';
 import { ThrottlerBehindProxyGuard } from './guards/throttler-behind-proxy.guard';
-import { UserAgentMiddleware } from './ua.middleware';
 
 @Module({
   imports: [
@@ -152,8 +151,4 @@ import { UserAgentMiddleware } from './ua.middleware';
     },
   ],
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(UserAgentMiddleware).forRoutes('*');
-  }
-}
+export class AppModule {}

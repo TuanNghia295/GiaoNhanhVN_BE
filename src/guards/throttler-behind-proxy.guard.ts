@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { Request } from 'express';
+import * as requestIp from 'request-ip';
 
 @Injectable()
 export class ThrottlerBehindProxyGuard extends ThrottlerGuard {
-  protected async getTracker(req: Record<string, any>): Promise<string> {
-    console.log('getTracker', req.ips, req.ip);
-    return req.ips.length ? req.ips[0] : req.ip; // individualize IP extraction to meet your own needs
+  protected async getTracker(req: Request): Promise<string> {
+    const clientIp = requestIp.getClientIp(req);
+    console.log('clientIp', clientIp);
+    return clientIp || req.ip; // fallback nếu request-ip không tìm được
   }
 }
