@@ -8,6 +8,7 @@ import {
   StringField,
 } from '@/decorators/field.decorators';
 import { Exclude, Expose } from 'class-transformer';
+import { AreaResDto } from '../../areas/dto/area.res.dto';
 import { LocationResDto } from '../../locations/dto/location.res.dto';
 
 @Exclude()
@@ -87,4 +88,8 @@ export class DeliverResDto {
   @NumberField()
   @Expose()
   areaId: number;
+
+  @ClassField(() => AreaResDto, { isArray: true })
+  @Expose()
+  areas: AreaResDto[];
 }
