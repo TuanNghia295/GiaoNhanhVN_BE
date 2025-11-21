@@ -1144,6 +1144,7 @@ export class OrdersService implements OnModuleInit {
       const selectionCountByGroup = new Map<number, number>();
 
       for (const selection of selectedOptions) {
+        console.log('Selection:', selection);
         const group = groupById.get(selection.optionGroupId);
         if (!group) {
           throw new ValidationException(
@@ -1178,26 +1179,18 @@ export class OrdersService implements OnModuleInit {
         selectionCountByGroup.set(group.id, (selectionCountByGroup.get(group.id) ?? 0) + 1);
       }
 
-      for (const group of productOptionGroups) {
-        const groupId = group.id;
-        if (groupId === undefined || groupId === null) {
+      // Chỉ validate các option groups mà user đã truyền vào trong selectedOptions
+      for (const [groupId, selectionCount] of selectionCountByGroup.entries()) {
+        const group = groupById.get(groupId);
+        if (!group) {
           continue;
         }
-        const selectionCount = selectionCountByGroup.get(groupId) ?? 0;
-        const isRequired = !!group.isRequired;
+
         const minSelect =
-          typeof group.minSelect === 'number' ? group.minSelect : isRequired ? 1 : 0;
+          typeof group.minSelect === 'number' ? group.minSelect : group.isRequired ? 1 : 0;
         const maxSelect = typeof group.maxSelect === 'number' ? group.maxSelect : 1;
-        const totalOptions = (group.options ?? []).length;
 
-        if (isRequired && totalOptions > 0 && selectionCount === 0) {
-          throw new ValidationException(
-            ErrorCode.P002,
-            HttpStatus.BAD_REQUEST,
-            `Nhóm lựa chọn "${group.displayName ?? group.name ?? ''}" bắt buộc chọn ít nhất ${minSelect} option`,
-          );
-        }
-
+        // Validate minSelect cho các groups đã được chọn
         if (minSelect && selectionCount < minSelect) {
           throw new ValidationException(
             ErrorCode.P002,
@@ -1206,6 +1199,7 @@ export class OrdersService implements OnModuleInit {
           );
         }
 
+        // Validate maxSelect cho các groups đã được chọn
         if (maxSelect && selectionCount > maxSelect) {
           throw new ValidationException(
             ErrorCode.P002,
