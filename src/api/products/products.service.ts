@@ -15,7 +15,7 @@ import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagi
 import { OffsetPaginatedDto } from '@/common/dto/offset-pagination/paginated.dto';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE, storeIsOpenSql, Transaction } from '@/database/global';
-import { areas, options, orderDetails, products, stores } from '@/database/schemas';
+import { areas, orderDetails, products, stores } from '@/database/schemas';
 import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { deleteIfExists, normalizeImagePath } from '@/utils/util';
@@ -335,11 +335,18 @@ export class ProductsService implements OnModuleInit {
         : [];
 
       //---------------------------------------------------
-      // Check if the store menu exists
+      // Check if the store exists
       //---------------------------------------------------
       if (reqDto.storeId) {
         const existStore = await this.storesService.existById(reqDto.storeId);
         if (!existStore) throw new ValidationException(ErrorCode.S001);
+      }
+      //---------------------------------------------------
+      // Check if the store menu exists
+      //---------------------------------------------------
+      if (reqDto.storeMenuId) {
+        const existStoreMenu = await this.storeMenusService.existById(reqDto.storeMenuId);
+        if (!existStoreMenu) throw new ValidationException(ErrorCode.SM001);
       }
       //---------------------------------------------------
       // Check if the category item exists
@@ -348,14 +355,7 @@ export class ProductsService implements OnModuleInit {
         const existCategoryItem = await this.categoryItemsService.existById(reqDto.categoryItemId);
         if (!existCategoryItem) throw new ValidationException(ErrorCode.CI001);
       }
-      if (reqDto.storeId) {
-        //---------------------------------------------------
-        // Check if the store exists
-        //---------------------------------------------------
-        const existStore = await this.storesService.existById(reqDto.storeId);
-        if (!existStore) throw new ValidationException(ErrorCode.S001);
-      }
-      console.log('💕💕💕💕', reqDto);
+
       const [updateProduct] = await tx
         .update(products)
         .set({
@@ -391,7 +391,7 @@ export class ProductsService implements OnModuleInit {
       // Update option groups if provided
       //---------------------------------------------------
       if (optionGroupsDefined) {
-        await tx.delete(options).where(eq(options.productId, productId)).execute();
+        // updateForProduct handles diff internally (add/update/delete)
         await this.optionGroupsService.updateForProduct(productId, optionGroupPayload, tx);
       }
 
