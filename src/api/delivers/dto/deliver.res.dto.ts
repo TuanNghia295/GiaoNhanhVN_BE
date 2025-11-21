@@ -89,7 +89,7 @@ export class DeliverResDto {
   @Expose()
   areaId: number;
 
-  @ClassField(() => AreaResDto, { isArray: true })
+  @ClassField(() => AreaResDto)
   @Expose()
-  areas: AreaResDto[];
+  area: AreaResDto;
 }
