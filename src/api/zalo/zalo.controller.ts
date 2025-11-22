@@ -15,9 +15,9 @@ export class ZaloController {
     summary: 'Gửi mã OTP đến số điện thoại',
     type: OTPCodeResDto,
   })
-  // tối đa 3 lần gửi OTP trong 1 phút
+  // tối đa 3 lần gửi OTP trong 5 phút
   //the number of milliseconds that each request will last in storage
-  @Throttle({ default: { limit: 3, ttl: 60 * 1000 } }) // 60 seconds
+  @Throttle({ default: { limit: 3, ttl: 5 * 60 * 1000 } }) // 5 minutes
   @Get('send-otp')
   async sendOtpToPhone(@Query('phone') phone: string) {
     return await this.zaloService.sendZaloOtp(phone);
@@ -39,16 +39,6 @@ export class ZaloController {
   @Post('verify-otp')
   async verifyOtp(@Query() reqDto: VerifyOtpReqDto) {
     return await this.zaloService.verifyOtp(reqDto);
-  }
-
-  @ApiPublic({
-    summary: 'Test API - Kiểm tra trạng thái rate limit OTP',
-  })
-  // tối đa 3 lần kiểm tra trạng thái rate limit OTP trong 1 phút
-  @Throttle({ default: { limit: 3, ttl: 60 * 1000 } }) // 60 seconds
-  @Get('test-otp-rate-limit')
-  async testOtpRateLimit(@Query('phone') phone: string) {
-    return await this.zaloService.checkOtpRateLimit(phone);
   }
 
   // @ApiExcludeEndpoint()
