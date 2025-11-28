@@ -23,9 +23,12 @@ export class StoreMenusService {
     @Inject(DRIZZLE) private readonly db: DrizzleDB, // Replace with actual type
   ) {}
 
-  async getPageStoreMenus(reqDto: PageStoreMenuReqDto, userId: number) {
+  async getPageStoreMenus(reqDto: PageStoreMenuReqDto, userId?: number) {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.storeMenus> = {
-      where: and(eq(storeMenus.storeId, reqDto.storeId), isNull(storeMenus.deletedAt)),
+      where: and(
+        ...(reqDto.storeId ? [eq(storeMenus.storeId, reqDto.storeId)] : []),
+        isNull(storeMenus.deletedAt),
+      ),
       with: {
         products: {
           extras: {
@@ -70,7 +73,9 @@ export class StoreMenusService {
         totalQuantity: sql<number>`SUM(${orderDetails.quantity})`.as('totalQuantity'),
       })
       .from(orderDetails)
-      .where(and(eq(orderDetails.userId, userId), eq(orderDetails.isSale, true)))
+      .where(
+        and(...(userId ? [eq(orderDetails.userId, userId)] : []), eq(orderDetails.isSale, true)),
+      )
       .groupBy(orderDetails.productId)
       .then((results) => {
         const map = new Map<number, number>();

@@ -17,7 +17,30 @@ export const storeMenus = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [index('store_menus_name_idx').on(table.name)],
+  (table) => [
+    index('store_menus_name_idx').on(table.name),
+    // Index cho WHERE clause: storeId và deletedAt
+    index('store_menus_store_id_deleted_at_idx').on(table.storeId, table.deletedAt),
+    // Index cho ORDER BY mặc định: index và createdAt
+    index('store_menus_store_id_deleted_at_index_created_at_idx').on(
+      table.storeId,
+      table.deletedAt,
+      table.index,
+      table.createdAt,
+    ),
+    // Index cho ORDER BY theo name
+    index('store_menus_store_id_deleted_at_name_idx').on(
+      table.storeId,
+      table.deletedAt,
+      table.name,
+    ),
+    // Index cho ORDER BY theo createdAt (newest/oldest)
+    index('store_menus_store_id_deleted_at_created_at_idx').on(
+      table.storeId,
+      table.deletedAt,
+      table.createdAt,
+    ),
+  ],
 );
 
 export const storeMenusRelations = relations(storeMenus, ({ one, many }) => ({

@@ -2,7 +2,7 @@ import { PageOptionsDto } from '@/common/dto/offset-pagination/ page-options.dto
 import {
   BooleanFieldOptional,
   EnumFieldOptional,
-  NumberField,
+  NumberFieldOptional,
 } from 'src/decorators/field.decorators';
 
 export enum SortStoreMenuEnum {
@@ -13,8 +13,8 @@ export enum SortStoreMenuEnum {
 }
 
 export class PageStoreMenuReqDto extends PageOptionsDto {
-  @NumberField()
-  storeId: number;
+  @NumberFieldOptional()
+  storeId?: number;
 
   @BooleanFieldOptional()
   isShop?: boolean;
