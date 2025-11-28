@@ -53,39 +53,71 @@ export class StoreMenusService {
       orderBy: [asc(storeMenus.index), desc(storeMenus.createdAt)],
     };
 
-    const qCount = this.db.query.storeMenus.findMany({
-      ...baseConfig,
-      columns: { id: true },
-    });
+    // Build orderBy based on sortBy
+    const orderByClause = (() => {
+      switch (reqDto.sortBy) {
+        case 'name_asc':
+          return [asc(storeMenus.name), asc(storeMenus.index)];
+        case 'name_desc':
+          return [desc(storeMenus.name), asc(storeMenus.index)];
+        case 'newest':
+          return [desc(storeMenus.createdAt), asc(storeMenus.index)];
+        case 'oldest':
+          return [asc(storeMenus.createdAt), asc(storeMenus.index)];
+        default:
+          return [asc(storeMenus.index), desc(storeMenus.createdAt)];
+      }
+    })();
 
     const [entities, [{ totalCount }]] = await Promise.all([
       this.db.query.storeMenus.findMany({
         ...baseConfig,
         ...(reqDto.limit !== 10 ? { limit: reqDto.limit, offset: reqDto.offset } : {}),
       }),
-      this.db.select({ totalCount: count() }).from(sql`${qCount}`),
+      this.db
+        .select({ totalCount: count() })
+        .from(storeMenus)
+        .where(
+          and(
+            ...(reqDto.storeId ? [eq(storeMenus.storeId, reqDto.storeId)] : []),
+            isNull(storeMenus.deletedAt),
+          ),
+        ),
     ]);
 
+    // Lấy danh sách productId từ entities để tối ưu query
+    const productIds = entities.flatMap((menu) => menu.products.map((p) => p.id).filter(Boolean));
+
     // Lấy danh sách productId và tổng số lượng flash sale mà user đã mua
-    const userPurchasedQuantities = await this.db
-      .select({
-        productId: orderDetails.productId,
-        totalQuantity: sql<number>`SUM(${orderDetails.quantity})`.as('totalQuantity'),
-      })
-      .from(orderDetails)
-      .where(
-        and(...(userId ? [eq(orderDetails.userId, userId)] : []), eq(orderDetails.isSale, true)),
-      )
-      .groupBy(orderDetails.productId)
-      .then((results) => {
-        const map = new Map<number, number>();
-        results.forEach((r) => {
-          if (r.productId !== null) {
-            map.set(r.productId, Number(r.totalQuantity) || 0);
-          }
+    // Chỉ query khi có userId và có products
+    let userPurchasedQuantities = new Map<number, number>();
+    if (userId && productIds.length > 0) {
+      userPurchasedQuantities = await this.db
+        .select({
+          productId: orderDetails.productId,
+          totalQuantity: sql<number>`COALESCE(SUM(${orderDetails.quantity}), 0)`.as(
+            'totalQuantity',
+          ),
+        })
+        .from(orderDetails)
+        .where(
+          and(
+            eq(orderDetails.userId, userId),
+            eq(orderDetails.isSale, true),
+            sql`${orderDetails.productId} IN ${sql.raw(`(${productIds.join(',')})`)}`,
+          ),
+        )
+        .groupBy(orderDetails.productId)
+        .then((results) => {
+          const map = new Map<number, number>();
+          results.forEach((r) => {
+            if (r.productId !== null) {
+              map.set(r.productId, Number(r.totalQuantity) || 0);
+            }
+          });
+          return map;
         });
-        return map;
-      });
+    }
 
     // Xử lý dữ liệu: chỉ ẩn sale khi user đã mua đủ limitedFlashSaleQuantity
     // Logic canOrderMoreFlashSale:
