@@ -6,4 +6,5 @@ export enum CacheKey {
   PASSWORD_RESET = 'auth:token:%s:password', // %s: userId
   // Order code counter theo tháng
   ORDER_CODE_COUNTER = 'orders:code:%s-%s', // %s: year, %s: month
+  OTP_RATE_LIMIT = 'auth:otp-limit:%s', // %s: phone number
 }

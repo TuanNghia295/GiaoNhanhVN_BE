@@ -15,14 +15,15 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './filter/global-exception.filter';
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService<AllConfigType>);
   const reflector = app.get(Reflector);
   const isProduction = configService.get('app.nodeEnv', { infer: true }) === Environment.PRODUCTION;
-
+  app.set('trust proxy', true); // Trust requests from the loopback address
   // Use global prefix if you don't have subdomain
   app.setGlobalPrefix(configService.getOrThrow('app.apiPrefix', { infer: true }), {
     exclude: [

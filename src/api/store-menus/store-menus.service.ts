@@ -28,16 +28,12 @@ export class StoreMenusService {
     @Inject(DRIZZLE) private readonly db: DrizzleDB, // Replace with actual type
   ) {}
 
-  async getStoreMenus(storeId: number) {
-    return await this.db.query.storeMenus.findMany({
-      where: and(eq(storeMenus.storeId, storeId), isNull(storeMenus.deletedAt)),
-      orderBy: [asc(storeMenus.index), desc(storeMenus.createdAt)],
-    });
-  }
-
-  async getPageStoreMenusWithProducts(reqDto: PageStoreMenuReqDto, userId: number) {
+  async getPageStoreMenusWithProducts(reqDto: PageStoreMenuReqDto, userId?: number) {
     const baseConfig: FindManyQueryConfig<typeof this.db.query.storeMenus> = {
-      where: and(eq(storeMenus.storeId, reqDto.storeId), isNull(storeMenus.deletedAt)),
+      where: and(
+        ...(reqDto.storeId ? [eq(storeMenus.storeId, reqDto.storeId)] : []),
+        isNull(storeMenus.deletedAt),
+      ),
       with: {
         products: {
           extras: {
@@ -67,37 +63,55 @@ export class StoreMenusService {
       orderBy: [asc(storeMenus.index), desc(storeMenus.createdAt)],
     };
 
-    const qCount = this.db.query.storeMenus.findMany({
-      ...baseConfig,
-      columns: { id: true },
-    });
-
     const [entities, [{ totalCount }]] = await Promise.all([
       this.db.query.storeMenus.findMany({
         ...baseConfig,
         ...(reqDto.limit !== 10 ? { limit: reqDto.limit, offset: reqDto.offset } : {}),
       }),
-      this.db.select({ totalCount: count() }).from(sql`${qCount}`),
+      this.db
+        .select({ totalCount: count() })
+        .from(storeMenus)
+        .where(
+          and(
+            ...(reqDto.storeId ? [eq(storeMenus.storeId, reqDto.storeId)] : []),
+            isNull(storeMenus.deletedAt),
+          ),
+        ),
     ]);
 
+    // Lấy danh sách productId từ entities để tối ưu query
+    const productIds = entities.flatMap((menu) => menu.products.map((p) => p.id).filter(Boolean));
+
     // Lấy danh sách productId và tổng số lượng flash sale mà user đã mua
-    const userPurchasedQuantities = await this.db
-      .select({
-        productId: orderDetails.productId,
-        totalQuantity: sql<number>`SUM(${orderDetails.quantity})`.as('totalQuantity'),
-      })
-      .from(orderDetails)
-      .where(and(eq(orderDetails.userId, userId), eq(orderDetails.isSale, true)))
-      .groupBy(orderDetails.productId)
-      .then((results) => {
-        const map = new Map<number, number>();
-        results.forEach((r) => {
-          if (r.productId !== null) {
-            map.set(r.productId, Number(r.totalQuantity) || 0);
-          }
+    // Chỉ query khi có userId và có products
+    let userPurchasedQuantities = new Map<number, number>();
+    if (userId && productIds.length > 0) {
+      userPurchasedQuantities = await this.db
+        .select({
+          productId: orderDetails.productId,
+          totalQuantity: sql<number>`COALESCE(SUM(${orderDetails.quantity}), 0)`.as(
+            'totalQuantity',
+          ),
+        })
+        .from(orderDetails)
+        .where(
+          and(
+            eq(orderDetails.userId, userId),
+            eq(orderDetails.isSale, true),
+            sql`${orderDetails.productId} IN ${sql.raw(`(${productIds.join(',')})`)}`,
+          ),
+        )
+        .groupBy(orderDetails.productId)
+        .then((results) => {
+          const map = new Map<number, number>();
+          results.forEach((r) => {
+            if (r.productId !== null) {
+              map.set(r.productId, Number(r.totalQuantity) || 0);
+            }
+          });
+          return map;
         });
-        return map;
-      });
+    }
 
     // Xử lý dữ liệu: chỉ ẩn sale khi user đã mua đủ limitedFlashSaleQuantity
     // Logic canOrderMoreFlashSale:
@@ -105,38 +119,40 @@ export class StoreMenusService {
     // - limitedFlashSaleQuantity > 0: Có flash sale → check startDate, endDate và userPurchasedQty
     const processedEntities = entities.map((menu) => ({
       ...menu,
-      products: menu.products.map((product) => {
-        const userPurchasedQty = product.id
-          ? userPurchasedQuantities.get(product.id as number) || 0
-          : 0;
-        const limitedQty = Number(product.limitedFlashSaleQuantity) || 0;
-        const now = new Date();
-        const startDate = product.startDate ? new Date(product.startDate as Date) : null;
-        const endDate = product.endDate ? new Date(product.endDate as Date) : null;
+      products: menu.products
+        .filter((p) => p && p.id) // loại bỏ phần tử null/undefined
+        .map((product) => {
+          const userPurchasedQty = product.id
+            ? userPurchasedQuantities.get(product.id as number) || 0
+            : 0;
+          const limitedQty = Number(product.limitedFlashSaleQuantity) || 0;
+          const now = new Date();
+          const startDate = product.startDate ? new Date(product.startDate as Date) : null;
+          const endDate = product.endDate ? new Date(product.endDate as Date) : null;
 
-        // Check flash sale còn hiệu lực không
-        const isFlashSaleActive =
-          startDate && endDate && now >= startDate && now <= endDate && limitedQty > 0;
+          // Check flash sale còn hiệu lực không
+          const isFlashSaleActive =
+            startDate && endDate && now >= startDate && now <= endDate && limitedQty > 0;
 
-        // Chỉ true khi: có flash sale đang active VÀ user chưa mua đủ giới hạn
-        const canOrderMoreFlashSale = Boolean(isFlashSaleActive && userPurchasedQty < limitedQty);
+          // Chỉ true khi: có flash sale đang active VÀ user chưa mua đủ giới hạn
+          const canOrderMoreFlashSale = Boolean(isFlashSaleActive && userPurchasedQty < limitedQty);
 
-        // Chỉ ẩn sale khi user đã mua đủ giới hạn (limitedQty > 0 và đã mua đủ)
-        if (limitedQty > 0 && userPurchasedQty >= limitedQty) {
+          // Chỉ ẩn sale khi user đã mua đủ giới hạn (limitedQty > 0 và đã mua đủ)
+          if (limitedQty > 0 && userPurchasedQty >= limitedQty) {
+            return {
+              ...product,
+              salePrice: null,
+              startDate: null,
+              endDate: null,
+              canOrderMoreFlashSale,
+            };
+          }
+
           return {
             ...product,
-            salePrice: null,
-            startDate: null,
-            endDate: null,
             canOrderMoreFlashSale,
           };
-        }
-
-        return {
-          ...product,
-          canOrderMoreFlashSale,
-        };
-      }),
+        }),
     }));
 
     if (reqDto.limit !== 10) {
@@ -145,6 +161,13 @@ export class StoreMenusService {
     } else {
       return processedEntities;
     }
+  }
+
+  async getStoreMenus(storeId: number) {
+    return await this.db.query.storeMenus.findMany({
+      where: and(eq(storeMenus.storeId, storeId), isNull(storeMenus.deletedAt)),
+      orderBy: [asc(storeMenus.index), desc(storeMenus.createdAt)],
+    });
   }
 
   async create(storeId: number, dto: CreateStoreMenuReqDto) {

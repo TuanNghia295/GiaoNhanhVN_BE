@@ -1,4 +1,8 @@
+import { ErrorCode } from '@/constants/error-code.constant';
 import { OrderStatusEnum } from '@/database/schemas';
+import { ValidationException } from '@/exceptions/validation.exception';
+import { HttpStatus } from '@nestjs/common';
+import { Express } from 'express';
 import { existsSync, unlinkSync } from 'fs';
 import path from 'path';
 
@@ -82,4 +86,43 @@ export function generateCodeFromName(name: string): string {
   const random = Math.random().toString(36).substring(2, 6).toUpperCase(); // Random 4 ký tự
 
   return `${prefix}-${random}`;
+}
+
+export const MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024;
+
+type ValidateImageOptions = {
+  maxSizeBytes?: number;
+  fieldLabel?: string;
+};
+
+export function validateImageSize(
+  file: Express.Multer.File | undefined,
+  options: ValidateImageOptions = {},
+): void {
+  if (!file) return;
+
+  const { maxSizeBytes = MAX_IMAGE_FILE_SIZE, fieldLabel = 'Ảnh' } = options;
+
+  if (file.size > maxSizeBytes) {
+    const sizeInMb = Math.round(maxSizeBytes / (1024 * 1024));
+    throw new ValidationException(
+      ErrorCode.CV000,
+      HttpStatus.BAD_REQUEST,
+      `${fieldLabel} vượt quá ${sizeInMb}MB.`,
+    );
+  }
+}
+
+export function validateImagesSize(
+  files: Express.Multer.File[] | undefined,
+  options: ValidateImageOptions = {},
+): void {
+  if (!files || files.length === 0) return;
+
+  files.forEach((file, index) =>
+    validateImageSize(file, {
+      ...options,
+      fieldLabel: `${options.fieldLabel ?? 'Ảnh'} ${index + 1}`,
+    }),
+  );
 }

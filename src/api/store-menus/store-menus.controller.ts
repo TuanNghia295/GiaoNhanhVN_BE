@@ -1,11 +1,11 @@
 import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
 import { SortStoreMenuReqDto } from '@/api/products/dto/sort-store-menu.req.dto';
-import { StoreMenuBatchReqDto } from '@/api/store-menus/dto/batch-store-menu.req.dto';
 import { CreateStoreMenuReqDto } from '@/api/store-menus/dto/create-store-menu-req.dto';
 import { PageStoreMenuReqDto } from '@/api/store-menus/dto/page-store-menu-req.dto';
 import { StoreMenuResDto } from '@/api/store-menus/dto/store-menu.res.dto';
 import { UpdateStoreMenuReqDto } from '@/api/store-menus/dto/update-store-menu-req.dto';
 import { RoleEnum } from '@/database/schemas';
+import { AuthOptional } from '@/decorators/auth-optional.decorator';
 import { CurrentUser } from '@/decorators/current-user.decorator';
 import { ApiAuth } from '@/decorators/http.decorators';
 import { Roles } from '@/decorators/role.decorator';
@@ -26,6 +26,7 @@ import { StoreMenusService } from './store-menus.service';
 export class StoreMenusController {
   constructor(private readonly storeMenusService: StoreMenusService) {}
 
+  @AuthOptional()
   @ApiAuth({
     summary: 'Lấy danh sách menu của cửa hàng theo storeId [PUBLIC]',
     type: StoreMenuResDto,
@@ -33,7 +34,7 @@ export class StoreMenusController {
   @Get()
   async getStoreMenusWithProducts(
     @Query() reqDto: PageStoreMenuReqDto,
-    @CurrentUser() payload: JwtPayloadType,
+    @CurrentUser() payload?: JwtPayloadType,
   ) {
     return await this.storeMenusService.getPageStoreMenusWithProducts(reqDto, payload.id);
   }
@@ -84,21 +85,6 @@ export class StoreMenusController {
     @Body() reqDto: UpdateStoreMenuReqDto,
   ) {
     return await this.storeMenusService.update(payload, menuId, reqDto);
-  }
-
-  @Roles(RoleEnum.USER)
-  @ApiAuth({
-    summary: 'Tạo/Cập nhật/Xóa nhiều menu trong một lần [USER]',
-    type: StoreMenuResDto,
-  })
-  @Post('batch')
-  async batchUpsertStoreMenus(
-    @CurrentUser() payload: JwtPayloadType,
-    @Body() reqDto: StoreMenuBatchReqDto,
-    @Query('storeId', ParseIntPipe) storeId: number,
-  ) {
-    console.log(storeId);
-    return await this.storeMenusService.batchUpsert(payload, reqDto, storeId);
   }
 
   @Roles(RoleEnum.USER)

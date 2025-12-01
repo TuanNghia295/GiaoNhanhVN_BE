@@ -40,6 +40,7 @@ import {
 import { plainToInstance } from 'class-transformer';
 import {
   and,
+  AnyColumn,
   avg,
   count,
   desc,
@@ -53,6 +54,7 @@ import {
   not,
   or,
   sql,
+  SQL,
 } from 'drizzle-orm';
 import { existsSync, mkdirSync } from 'fs';
 import { DateTime } from 'luxon';
@@ -63,6 +65,21 @@ import { v4 as uuidv4 } from 'uuid';
 @Injectable()
 export class StoresService implements OnModuleInit {
   private basePath = `uploads/stores`;
+  private static readonly ACCENT_GROUPS = [
+    { from: 'àáảãạăằắẳẵặâầấẩẫậ', to: 'a' },
+    { from: 'èéẻẽẹêềếểễệ', to: 'e' },
+    { from: 'ìíỉĩị', to: 'i' },
+    { from: 'òóỏõọôồốổỗộơờớởỡợ', to: 'o' },
+    { from: 'ùúủũụưừứửữự', to: 'u' },
+    { from: 'ỳýỷỹỵ', to: 'y' },
+    { from: 'đ', to: 'd' },
+  ] as const;
+  private static readonly ACCENTED_CHARS = StoresService.ACCENT_GROUPS.map(
+    (group) => group.from,
+  ).join('');
+  private static readonly UNACCENTED_CHARS = StoresService.ACCENT_GROUPS.map((group) =>
+    group.to.repeat(Array.from(group.from).length),
+  ).join('');
 
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDB, // Replace with actual type
@@ -133,7 +150,7 @@ export class StoresService implements OnModuleInit {
     return nearestArea.length > 0 ? nearestArea[0].id : null;
   }
 
-  async getPageStores(reqDto: PageStoreReqDto, payload: JwtPayloadType) {
+  async getPageStores(reqDto: PageStoreReqDto, _payload: JwtPayloadType) {
     // Parse latitude and longitude from origins
     const [latitude, longitude] = reqDto.origins.split(',').map(Number);
 
@@ -360,9 +377,9 @@ export class StoresService implements OnModuleInit {
 
     const nearestAreaId = await this.getNearestAreaId(latitude, longitude);
 
-    const escapedQuery = reqDto.q
-      ? reqDto.q.replace(/'/g, "''") // Escape single quotes for SQL
-      : '';
+    const rawQuery = reqDto.q ? reqDto.q.trim() : '';
+    const normalizedQuery = rawQuery ? this.normalizeSearchTerm(rawQuery) : '';
+    const normalizedPattern = normalizedQuery ? `%${normalizedQuery}%` : '';
 
     // Công thức distance có clamp [-1,1]
     const distanceSql = sql.raw(`
@@ -402,11 +419,10 @@ export class StoresService implements OnModuleInit {
           eq(stores.isLocked, false),
           not(isNull(stores.location)),
           ...(nearestAreaId ? [eq(stores.areaId, nearestAreaId)] : []),
-          ...(escapedQuery
+          ...(normalizedPattern
             ? [
                 or(
-                  // Sử dụng full-text search nếu có thể
-                  ilike(stores.name, `%${escapedQuery}%`),
+                  sql`${this.toSearchableSql(stores.name)} LIKE ${normalizedPattern}`,
                   exists(
                     this.db
                       .select({ id: products.id })
@@ -416,7 +432,7 @@ export class StoresService implements OnModuleInit {
                           eq(products.storeId, stores.id),
                           eq(products.isLocked, false),
                           isNull(products.deletedAt),
-                          ilike(products.name, `%${escapedQuery}%`),
+                          sql`${this.toSearchableSql(products.name)} LIKE ${normalizedPattern}`,
                         ),
                       )
                       .limit(1),
@@ -449,10 +465,10 @@ export class StoresService implements OnModuleInit {
             ...(nearestAreaId ? [eq(stores.areaId, nearestAreaId)] : []),
             // sql`${distanceSql} < 15`,
             not(isNull(stores.location)),
-            ...(escapedQuery
+            ...(normalizedPattern
               ? [
                   or(
-                    ilike(stores.name, `%${escapedQuery}%`),
+                    sql`${this.toSearchableSql(stores.name)} LIKE ${normalizedPattern}`,
                     exists(
                       this.db
                         .select({ id: products.id })
@@ -462,7 +478,7 @@ export class StoresService implements OnModuleInit {
                             eq(products.storeId, stores.id),
                             eq(products.isLocked, false),
                             isNull(products.deletedAt),
-                            ilike(products.name, `%${escapedQuery}%`),
+                            sql`${this.toSearchableSql(products.name)} LIKE ${normalizedPattern}`,
                           ),
                         )
                         .limit(1),
@@ -477,7 +493,7 @@ export class StoresService implements OnModuleInit {
     // ✅ OPTIMIZED: Batch fetch products for all stores in one query
     const productsMap = await this.batchFetchStoreProducts(
       entities.map((s) => s.id),
-      escapedQuery,
+      rawQuery,
     );
 
     // Lấy danh sách productId và tổng số lượng flash sale mà user đã mua (chỉ khi đã đăng nhập)
@@ -1185,6 +1201,9 @@ export class StoresService implements OnModuleInit {
       return new Map();
     }
 
+    const normalizedSearch = searchQuery ? this.normalizeSearchTerm(searchQuery) : '';
+    const normalizedPattern = normalizedSearch ? `%${normalizedSearch}%` : '';
+
     // ✅ Single query to fetch products for all stores
     const allProducts = await this.db
       .select({
@@ -1205,7 +1224,9 @@ export class StoresService implements OnModuleInit {
           inArray(products.storeId, storeIds),
           eq(products.isLocked, false),
           isNull(products.deletedAt),
-          ...(searchQuery ? [ilike(products.name, `%${searchQuery}%`)] : []),
+          ...(normalizedPattern
+            ? [sql`${this.toSearchableSql(products.name)} LIKE ${normalizedPattern}`]
+            : []),
         ),
       )
       .orderBy(desc(products.createdAt)); // Order by createdAt to get latest products
@@ -1236,5 +1257,18 @@ export class StoresService implements OnModuleInit {
     }
 
     return productsMap;
+  }
+
+  private normalizeSearchTerm(value: string): string {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'd')
+      .toLowerCase();
+  }
+
+  private toSearchableSql(column: AnyColumn | SQL): SQL {
+    return sql`translate(lower(${column}), ${StoresService.ACCENTED_CHARS}, ${StoresService.UNACCENTED_CHARS})`;
   }
 }

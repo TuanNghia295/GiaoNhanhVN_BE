@@ -11,11 +11,13 @@ import { DatabaseModule } from '@/database/database.module';
 import { SharedModule } from '@/shared/shared.module';
 import { createKeyv } from '@keyv/redis';
 import { CacheModule } from '@nestjs/cache-manager';
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { CacheableMemory } from 'cacheable';
 import 'dotenv/config';
 import { Keyv } from 'keyv';
@@ -53,7 +55,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import firebaseConfig from './firebase/config/firebase.config';
 import { FirebaseModule } from './firebase/firebase.module';
-import { UserAgentMiddleware } from './ua.middleware';
+import { ThrottlerBehindProxyGuard } from './guards/throttler-behind-proxy.guard';
 
 @Module({
   imports: [
@@ -61,6 +63,14 @@ import { UserAgentMiddleware } from './ua.middleware';
       envFilePath: ['.env', `.env.${process.env.NODE_ENV}`],
       load: [appConfig, redisConfig, authConfig, goongConfig, zaloConfig, firebaseConfig],
       isGlobal: true,
+    }),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          ttl: 60, // thời gian tính theo giây
+          limit: 10, // tối đa 10 request / ttl
+        },
+      ],
     }),
     ScheduleModule.forRoot(),
     CacheModule.registerAsync({
@@ -133,10 +143,12 @@ import { UserAgentMiddleware } from './ua.middleware';
     DeliveryRegionsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerBehindProxyGuard,
+    },
+  ],
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(UserAgentMiddleware).forRoutes('*');
-  }
-}
+export class AppModule {}
