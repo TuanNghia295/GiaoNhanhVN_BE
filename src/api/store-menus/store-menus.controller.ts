@@ -36,7 +36,7 @@ export class StoreMenusController {
     @Query() reqDto: PageStoreMenuReqDto,
     @CurrentUser() payload?: JwtPayloadType,
   ) {
-    return await this.storeMenusService.getPageStoreMenusWithProducts(reqDto, payload.id);
+    return await this.storeMenusService.getPageStoreMenusWithProducts(reqDto, payload?.id);
   }
 
   @ApiAuth({
