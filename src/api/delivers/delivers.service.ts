@@ -120,6 +120,15 @@ export class DeliversService implements OnModuleInit {
           with: {
             product: true,
             option: true,
+            selectedOptions: {
+              with: {
+                optionGroupOption: {
+                  with: {
+                    group: true,
+                  },
+                },
+              },
+            },
             extras: {
               with: {
                 extra: true,
@@ -171,8 +180,25 @@ export class DeliversService implements OnModuleInit {
         }
       }
 
+      const normalizedOrderDetails = (order.orderDetails ?? []).map((detail) => ({
+        ...detail,
+        selectedOptions: Array.isArray(detail.selectedOptions)
+          ? detail.selectedOptions.map((selected) => ({
+              optionGroupId: selected.optionGroupId,
+              optionGroupName:
+                selected.optionGroupOption?.group?.displayName ??
+                selected.optionGroupOption?.group?.name ??
+                '',
+              optionGroupOptionId: selected.optionGroupOptionId,
+              optionName: selected.optionGroupOption?.name ?? '',
+              price: Number(selected.price ?? selected.optionGroupOption?.price ?? 0),
+            }))
+          : [],
+      }));
+
       return {
         ...order,
+        orderDetails: normalizedOrderDetails,
         canOrderMoreFlashSale,
       };
     });
@@ -412,6 +438,15 @@ export class DeliversService implements OnModuleInit {
           with: {
             product: true,
             option: true,
+            selectedOptions: {
+              with: {
+                optionGroupOption: {
+                  with: {
+                    group: true,
+                  },
+                },
+              },
+            },
             extras: {
               with: {
                 extra: true,
@@ -463,8 +498,25 @@ export class DeliversService implements OnModuleInit {
         }
       }
 
+      const normalizedOrderDetails = (order.orderDetails ?? []).map((detail) => ({
+        ...detail,
+        selectedOptions: Array.isArray(detail.selectedOptions)
+          ? detail.selectedOptions.map((selected) => ({
+              optionGroupId: selected.optionGroupId,
+              optionGroupName:
+                selected.optionGroupOption?.group?.displayName ??
+                selected.optionGroupOption?.group?.name ??
+                '',
+              optionGroupOptionId: selected.optionGroupOptionId,
+              optionName: selected.optionGroupOption?.name ?? '',
+              price: Number(selected.price ?? selected.optionGroupOption?.price ?? 0),
+            }))
+          : [],
+      }));
+
       return {
         ...order,
+        orderDetails: normalizedOrderDetails,
         canOrderMoreFlashSale,
       };
     });
