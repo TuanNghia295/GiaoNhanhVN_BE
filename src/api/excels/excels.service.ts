@@ -4,12 +4,16 @@ import {
 } from '@/api/analytics/dto/admin-revenue.res.dto';
 import { DeliverRevenueResDto } from '@/api/analytics/dto/deliver-revenue.res.dto';
 import { StoreRevenueResDto } from '@/api/analytics/dto/store-revenue.res.dto';
+import { CreateExtraReqDto } from '@/api/extras/dto/create-extra.req.dto';
+import { ExtrasService } from '@/api/extras/extras.service';
+import { CreateOptionGroupReqDto } from '@/api/option-groups/dto/create-option-group.req.dto';
+import { OptionGroupsService } from '@/api/option-groups/option-groups.service';
 import { ProductsService } from '@/api/products/products.service';
 import { StoresService } from '@/api/stores/stores.service';
 import { ImportHeaderKeys, ImportHeaderLabels } from '@/constants/app.constant';
 import { ErrorCode } from '@/constants/error-code.constant';
 import { DRIZZLE } from '@/database/global';
-import { categoryItems, extras, options, Order, products, storeMenus } from '@/database/schemas';
+import { categoryItems, Order, products, storeMenus } from '@/database/schemas';
 import { DrizzleDB } from '@/database/types/drizzle';
 import { ValidationException } from '@/exceptions/validation.exception';
 import { getOrderStatusLabel } from '@/utils/util';
@@ -35,6 +39,8 @@ export class ExcelsService {
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly productsService: ProductsService,
     private readonly storesService: StoresService, // Replace with actual type
+    private readonly optionGroupsService: OptionGroupsService,
+    private readonly extrasService: ExtrasService,
   ) {}
 
   async importProduct(file: Express.Multer.File) {
@@ -77,42 +83,63 @@ export class ExcelsService {
             description: row.description,
             storeMenuId: storeMenu.id,
             categoryItemId: categoryItem.id,
+            optionVersion: 2,
           })
           .returning();
 
         // console.log('Created product:', createdProduct);
 
+        //---------------------------------------------------
+        // Create extras for the product
+        //---------------------------------------------------
         const toppings = row.toppings?.split(',') || [];
         const toppingPrices = row.toppingPrices?.split(',').map(Number) || [];
         if (toppings.length > 0 && toppingPrices.length > 0) {
           if (toppings.length !== toppingPrices.length) {
             throw new ValidationException(ErrorCode.EX001);
           }
-          const extraValues = toppings.map((topping, idx) => ({
+          const extraPayload: CreateExtraReqDto[] = toppings.map((topping, idx) => ({
             name: topping.trim(),
-            price: toppingPrices[idx], // Sửa chỗ này
-            productId: createdProduct.id,
+            price: toppingPrices[idx],
           }));
-          console.log('Creating extras:', extraValues);
-          await tx.insert(extras).values(extraValues).returning();
-          console.log('Created extras:', extraValues);
+          await this.extrasService.createForProduct(createdProduct.id, extraPayload, tx);
         }
 
-        const sizes = row.sizes?.split(',') || [];
-        const sizePrices = row.sizePrices?.split(',').map(Number) || [];
+        //---------------------------------------------------
+        // Create option groups for the product (chỉ tạo khi có sizes)
+        //---------------------------------------------------
+        const sizes =
+          row.sizes
+            ?.split(',')
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0) || [];
+        const sizePrices =
+          row.sizePrices
+            ?.split(',')
+            .map(Number)
+            .filter((p) => !isNaN(p)) || [];
         if (sizes.length > 0 && sizePrices.length > 0) {
           if (sizes.length !== sizePrices.length) {
             throw new ValidationException(ErrorCode.EX001);
           }
-          const optionValues = sizes.map((topping, idx) => ({
-            name: topping.trim(),
-            price: sizePrices[idx], // Sửa chỗ này
-            productId: createdProduct.id,
-          }));
-
-          await tx.insert(options).values(optionValues).returning();
-
-          console.log('Created options:', optionValues);
+          const optionGroupPayload: CreateOptionGroupReqDto[] = [
+            {
+              name: 'option1',
+              displayName: 'option1',
+              isRequired: true,
+              minSelect: 1,
+              maxSelect: 1,
+              options: sizes.map((size, idx) => ({
+                name: size,
+                price: sizePrices[idx],
+              })),
+            },
+          ];
+          await this.optionGroupsService.createForProduct(
+            createdProduct.id,
+            optionGroupPayload,
+            tx,
+          );
         }
       });
     }
@@ -360,13 +387,14 @@ export class ExcelsService {
           });
         }
 
-        // ✅ CHECK 17: Check for duplicate products in file
+        // ✅ CHECK 17: Check for duplicate products in file (chỉ cảnh báo, không chặn import)
         if (rowData.storePhone && rowData.productName && rowData.menuName) {
           const productKey = `${rowData.storePhone}-${rowData.menuName}-${rowData.productName}`;
           if (seenProducts.has(productKey)) {
-            errors.push(
-              `Dòng ${actualRowNumber}: Sản phẩm "${rowData.productName}" trong menu "${rowData.menuName}" của cửa hàng "${rowData.storePhone}" bị trùng lặp trong file`,
+            console.warn(
+              `Dòng ${actualRowNumber}: Sản phẩm "${rowData.productName}" trong menu "${rowData.menuName}" của cửa hàng "${rowData.storePhone}" bị trùng lặp trong file (sẽ vẫn được import)`,
             );
+            // Không thêm vào errors, cho phép import trùng lặp
           }
           seenProducts.add(productKey);
         }
