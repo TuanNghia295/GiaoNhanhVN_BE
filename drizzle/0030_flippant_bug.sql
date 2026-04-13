@@ -1,0 +1,1 @@
+ALTER TABLE "order_details" ADD COLUMN "sale_price" numeric(15, 2) DEFAULT 0;

@@ -1,0 +1,2528 @@
+import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
+import { DeliversService } from '@/api/delivers/delivers.service';
+import { CreateOrderDetailReqDto } from '@/api/order-details/dto/create-order-detail.req.dto';
+import { CalculateOrderReqDto } from '@/api/orders/dto/calculate-order.req.dto';
+import { CountOrderReqDto } from '@/api/orders/dto/count-order.req.dto';
+import { OrderCreateReqDto } from '@/api/orders/dto/order-create.req.dto';
+import { PageMyOrderReqDto } from '@/api/orders/dto/page-my-order.req.dto';
+import { PageOrderReqDto } from '@/api/orders/dto/query-order.req.dto';
+import { UpdateStatusOrderReqDto } from '@/api/orders/dto/update-status-order.req.dto';
+import { SettingsService } from '@/api/settings/settings.service';
+import { StoresService } from '@/api/stores/stores.service';
+import { UsersService } from '@/api/users/users.service';
+import { VouchersService } from '@/api/vouchers/vouchers.service';
+import { OffsetPaginationDto } from '@/common/dto/offset-pagination/ offset-pagination.dto';
+import {
+  OrdersOffsetPaginatedResDto,
+  TOTAL_ORDERS_FOR_PAGINATED,
+} from '@/common/dto/offset-pagination/orders-offset-paginated.res.dto';
+import { AllConfigType } from '@/config/config.type';
+import { Environment } from '@/constants/app.constant';
+import { ErrorCode } from '@/constants/error-code.constant';
+import { decrement, DRIZZLE, increment, Transaction } from '@/database/global';
+import {
+  Area,
+  areas,
+  CanceledReasonEnum,
+  Deliver,
+  delivers,
+  deliveryRegions,
+  distances,
+  extrasToOrderDetails,
+  optionGroupOptions,
+  optionGroups,
+  Order,
+  orderDetails,
+  orderDetailSelectedOptions,
+  orders,
+  OrderStatusEnum,
+  OrderTypeEnum,
+  products,
+  reasonDeliverCancelOrders,
+  RoleEnum,
+  serviceFees,
+  Setting,
+  settings,
+  stores,
+  TDistance,
+  TServiceFee,
+  users,
+  vouchers,
+  vouchersOnOrders,
+  VouchersTypeEnum,
+} from '@/database/schemas';
+import { voucherUsages } from '@/database/schemas/voucher-usage.schema';
+import { DrizzleDB, FindManyQueryConfig } from '@/database/types/drizzle';
+import { ValidationException } from '@/exceptions/validation.exception';
+import { GoongService } from '@/shared/goong.service';
+import { calculatePayForShop, roundUp } from '@/utils/calculate.util';
+import { buildMulticastMessage } from '@/utils/firebase.util';
+import { getOrderNotificationContent } from '@/utils/notification.util';
+import { allowedTransitions, deleteIfExists, normalizeImagePath } from '@/utils/util';
+import { calculateVoucherDiscount } from '@/utils/voucher-utils';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { forwardRef, HttpStatus, Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Cache } from 'cache-manager';
+import { endOfDay, startOfDay } from 'date-fns';
+import {
+  and,
+  asc,
+  between,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  gte,
+  ilike,
+  inArray,
+  lte,
+  SQL,
+  sql,
+  sum,
+} from 'drizzle-orm';
+import admin from 'firebase-admin';
+import { existsSync, mkdirSync } from 'fs';
+import Redis from 'ioredis';
+import _ from 'lodash';
+import { DateTime } from 'luxon';
+import { join } from 'path';
+import sharp from 'sharp';
+import { v4 as uuidv4 } from 'uuid';
+import { FIREBASE_ADMIN } from '../../firebase/firebase.module';
+
+export interface CalculateResponse {
+  sessionId: string;
+  distance: number;
+  incomeDeliver: number;
+  userServiceFee: number;
+  totalDelivery: number;
+  isRain: boolean;
+  isNight: boolean;
+  rainFee: number;
+  deliveryIncomeTax: number;
+  deliveryRegionId?: number;
+  nightFee: number;
+  areaId: number;
+}
+
+type ProductSummary = {
+  id: number;
+  startDate: Date | null;
+  endDate: Date | null;
+  usedSaleQuantity: number;
+  quantity: number;
+  salePrice: number | null;
+  price: number;
+  limitedFlashSaleQuantity: number | null;
+};
+
+type OptionGroupWithOptions = typeof optionGroups.$inferSelect & {
+  options: Array<typeof optionGroupOptions.$inferSelect>;
+};
+
+@Injectable()
+export class OrdersService implements OnModuleInit {
+  private redis: Redis;
+
+  private basePath = `uploads/products`;
+
+  onModuleInit() {
+    if (!existsSync(this.basePath)) {
+      mkdirSync(this.basePath, { recursive: true });
+      console.log(`Đã tạo thư mục upload: ${this.basePath}`);
+    }
+  }
+
+  constructor(
+    private readonly configService: ConfigService<AllConfigType>,
+    private readonly usersService: UsersService,
+    private readonly storesService: StoresService,
+    private readonly emitter: EventEmitter2,
+    private readonly vouchersService: VouchersService,
+    private readonly settingsService: SettingsService,
+    private readonly goongService: GoongService,
+    @Inject(forwardRef(() => DeliversService))
+    private readonly deliversService: DeliversService,
+    @Inject(CACHE_MANAGER) private cache: Cache,
+    @Inject(FIREBASE_ADMIN) private readonly admin: admin.app.App,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB, // Replace with actual type
+  ) {
+    this.redis = new Redis(configService.get('redis.url', { infer: true }));
+  }
+
+  private readonly logger = new Logger(OrdersService.name);
+
+  async getPageOrders(reqDto: PageOrderReqDto, payload: JwtPayloadType) {
+    // ✅ OPTIMIZED: Fetch storeIds once if user is STORE role
+    // This eliminates N+1 subquery problem
+    let storeIds: number[] = [];
+    if (payload.role === RoleEnum.STORE) {
+      storeIds = await this.db
+        .select({ id: stores.id })
+        .from(stores)
+        .where(eq(stores.userId, payload.id))
+        .then((res) => res.map((r) => r.id));
+
+      // Early return if store owner has no stores
+      if (storeIds.length === 0) {
+        return new OrdersOffsetPaginatedResDto([], new OffsetPaginationDto(0, reqDto), {
+          totalOrders: 0,
+          totalOrdersPending: 0,
+          totalOrdersAccepted: 0,
+          totalOrdersDelivering: 0,
+          totalOrdersDelivered: 0,
+          totalOrdersCancelled: 0,
+        });
+      }
+    }
+
+    const baseConfig: FindManyQueryConfig<typeof this.db.query.orders> = {
+      with: {
+        deliveryRegion: true,
+        store: {
+          with: {
+            user: true,
+          },
+        },
+        vouchers: {
+          with: {
+            voucher: true,
+          },
+        },
+        user: true,
+        reasonDeliverCancelOrder: true,
+        deliver: true,
+        orderDetails: {
+          with: {
+            product: true,
+            // lấy ra danh sách các option group đã chọn
+            selectedOptions: {
+              with: {
+                optionGroupOption: true,
+              },
+            },
+            extras: {
+              with: {
+                extra: true,
+              },
+            },
+          },
+        },
+      },
+    };
+
+    // Date range
+    const now = DateTime.now();
+
+    const fromDate = DateTime.fromJSDate(reqDto.from ?? now.toJSDate())
+      .setZone('Asia/Ho_Chi_Minh')
+      .startOf('day')
+      .toJSDate();
+
+    const toDate = DateTime.fromJSDate(reqDto.to ?? now.toJSDate())
+      .setZone('Asia/Ho_Chi_Minh')
+      .endOf('day')
+      .toJSDate();
+
+    // ✅ OPTIMIZED: Build where clauses with pre-fetched storeIds
+    const whereClauses: SQL[] = [
+      between(orders.createdAt, fromDate, toDate),
+      ...(reqDto.q ? [ilike(orders.code, `%${reqDto.q}%`)] : []),
+      ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
+      ...(reqDto.status ? [eq(orders.status, reqDto.status)] : []),
+      ...(reqDto.type ? [eq(orders.type, reqDto.type)] : []),
+      ...(payload.role === RoleEnum.MANAGEMENT ? [eq(orders.areaId, payload.areaId)] : []),
+      ...(payload.role === RoleEnum.STORE && storeIds.length > 0
+        ? [inArray(orders.storeId, storeIds)]
+        : []),
+    ];
+
+    const baseWhere = and(...whereClauses);
+    baseConfig.where = baseWhere;
+
+    // ✅ OPTIMIZED: Build status count where clause separately to reuse storeIds
+    const statusCountWhereClauses: SQL[] = [
+      between(orders.createdAt, fromDate, toDate),
+      ...(reqDto.q ? [ilike(orders.code, `%${reqDto.q}%`)] : []),
+      ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
+      ...(reqDto.type ? [eq(orders.type, reqDto.type)] : []),
+      ...(payload.role === RoleEnum.MANAGEMENT ? [eq(orders.areaId, payload.areaId)] : []),
+      ...(payload.role === RoleEnum.STORE && storeIds.length > 0
+        ? [inArray(orders.storeId, storeIds)]
+        : []),
+    ];
+
+    const [entities, [{ totalCount }], statusCounts] = await Promise.all([
+      this.db.query.orders.findMany({
+        ...baseConfig,
+        orderBy: desc(orders.createdAt),
+        limit: reqDto.limit,
+        offset: reqDto.offset,
+      }),
+      this.db.select({ totalCount: count() }).from(orders).where(baseWhere),
+      this.db
+        .select({ status: orders.status, count: count(orders.id) })
+        .from(orders)
+        .where(and(...statusCountWhereClauses))
+        .groupBy(orders.status),
+    ]);
+
+    const totalsOrders = Object.fromEntries(
+      statusCounts.map(({ status, count }) => [status, count]),
+    );
+    const allCount = Object.values(totalsOrders).reduce((sum, val) => sum + val, 0);
+
+    const totalOrdersForPaginated: TOTAL_ORDERS_FOR_PAGINATED = {
+      totalOrders: allCount,
+      totalOrdersPending: totalsOrders[OrderStatusEnum.PENDING] ?? 0,
+      totalOrdersAccepted: totalsOrders[OrderStatusEnum.ACCEPTED] ?? 0,
+      totalOrdersDelivering: totalsOrders[OrderStatusEnum.DELIVERING] ?? 0,
+      totalOrdersDelivered: totalsOrders[OrderStatusEnum.DELIVERED] ?? 0,
+      totalOrdersCancelled: totalsOrders[OrderStatusEnum.CANCELED] ?? 0,
+    };
+
+    const meta = new OffsetPaginationDto(totalCount, reqDto);
+    // 👉 Clean mapping: flatten vouchers array
+    const mappedEntities = entities.map((entity) => ({
+      ...entity,
+      vouchers: Array.isArray(entity.vouchers) ? entity.vouchers.map((v) => v.voucher) : [],
+    }));
+
+    return new OrdersOffsetPaginatedResDto(mappedEntities, meta, totalOrdersForPaginated);
+  }
+
+  async findById(orderId: number) {
+    return this.db.query.orders.findFirst({
+      where: eq(orders.id, orderId),
+      with: {
+        deliveryRegion: true,
+        store: true,
+        vouchers: {
+          with: {
+            voucher: true,
+          },
+        },
+        user: true,
+        orderDetails: {
+          with: {
+            product: true,
+            option: true,
+            extras: {
+              with: {
+                extra: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async existById(orderId: number) {
+    return await this.db
+      .select({
+        id: orders.id,
+        status: orders.status,
+        images: orders.images,
+        deliverId: orders.deliverId,
+        totalDelivery: orders.totalDelivery,
+        incomeDeliver: orders.incomeDeliver,
+        userServiceFee: orders.userServiceFee,
+        storeServiceFee: orders.storeServiceFee,
+      })
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1)
+      .then((res) => res[0]);
+  }
+
+  async calculate(reqDto: CalculateOrderReqDto) {
+    let distance: number = 0;
+    const area = await this.findNearestArea(reqDto);
+    if (!area) {
+      throw new ValidationException(ErrorCode.AR001, HttpStatus.NOT_FOUND);
+    }
+
+    //---------------------------------------------------------
+    // Kiểm tra setting khu vực đã đóng hay chưa
+    //---------------------------------------------------------
+    await this.settingsService.checkAreaActive(area.id);
+
+    if (reqDto.origins && reqDto.destinations) {
+      const response = await this.goongService.getDistanceMatrix({
+        origins: reqDto.origins,
+        destinations: reqDto.destinations,
+        vehicle: 'bike',
+      });
+      const rawDistance = response.rows[0].elements[0].distance.value / 1000;
+      console.log(
+        `Calculated raw distance: ${rawDistance} km for origins: ${reqDto.origins} and destinations: ${reqDto.destinations}`,
+      );
+      console.log('Math.ceil(rawDistance * 2) / 2:', Math.round(rawDistance * 2) / 2);
+      // distance = Math.floor(rawDistance * 2) / 2;
+      if (rawDistance < 1) {
+        distance = 1;
+      } else {
+        distance = Math.floor(rawDistance * 2) / 2;
+      }
+    }
+
+    const setting = await this.db.query.settings.findFirst({
+      where: eq(settings.areaId, area.id),
+    });
+
+    if (!setting) {
+      throw new ValidationException(ErrorCode.ST001, HttpStatus.NOT_FOUND);
+    }
+    const serviceFeeWithTypeFood = await this.db.query.serviceFees.findFirst({
+      where: and(
+        eq(serviceFees.settingId, setting.id),
+        eq(serviceFees.type, OrderTypeEnum.FOOD), // bất kỳ loại nào
+      ),
+      with: {
+        distance: {
+          orderBy: asc(distances.minDistance),
+        },
+      },
+    });
+
+    if (!serviceFeeWithTypeFood) {
+      throw new ValidationException(ErrorCode.SF001, HttpStatus.NOT_FOUND);
+    }
+
+    let calculationResult: CalculateResponse;
+    const isAnotherShop = reqDto.orderType === OrderTypeEnum.ANOTHER_SHOP;
+
+    if (isAnotherShop) {
+      calculationResult = await this.handleAnotherShopOrder(
+        reqDto,
+        setting,
+        distance,
+        serviceFeeWithTypeFood,
+      );
+    } else {
+      calculationResult = await this.handleRegularOrder(
+        reqDto,
+        setting,
+        distance,
+        serviceFeeWithTypeFood,
+      );
+    }
+
+    // 24h
+    await this.cache.set(calculationResult.sessionId, calculationResult, 24 * 60 * 60 * 1000); // in milliseconds with v5!
+    return calculationResult;
+  }
+
+  async findNearestArea(reqDto: CalculateOrderReqDto) {
+    const [latitude, longitude] = reqDto.origins.split(',').map(Number);
+    let area: Area & {
+      distance?: number;
+    };
+
+    //------------------------------------------------------------
+    // B1 : Nếu tồn tại areaId thì lấy thông tin khu vực đó
+    //------------------------------------------------------------
+    if (
+      reqDto.areaId
+      // &&
+      // [OrderTypeEnum.FOOD, OrderTypeEnum.ANOTHER_SHOP].includes(reqDto.orderType)
+    ) {
+      area = await this.db.query.areas.findFirst({
+        where: eq(areas.id, reqDto.areaId),
+      });
+    }
+
+    // if (reqDto.parent && reqDto.name) {
+    //   // Nếu có parent và name, lấy area theo tên
+    //   console.log(`lấy area theo tên`, reqDto.parent + ' - ' + reqDto.name);
+    //   area = await this.db.query.areas.findFirst({
+    //     where: and(eq(areas.parent, reqDto.parent), eq(areas.name, reqDto.name)),
+    //   });
+    // }
+
+    //------------------------------------------------------------
+    // B2 : Nếu không có areaId thì tìm khu vực gần nhất
+    //------------------------------------------------------------
+    //   if (!area) {
+    //     const distanceSql = sql.raw(`
+    //   6371 * acos(
+    //     least(
+    //       greatest(
+    //         cos(radians(${latitude})) *
+    //         cos(radians(CAST(split_part(areas.location, ',', 1) AS double precision))) *
+    //         cos(radians(CAST(split_part(areas.location, ',', 2) AS double precision)) - radians(${longitude})) +
+    //         sin(radians(${latitude})) *
+    //         sin(radians(CAST(split_part(areas.location, ',', 1) AS double precision))),
+    //         -1
+    //       ),
+    //       1
+    //     )
+    //   )
+    // `);
+
+    //     area = await this.db
+    //       .select({
+    //         ...getTableColumns(areas),
+    //         distance: distanceSql.mapWith(Number).as('distance'),
+    //       })
+    //       .from(areas)
+    //       .leftJoin(settings, eq(areas.id, settings.areaId))
+    //       .where(
+    //         and(
+    //           // eq(settings.openFullTime, true),
+    //           isNotNull(areas.location),
+    //           // eq(areas.status, AreaStatusEnum.ACTIVE),
+    //         ),
+    //       )
+    //       .orderBy(sql`${sql.raw('distance ASC')}`)
+    //       .limit(1)
+    //       .then((res) => res[0]);
+    //   }
+    return area;
+  }
+
+  private async handleAnotherShopOrder(
+    reqDto: CalculateOrderReqDto,
+    setting: Setting,
+    distanceRate: number = 0,
+    serviceFeeWithTypeFood: TServiceFee,
+  ): Promise<CalculateResponse> {
+    //--------------------------------------------------------------
+    // Tính phí dịch vụ giao hàng
+    //--------------------------------------------------------------
+    const deliveryRegion = await this.db.query.deliveryRegions.findFirst({
+      where: eq(deliveryRegions.id, reqDto.deliveryRegionId),
+    });
+    const distanceFee = deliveryRegion.price;
+
+    //--------------------------------------------------------------
+    // Tính phí dịch vụ môi trường
+    //--------------------------------------------------------------
+    const { isNight, nightFee, isRain, rainFee } = await this.calculateEnvironmentFee(setting);
+
+    const totalDelivery = _.round(distanceFee + nightFee + rainFee);
+
+    //----------------------------------------------
+    // Thu nhập của người giao hàng
+    //----------------------------------------------
+    const incomeDeliver = _.round(
+      (totalDelivery * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) / 100 -
+        serviceFeeWithTypeFood?.deliverFee,
+    );
+
+    //--------------------------------------------------------------
+    //Tính thuế thu nhập cá nhân
+    //--------------------------------------------------------------
+    const deliveryIncomeTax = _.round(incomeDeliver * 0.015, 3);
+
+    // phí dịch vụ người dùng
+    const FIXED_USER_SERVICE_FEE = 2000; // Phí dịch vụ người dùng cố định
+
+    const sessionId = uuidv4();
+
+    return {
+      sessionId: sessionId,
+      distance: distanceRate,
+      nightFee: nightFee,
+      rainFee: rainFee,
+      deliveryIncomeTax,
+      deliveryRegionId: deliveryRegion.id,
+      incomeDeliver: incomeDeliver,
+      userServiceFee: FIXED_USER_SERVICE_FEE,
+      totalDelivery: distanceFee,
+      isRain: isRain,
+      isNight: isNight,
+      areaId: setting.areaId,
+    };
+  }
+
+  private async handleRegularOrder(
+    reqDto: CalculateOrderReqDto,
+    setting: Setting,
+    distanceRate: number,
+    serviceFeeWithTypeFood: TServiceFee,
+  ) {
+    const serviceFeeWithType = await this.db.query.serviceFees.findFirst({
+      where: and(
+        eq(serviceFees.settingId, setting.id),
+        eq(serviceFees.type, reqDto.orderType), // bất kỳ loại nào
+      ),
+      with: {
+        distance: {
+          orderBy: asc(distances.minDistance),
+        },
+      },
+    });
+    if (!serviceFeeWithType) {
+      throw new ValidationException(ErrorCode.SF001, HttpStatus.NOT_FOUND);
+    }
+    //--------------------------------------------------------------
+    // Tính phí dịch vụ giao hàng
+    //--------------------------------------------------------------
+    const distanceFee = await this.calculateDistanceFee(
+      distanceRate,
+      serviceFeeWithType.distance,
+      serviceFeeWithType.distancePct,
+    );
+
+    //--------------------------------------------------------------
+    // Tính phí dịch vụ môi trường
+    //--------------------------------------------------------------
+    const { isNight, nightFee, isRain, rainFee } = await this.calculateEnvironmentFee(setting);
+
+    const totalDelivery = _.round(distanceFee + nightFee + rainFee);
+
+    //----------------------------------------------
+    // Thu nhập của người giao hàng
+    //----------------------------------------------
+    const incomeDeliver = Math.max(
+      _.round(
+        (totalDelivery * (100 - (serviceFeeWithTypeFood?.deliverFeePct ?? 0))) / 100 -
+          serviceFeeWithTypeFood?.deliverFee,
+      ),
+      0,
+    );
+
+    //--------------------------------------------------------------
+    //Tính thuế thu nhập cá nhân
+    //--------------------------------------------------------------
+    const deliveryIncomeTax = _.round(incomeDeliver * 0.015, 3);
+
+    //--------------------------------------------------------------
+    // phí dịch vụ người dùng
+    //--------------------------------------------------------------
+    const userServiceFee = _.round(serviceFeeWithType.userServiceFee);
+
+    const sessionId = uuidv4();
+
+    return {
+      sessionId: sessionId,
+      distance: distanceRate,
+      incomeDeliver: incomeDeliver,
+      userServiceFee: userServiceFee,
+      totalDelivery: distanceFee,
+      isRain: isRain,
+      deliveryIncomeTax,
+      isNight: isNight,
+      rainFee: rainFee,
+      nightFee: nightFee,
+      areaId: setting.areaId,
+    };
+  }
+
+  //hàm tính khoảng cách phí giao hàng
+  async calculateDistanceFee(
+    totalDistance: number,
+    sortedDistances: TDistance[] = [],
+    distancePct: number = 0,
+  ) {
+    let baseRate = 0;
+    const multiplier = 1 + distancePct / 100;
+
+    for (const range of sortedDistances) {
+      if (totalDistance <= range.minDistance) break;
+
+      const start = range.minDistance;
+      const end = range.maxDistance;
+      const rate = range.rate;
+
+      const applicableStart = Math.max(start, 0);
+      const applicableEnd = Math.min(end, totalDistance);
+
+      if (applicableEnd <= applicableStart) continue;
+
+      const applicableKm = applicableEnd - applicableStart;
+      baseRate += applicableKm * rate * multiplier;
+    }
+
+    // ✅ Xử lý phần vượt quá maxDistance cuối cùng
+    const lastRange = sortedDistances[sortedDistances.length - 1];
+    if (totalDistance > lastRange.maxDistance) {
+      const extraKm = totalDistance - lastRange.maxDistance;
+      baseRate += extraKm * lastRange.rate * multiplier;
+    }
+
+    return _.round(baseRate);
+  }
+  private normalizeTime(settingTime: Date, now: DateTime, zone: string): DateTime {
+    const dt = DateTime.fromJSDate(settingTime).setZone(zone);
+    return now.set({
+      hour: dt.hour,
+      minute: dt.minute,
+      second: 0,
+      millisecond: 0,
+    });
+  }
+  //hàm tính phí dịch vụ môi tường
+  async calculateEnvironmentFee(setting: Setting): Promise<{
+    isNight: boolean;
+    isRain: boolean;
+    nightFee: number;
+    rainFee: number;
+  }> {
+    const zone = 'Asia/Ho_Chi_Minh';
+    const now = DateTime.now().setZone(zone);
+
+    // chuẩn hóa start / end time (giữ ngày hiện tại ban đầu)
+    let startNight = this.normalizeTime(setting.startNightTime, now, zone);
+    const endNight = this.normalizeTime(setting.endNightTime, now, zone);
+
+    let isNight: boolean;
+
+    if (startNight <= endNight) {
+      // khung trong cùng ngày
+      isNight = now >= startNight && now <= endNight;
+    } else {
+      // khung qua đêm
+      console.log('Khung giờ qua đêm detected');
+      isNight = now >= startNight || now <= endNight;
+      // nếu giờ hiện tại <= endNight, thì endNight là hôm nay, startNight là hôm trước
+      if (now <= endNight) {
+        startNight = startNight.minus({ days: 1 });
+      }
+    }
+
+    const nightFee = setting.isNight && isNight ? setting.nightFee : 0;
+    const rainFee = setting.isRain ? setting.rainFee : 0;
+
+    // ===== Debug log =====
+    console.log('--- Environment Fee Debug ---');
+    console.log('Now:        ', now.toFormat('yyyy-MM-dd HH:mm:ss'));
+    console.log('StartNight: ', startNight.toFormat('yyyy-MM-dd HH:mm:ss'));
+    console.log('EndNight:   ', endNight.toFormat('yyyy-MM-dd HH:mm:ss'));
+    console.log('In Night?:  ', isNight);
+    console.log('Setting.isNight:', setting.isNight);
+    console.log('Setting.isRain: ', setting.isRain);
+    console.log('NightFee cfg:   ', setting.nightFee);
+    console.log('RainFee cfg:    ', setting.rainFee);
+    console.log('============================');
+
+    return {
+      isNight: setting.isNight && isNight ? true : false,
+      isRain: setting.isRain,
+      nightFee,
+      rainFee,
+    };
+  }
+
+  private async applyCoupon(
+    orderId: number,
+    voucherId: number,
+    payload: JwtPayloadType,
+    tx: Transaction,
+  ) {
+    console.log('Applying coupon:', voucherId);
+    await tx.insert(vouchersOnOrders).values({ orderId: orderId, voucherId });
+    await tx
+      .insert(voucherUsages)
+      .values({
+        userId: payload.id,
+        voucherId,
+      })
+      .onConflictDoUpdate({
+        target: [voucherUsages.userId, voucherUsages.voucherId],
+        set: {
+          usageCount: increment(voucherUsages.usageCount, 1),
+        },
+      });
+  }
+
+  /**
+   * Tạo mã đơn hàng duy nhất theo định dạng DH-YYYY-DD-XXXX
+   * @returns Mã đơn hàng duy nhất
+   */
+
+  async createUniqueCode(): Promise<string> {
+    const prefix = 'DH';
+    const datePart = DateTime.now().setZone('Asia/Ho_Chi_Minh').toFormat('yyyy-LL'); // theo tháng
+    const key = `order:seq:${datePart}`;
+
+    const seq = await this.redis.incr(key);
+
+    if (seq === 1) {
+      // tính số giây còn lại trong tháng để set expire
+      const endOfMonth = DateTime.now().setZone('Asia/Ho_Chi_Minh').endOf('month');
+      // Set expire vào cuối tháng
+      const ttl = Math.floor(endOfMonth.diffNow('seconds').seconds);
+      await this.redis.expire(key, ttl);
+    }
+
+    const seqPart = String(seq).padStart(4, '0');
+    return `${prefix}-${datePart}-${seqPart}`;
+  }
+
+  async create(payload: JwtPayloadType, reqDto: OrderCreateReqDto) {
+    const calculateOrder = await this.cache.get<CalculateResponse>(reqDto.sessionId);
+    if (!calculateOrder) {
+      throw new ValidationException(
+        ErrorCode.OD001,
+        HttpStatus.BAD_REQUEST,
+        'sessionId không hợp lệ',
+      );
+    }
+
+    return await this.db.transaction(async (tx) => {
+      //---------------------------------------------------------------
+      // Kiểm tra xem cửa hàng có hoạt động hay không
+      //---------------------------------------------------------------
+      if (!(await this.usersService.existsById(payload.id))) {
+        throw new ValidationException(ErrorCode.U001);
+      }
+      if (reqDto.storeId) {
+        await this.storesService.checkStoreActive(reqDto.storeId, tx);
+      }
+      const [order] = await tx
+        .insert(orders)
+        .values({
+          ...reqDto,
+          code: await this.createUniqueCode(),
+          areaId: calculateOrder.areaId,
+          storeId: reqDto.storeId,
+          userId: payload.id,
+        })
+        .returning();
+
+      // Tạo chi tiết đơn hàng
+      if (reqDto.items && reqDto.items.length > 0) {
+        await this.createOrderDetails(order.id, reqDto.items, tx, payload.id);
+      }
+
+      const [serviceFeeWithType] = await tx
+        .select({
+          ...getTableColumns(serviceFees),
+        })
+        .from(serviceFees)
+        .innerJoin(settings, eq(serviceFees.settingId, settings.id))
+        .where(and(eq(serviceFees.type, reqDto.type), eq(settings.areaId, order.areaId)));
+
+      const totalProduct = await tx
+        .select({
+          total: sum(orderDetails.total).mapWith(Number),
+        })
+        .from(orderDetails)
+        .where(eq(orderDetails.orderId, order.id))
+        .groupBy(orderDetails.orderId)
+        .then((res) => res[0]?.total ?? 0);
+
+      //-------------------------------------------------
+      // Kiểm tra voucher app
+      //-------------------------------------------------
+      if (reqDto.voucherAdminId && reqDto.voucherAdminId > 0) {
+        await this.vouchersService.ensureVoucherIsActive(
+          totalProduct,
+          reqDto.voucherAdminId,
+          payload.id,
+          tx,
+        );
+        await this.applyCoupon(order.id, reqDto.voucherAdminId, payload, tx);
+      }
+
+      //-------------------------------------------------
+      // Kiểm tra voucher của cửa hàng
+      //-------------------------------------------------
+      if (reqDto.voucherStoreId && reqDto.voucherStoreId > 0) {
+        await this.vouchersService.ensureVoucherIsActive(
+          totalProduct,
+          reqDto.voucherStoreId,
+          payload.id,
+          tx,
+        );
+        await this.applyCoupon(order.id, reqDto.voucherStoreId, payload, tx);
+      }
+
+      const [voucherStoreRecords, voucherAppRecords] = await Promise.all([
+        tx
+          .select({
+            voucher: vouchers,
+          })
+          .from(vouchersOnOrders)
+          .innerJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
+          .where(
+            and(eq(vouchersOnOrders.orderId, order.id), eq(vouchers.type, VouchersTypeEnum.STORE)),
+          ),
+        tx
+          .select({
+            voucher: vouchers,
+          })
+          .from(vouchersOnOrders)
+          .innerJoin(vouchers, eq(vouchersOnOrders.voucherId, vouchers.id))
+          .where(
+            and(
+              eq(vouchersOnOrders.orderId, order.id),
+              inArray(vouchers.type, [VouchersTypeEnum.ADMIN, VouchersTypeEnum.MANAGEMENT]),
+            ),
+          ),
+      ]);
+      if (this.configService.get('app.nodeEnv', { infer: true }) === Environment.DEVELOPMENT) {
+        console.group('📦 Order Details');
+        console.log('🛒 Total Product:', totalProduct);
+        console.log('🏪 Store Vouchers:', voucherStoreRecords);
+        console.log('📱 App Vouchers:', voucherAppRecords);
+        console.groupEnd();
+      }
+
+      const totalVoucherStore = calculateVoucherDiscount(
+        voucherStoreRecords.map((v) => v.voucher),
+        totalProduct,
+      );
+
+      const totalVoucherApp = calculateVoucherDiscount(
+        voucherAppRecords.map((v) => v.voucher),
+        calculateOrder.totalDelivery,
+      );
+
+      const coinUsed = await this.applyUserCoin(
+        payload.id,
+        reqDto.isCoin,
+        calculateOrder.totalDelivery,
+        totalVoucherApp,
+      );
+
+      if (coinUsed > 0) {
+        await this.db
+          .update(users)
+          .set({ coin: decrement(users.coin, coinUsed) })
+          .where(eq(users.id, payload.id));
+      }
+
+      console.group('🏷️ Voucher Totals');
+      console.log('🛒 Total Product     :', totalProduct);
+      console.log('🏪 Store Voucher     :', totalVoucherStore);
+      console.log('📱 App Voucher       :', totalVoucherApp);
+      console.groupEnd();
+
+      //-------------------------------------------------
+      // Tiền thuế của sản phẩm 1.5%
+      //-------------------------------------------------
+      const totalProductTax = roundUp(totalProduct * 0.015, 3);
+
+      //-------------------------------------------------
+      // Mặt định phí dịch vụ cửa hàng
+      //-------------------------------------------------
+
+      const storeServiceFee = await this.calculateStoreServiceFee(
+        totalProduct,
+        serviceFeeWithType.pricePct,
+        reqDto.type,
+        reqDto.storeId,
+        tx,
+      );
+
+      //-------------------------------------------------
+      // Tính tiền shipper phải đưa cho shop - chỉ tính đơn đò ăn
+      // Thu nhập cửa hàng = tiền sản phẩm - phí dịch vụ cửa hàng - thuế sản phẩm
+      //-------------------------------------------------
+      // thu lại shop
+      const payforShop = calculatePayForShop(
+        reqDto.type,
+        totalProduct,
+        storeServiceFee,
+        totalVoucherStore,
+        totalProductTax,
+      );
+
+      const total = _.round(
+        Math.max(
+          Math.max(totalProduct - totalVoucherStore, 0) +
+            Math.max(calculateOrder.totalDelivery - totalVoucherApp - coinUsed, 0) +
+            calculateOrder.userServiceFee + // phí dịch vụ người dùng
+            calculateOrder.nightFee + // phí dịch vụ đêm
+            calculateOrder.rainFee, // phí dịch vụ mưa
+          0,
+        ),
+      );
+      if (this.configService.get('app.nodeEnv', { infer: true }) === Environment.DEVELOPMENT) {
+        console.group('💰 Service Fee & Payment Calculation');
+        console.log('🏪 storeServiceFee:', storeServiceFee);
+        console.log('🛍️ payforShop     :', payforShop);
+        console.log('🧾 total          :', total);
+
+        console.groupEnd();
+      }
+      await tx
+        .update(orders)
+        .set({
+          totalProduct: totalProduct,
+          totalVoucher: totalVoucherStore + totalVoucherApp,
+          totalVoucherStore: totalVoucherStore,
+          totalVoucherApp: totalVoucherApp,
+          storeServiceFee: storeServiceFee,
+          payforShop: payforShop,
+          coinUsed: coinUsed,
+          ...(reqDto.type === OrderTypeEnum.ANOTHER_SHOP
+            ? { deliveryRegionId: calculateOrder.deliveryRegionId }
+            : {}),
+          totalDelivery: calculateOrder.totalDelivery,
+          incomeDeliver: calculateOrder.incomeDeliver,
+          totalProductTax: totalProductTax,
+          userServiceFee: calculateOrder.userServiceFee,
+          deliveryIncomeTax: calculateOrder.deliveryIncomeTax,
+          distance: calculateOrder.distance,
+          isRain: calculateOrder.isRain,
+          isNight: calculateOrder.isNight,
+          rainFee: calculateOrder.rainFee,
+          nightFee: calculateOrder.nightFee,
+          total: total,
+        })
+        .where(eq(orders.id, order.id));
+
+      await this.emitter.emit('order.created', order);
+      const orderDetail = await tx.query.orders.findFirst({
+        where: eq(orders.id, order.id),
+        with: {
+          deliveryRegion: true,
+          deliver: true,
+          store: true,
+          user: true,
+          vouchers: {
+            with: {
+              voucher: true,
+            },
+          },
+          orderDetails: {
+            with: {
+              product: true,
+              option: true,
+              extras: {
+                with: {
+                  extra: true,
+                },
+              },
+            },
+          },
+        },
+      });
+      // flatten vouchers array
+      const mappedOrderDetail = {
+        ...orderDetail,
+        vouchers: Array.isArray(orderDetail.vouchers)
+          ? orderDetail.vouchers.map((v) => v.voucher)
+          : [],
+      };
+      await this.cache.del(reqDto.sessionId);
+      return mappedOrderDetail;
+    });
+  }
+
+  async cloneOrder(orderId: number, payload: JwtPayloadType) {
+    //-----------------------------------------------------
+    // B2: Tạo đơn hàng mới
+    //-----------------------------------------------------
+    const existingOrder = await this.getDetailById(orderId);
+    if (!existingOrder) {
+      throw new ValidationException(ErrorCode.OD001, HttpStatus.NOT_FOUND);
+    }
+
+    if ([OrderStatusEnum.DELIVERED, OrderStatusEnum.CANCELED].includes(existingOrder.status)) {
+      throw new ValidationException(ErrorCode.OD003, HttpStatus.BAD_REQUEST);
+    }
+
+    //-----------------------------------------------------
+    // B1: Hủy đơn hiên tại
+    //-----------------------------------------------------
+    await this.updateOrderStatus(orderId, { status: OrderStatusEnum.CANCELED }, payload);
+    return await this.db.transaction(async (tx) => {
+      // clone order
+      const { id, code, createdAt, updatedAt, ...cloneData } = existingOrder;
+
+      // //-------------------------------------------------
+      // // Kiểm tra voucher app
+      // //-------------------------------------------------
+      if (existingOrder.vouchers.length > 0) {
+        for (const v of existingOrder.vouchers) {
+          await this.applyCoupon(
+            existingOrder.id,
+            v.id,
+            {
+              id: existingOrder.userId,
+              role: RoleEnum.USER,
+            },
+            tx,
+          );
+        }
+      }
+      const { deliverId, ...dataWithoutDeliverId } = cloneData;
+
+      console.log('Cloning order data:', cloneData);
+      const [newOrder] = await tx
+        .insert(orders)
+        .values({
+          ...dataWithoutDeliverId,
+          status: OrderStatusEnum.PENDING,
+          code: await this.createUniqueCode(),
+        })
+        .returning();
+      console.log('New cloned order created with ID:', newOrder.id);
+
+      const items: CreateOrderDetailReqDto[] = existingOrder.orderDetails.map((detail) => ({
+        productId: detail.productId,
+        quantity: detail.quantity,
+        selectedOptions: Array.isArray(detail.selectedOptions)
+          ? detail.selectedOptions.map((selected) => ({
+              optionGroupId: selected.optionGroupId,
+              optionGroupOptionId: selected.optionGroupOptionId,
+            }))
+          : [],
+        extras: detail.extras.map((e) => ({
+          extraId: e.extraId,
+          quantity: e.quantity,
+        })),
+      }));
+
+      await this.createOrderDetails(newOrder.id, items, tx, payload.id);
+    });
+  }
+
+  async applyUserCoin(
+    userId: number,
+    isCoin: boolean,
+    totalDelivery: number,
+    totalVoucherApp: number,
+  ): Promise<number> {
+    if (!isCoin) return 0;
+
+    const user = await this.db
+      .select({ coin: users.coin })
+      .from(users)
+      .where(eq(users.id, userId))
+      .then((res) => res[0]);
+
+    if (!user) {
+      throw new ValidationException(ErrorCode.U001, HttpStatus.NOT_FOUND);
+    }
+
+    return Math.min(user.coin, totalDelivery - totalVoucherApp);
+  }
+
+  async createOrderDetails(
+    orderId: number,
+    items: CreateOrderDetailReqDto[],
+    tx: Transaction,
+    userId: number,
+  ) {
+    const productIds = items.map((item) => item.productId);
+    const productsMap = await this.batchFetchProducts(productIds, tx);
+    const productOptionGroupsMap = await this.batchFetchProductOptionGroups(productIds, tx);
+    const userPurchasedMap = await this.batchFetchUserPurchasedQuantities(productIds, userId, tx);
+
+    const now = new Date();
+
+    type ResolvedSelectedOption = {
+      groupId: number;
+      groupName: string;
+      option: { id: number; name: string | null; price: number | null };
+    };
+
+    const validatedItems: Array<{
+      item: CreateOrderDetailReqDto;
+      product: ProductSummary;
+      isSalePeriod: boolean;
+      userPurchasedQuantity: number;
+      resolvedOptions: ResolvedSelectedOption[];
+    }> = [];
+
+    for (const item of items) {
+      const product = productsMap.get(item.productId);
+
+      if (!product) {
+        throw new ValidationException(ErrorCode.P001, HttpStatus.NOT_FOUND);
+      }
+
+      const productOptionGroups = productOptionGroupsMap.get(item.productId) ?? [];
+      const groupById = new Map<number, (typeof productOptionGroups)[number]>();
+      productOptionGroups.forEach((group) => {
+        if (typeof group.id === 'number') {
+          groupById.set(group.id, group);
+        }
+      });
+
+      const selectedOptions = item.selectedOptions ?? [];
+      const resolvedOptions: ResolvedSelectedOption[] = [];
+      const selectionCountByGroup = new Map<number, number>();
+
+      for (const selection of selectedOptions) {
+        console.log('Selection:', selection);
+        const group = groupById.get(selection.optionGroupId);
+        if (!group) {
+          throw new ValidationException(
+            ErrorCode.P002,
+            HttpStatus.BAD_REQUEST,
+            `Lựa chọn không hợp lệ: nhóm ${selection.optionGroupId} không thuộc sản phẩm ${item.productId}`,
+          );
+        }
+
+        const option = (group.options ?? []).find(
+          (opt) => opt.id === selection.optionGroupOptionId,
+        );
+
+        if (!option) {
+          throw new ValidationException(
+            ErrorCode.P002,
+            HttpStatus.BAD_REQUEST,
+            `Lựa chọn không hợp lệ: option ${selection.optionGroupOptionId} không thuộc nhóm ${selection.optionGroupId}`,
+          );
+        }
+
+        resolvedOptions.push({
+          groupId: group.id,
+          groupName: group.displayName ?? group.name ?? '',
+          option: {
+            id: option.id,
+            name: option.name,
+            price: Number(option.price ?? 0),
+          },
+        });
+
+        selectionCountByGroup.set(group.id, (selectionCountByGroup.get(group.id) ?? 0) + 1);
+      }
+
+      // Chỉ validate các option groups mà user đã truyền vào trong selectedOptions
+      for (const [groupId, selectionCount] of selectionCountByGroup.entries()) {
+        const group = groupById.get(groupId);
+        if (!group) {
+          continue;
+        }
+
+        const minSelect =
+          typeof group.minSelect === 'number' ? group.minSelect : group.isRequired ? 1 : 0;
+        const maxSelect = typeof group.maxSelect === 'number' ? group.maxSelect : 1;
+
+        // Validate minSelect cho các groups đã được chọn
+        if (minSelect && selectionCount < minSelect) {
+          throw new ValidationException(
+            ErrorCode.P002,
+            HttpStatus.BAD_REQUEST,
+            `Nhóm lựa chọn "${group.displayName ?? group.name ?? ''}" yêu cầu tối thiểu ${minSelect} option`,
+          );
+        }
+
+        // Validate maxSelect cho các groups đã được chọn
+        if (maxSelect && selectionCount > maxSelect) {
+          throw new ValidationException(
+            ErrorCode.P002,
+            HttpStatus.BAD_REQUEST,
+            `Nhóm lựa chọn "${group.displayName ?? group.name ?? ''}" chỉ cho phép tối đa ${maxSelect} option`,
+          );
+        }
+      }
+
+      const userPurchasedQuantity = userPurchasedMap.get(item.productId) || 0;
+
+      const hasSalePrice = product.salePrice !== null && product.salePrice !== undefined;
+      const limitedQuantity = product.limitedFlashSaleQuantity || 0;
+      const isSalePeriod =
+        hasSalePrice &&
+        !!product.startDate &&
+        !!product.endDate &&
+        product.startDate <= now &&
+        product.endDate >= now &&
+        limitedQuantity > 0 &&
+        userPurchasedQuantity < limitedQuantity;
+
+      if (isSalePeriod) {
+        const remainingQuantity = limitedQuantity - userPurchasedQuantity;
+        if (item.quantity > remainingQuantity) {
+          throw new ValidationException(
+            ErrorCode.P002,
+            HttpStatus.BAD_REQUEST,
+            `Flash sale chỉ cho phép mua tối đa ${limitedQuantity} sản phẩm. Bạn đã mua ${userPurchasedQuantity}, còn lại ${remainingQuantity}`,
+          );
+        }
+      }
+
+      validatedItems.push({
+        item,
+        product,
+        isSalePeriod,
+        userPurchasedQuantity,
+        resolvedOptions,
+      });
+    }
+
+    const insertedOrderDetails = await tx
+      .insert(orderDetails)
+      .values(
+        validatedItems.map(({ item }) => ({
+          orderId,
+          productId: item.productId,
+          quantity: item.quantity,
+          optionId: null,
+          userId,
+        })),
+      )
+      .returning();
+
+    const allExtras: Array<{
+      orderDetailId: number;
+      extraId: number;
+      quantity: number;
+    }> = [];
+
+    const selectedOptionRecords: Array<{
+      orderDetailId: number;
+      optionGroupId: number;
+      optionGroupOptionId: number;
+      price: number;
+    }> = [];
+
+    insertedOrderDetails.forEach((orderDetail, index) => {
+      const { item, resolvedOptions } = validatedItems[index];
+      const extras = item.extras ?? [];
+
+      if (extras.length > 0) {
+        allExtras.push(
+          ...extras.map((extra) => ({
+            orderDetailId: orderDetail.id,
+            extraId: extra.extraId,
+            quantity: extra.quantity,
+          })),
+        );
+      }
+
+      resolvedOptions.forEach((resolved) => {
+        selectedOptionRecords.push({
+          orderDetailId: orderDetail.id,
+          optionGroupId: resolved.groupId,
+          optionGroupOptionId: resolved.option.id,
+          price: Number(resolved.option.price ?? 0),
+        });
+      });
+    });
+
+    if (allExtras.length > 0) {
+      await tx.insert(extrasToOrderDetails).values(allExtras);
+    }
+
+    if (selectedOptionRecords.length > 0) {
+      await tx.insert(orderDetailSelectedOptions).values(selectedOptionRecords);
+    }
+
+    const saleOrderDetailUpdates: Array<{
+      orderDetailId: number;
+      salePrice: number;
+    }> = [];
+    const productsToClearSale = new Set<number>();
+
+    for (let i = 0; i < validatedItems.length; i++) {
+      const { item, product, isSalePeriod } = validatedItems[i];
+      const orderDetail = insertedOrderDetails[i];
+
+      if (isSalePeriod) {
+        const updated = await tx
+          .update(products)
+          .set({
+            usedSaleQuantity: increment(products.usedSaleQuantity, item.quantity),
+          })
+          .where(
+            and(
+              eq(products.id, item.productId),
+              gte(sql`${products.quantity} - ${products.usedSaleQuantity}`, item.quantity),
+            ),
+          )
+          .returning();
+
+        if (updated.length === 0) {
+          throw new ValidationException(ErrorCode.P002, HttpStatus.BAD_REQUEST);
+        }
+
+        const updatedProduct = updated[0];
+
+        saleOrderDetailUpdates.push({
+          orderDetailId: orderDetail.id,
+          salePrice: Number(updatedProduct?.salePrice ?? product.salePrice ?? 0),
+        });
+
+        const remainingQuantity =
+          Number(updatedProduct?.quantity ?? product.quantity ?? 0) -
+          Number(updatedProduct?.usedSaleQuantity ?? product.usedSaleQuantity ?? 0);
+        if (remainingQuantity <= 0) {
+          productsToClearSale.add(item.productId);
+        }
+      }
+    }
+
+    if (saleOrderDetailUpdates.length > 0) {
+      const orderDetailIdsForSale = saleOrderDetailUpdates.map((u) => u.orderDetailId);
+      const salePriceCases = saleOrderDetailUpdates
+        .map((u) => `WHEN ${u.orderDetailId} THEN ${u.salePrice}`)
+        .join(' ');
+
+      await tx.execute(sql`
+        UPDATE order_details
+        SET 
+          sale_price = CASE id ${sql.raw(salePriceCases)} END,
+          is_sale = true,
+          user_id = ${userId}
+        WHERE id = ANY(${sql.raw(`ARRAY[${orderDetailIdsForSale.join(',')}]`)})
+      `);
+    }
+
+    const orderDetailIds = insertedOrderDetails.map((od) => od.id);
+    if (orderDetailIds.length > 0) {
+      await tx.execute(sql`
+        UPDATE order_details
+        SET total = (
+          COALESCE(
+            order_details.quantity * (
+              CASE
+                WHEN order_details.is_sale = true THEN p.sale_price
+                ELSE p.price
+              END
+            ),
+            0
+          ) +
+          COALESCE(
+            (
+              SELECT COALESCE(SUM(odos.price), 0)
+              FROM order_detail_selected_options odos
+              WHERE odos.order_detail_id = order_details.id
+            ) * order_details.quantity,
+            0
+          ) +
+          COALESCE(
+            order_details.quantity * (SELECT o.price
+                                       FROM options o
+                                       WHERE o.id = order_details.option_id),
+            0
+          ) +
+          COALESCE((SELECT SUM(ex.price * etod.quantity)
+                    FROM extras_to_order_details etod
+                           JOIN extras ex ON ex.id = etod.extra_id
+                    WHERE etod.order_detail_id = order_details.id), 0)
+        ) 
+        FROM products p
+        WHERE order_details.product_id = p.id
+          AND order_details.id = ANY(${sql.raw(`ARRAY[${orderDetailIds.join(',')}]`)})
+      `);
+    }
+
+    if (productsToClearSale.size > 0) {
+      await tx
+        .update(products)
+        .set({
+          salePrice: null,
+          startDate: null,
+          endDate: null,
+        })
+        .where(inArray(products.id, Array.from(productsToClearSale)));
+    }
+  }
+
+  async getDetailById(orderId: number) {
+    const orderDetail = await this.db.query.orders.findFirst({
+      where: eq(orders.id, orderId),
+      with: {
+        deliveryRegion: true,
+        store: true,
+        user: true,
+        deliver: true,
+        vouchers: {
+          with: {
+            voucher: true,
+          },
+        },
+        orderDetails: {
+          with: {
+            product: true,
+            option: true,
+            extras: {
+              with: {
+                extra: true,
+              },
+            },
+            selectedOptions: {
+              with: {
+                optionGroupOption: {
+                  with: {
+                    group: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!orderDetail) {
+      throw new ValidationException(ErrorCode.OD001, HttpStatus.NOT_FOUND);
+    }
+    const normalizedOrderDetails = (orderDetail.orderDetails ?? []).map((detail) => ({
+      ...detail,
+      selectedOptions: Array.isArray(detail.selectedOptions)
+        ? detail.selectedOptions.map((selected) => ({
+            optionGroupId: selected.optionGroupId,
+            optionGroupName:
+              selected.optionGroupOption?.group?.displayName ??
+              selected.optionGroupOption?.group?.name ??
+              '',
+            optionGroupOptionId: selected.optionGroupOptionId,
+            optionName: selected.optionGroupOption?.name ?? '',
+            price: Number(selected.price ?? selected.optionGroupOption?.price ?? 0),
+          }))
+        : [],
+    }));
+    // flatten vouchers array
+    return {
+      ...orderDetail,
+      orderDetails: normalizedOrderDetails,
+      vouchers: Array.isArray(orderDetail.vouchers)
+        ? orderDetail.vouchers.map((v) => v.voucher)
+        : [],
+    };
+  }
+
+  async getPageByUserId(userId: number, reqDto: PageMyOrderReqDto) {
+    if (reqDto.startDate && reqDto.endDate) {
+      reqDto.startDate = DateTime.fromJSDate(reqDto.startDate)
+        .setZone('Asia/Ho_Chi_Minh')
+        .startOf('day')
+        .toJSDate();
+      reqDto.endDate = DateTime.fromJSDate(reqDto.endDate)
+        .setZone('Asia/Ho_Chi_Minh')
+        .endOf('day')
+        .toJSDate();
+    }
+    const baseConfig: FindManyQueryConfig<typeof this.db.query.orders> = {
+      with: {
+        store: true,
+        vouchers: {
+          with: {
+            voucher: true,
+          },
+        },
+        deliver: true,
+        user: true,
+        reasonDeliverCancelOrder: true,
+        orderDetails: {
+          with: {
+            product: true,
+            option: true,
+            extras: {
+              with: {
+                extra: true,
+              },
+            },
+            selectedOptions: {
+              with: {
+                optionGroupOption: {
+                  with: {
+                    group: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    baseConfig.where = and(
+      eq(orders.userId, userId),
+      ...(reqDto.status ? [eq(orders.status, reqDto.status)] : []),
+      ...(reqDto.startDate && reqDto.endDate
+        ? [between(orders.createdAt, reqDto.startDate, reqDto.endDate)]
+        : []),
+    );
+
+    const qCount = this.db.query.orders.findMany({
+      ...baseConfig,
+      columns: { id: true },
+    });
+
+    const [entities, [{ totalCount }]] = await Promise.all([
+      this.db.query.orders.findMany({
+        ...baseConfig,
+        orderBy: desc(orders.createdAt),
+        limit: reqDto.limit,
+        offset: reqDto.offset,
+      }),
+      this.db.select({ totalCount: count() }).from(sql`${qCount}`),
+    ]);
+    // map lại vouchers là mảng voucher
+    // 👉 Clean mapping: flatten vouchers array
+    const mappedEntities = entities.map((entity) => ({
+      ...entity,
+      vouchers: Array.isArray(entity.vouchers) ? entity.vouchers.map((v) => v.voucher) : [],
+      orderDetails: Array.isArray(entity.orderDetails)
+        ? entity.orderDetails.map((detail) => ({
+            ...detail,
+            selectedOptions: Array.isArray(detail.selectedOptions)
+              ? detail.selectedOptions.map((selected) => ({
+                  optionGroupId: selected.optionGroupId,
+                  optionGroupName:
+                    selected.optionGroupOption?.group?.displayName ??
+                    selected.optionGroupOption?.group?.name ??
+                    '',
+                  optionGroupOptionId: selected.optionGroupOptionId,
+                  optionName: selected.optionGroupOption?.name ?? '',
+                  price: Number(selected.price ?? selected.optionGroupOption?.price ?? 0),
+                }))
+              : [],
+          }))
+        : [],
+    }));
+    console.log('Mapped Entities:', mappedEntities);
+
+    const totalsOrders = Object.fromEntries(
+      (
+        await this.db
+          .select({ status: orders.status, count: count(orders.id) })
+          .from(orders)
+          .where(
+            and(
+              eq(orders.userId, userId),
+              ...(reqDto.status ? [eq(orders.status, reqDto.status)] : []),
+              ...(reqDto.startDate && reqDto.endDate
+                ? [between(orders.createdAt, reqDto.startDate, reqDto.endDate)]
+                : []),
+            ),
+          )
+          .groupBy(orders.status)
+      ).map(({ status, count }) => [status, count]),
+    );
+
+    const totalOrdersForPaginated = {
+      totalOrders: totalCount,
+      totalOrdersPending: totalsOrders[OrderStatusEnum.PENDING] ?? 0,
+      totalOrdersAccepted: totalsOrders[OrderStatusEnum.ACCEPTED] ?? 0,
+      totalOrdersDelivering: totalsOrders[OrderStatusEnum.DELIVERING] ?? 0,
+      totalOrdersDelivered: totalsOrders[OrderStatusEnum.DELIVERED] ?? 0,
+      totalOrdersCancelled: totalsOrders[OrderStatusEnum.CANCELED] ?? 0,
+    };
+
+    const meta = new OffsetPaginationDto(totalCount, reqDto);
+    return new OrdersOffsetPaginatedResDto(mappedEntities, meta, totalOrdersForPaginated);
+  }
+
+  async updateOrderStatus(
+    orderId: number,
+    reqDto: UpdateStatusOrderReqDto,
+    payload: JwtPayloadType,
+  ) {
+    return await this.db.transaction(async (tx) => {
+      const result = await tx.execute(
+        sql`
+          SELECT id,
+                 status,
+                 deliver_id AS "deliverId",
+                 total_delivery::DOUBLE PRECISION    AS "totalDelivery",
+                 income_deliver::DOUBLE PRECISION    AS "incomeDeliver",
+                 user_service_fee::DOUBLE PRECISION  AS "userServiceFee",
+                 store_service_fee::DOUBLE PRECISION AS "storeServiceFee",
+                 night_fee::DOUBLE PRECISION         AS "nightFee",
+                 rain_fee::DOUBLE PRECISION          AS "rainFee"
+          FROM orders
+          WHERE id = ${orderId}
+            FOR
+          UPDATE
+        `,
+      );
+      const existOrder = result.rows[0] as Order;
+
+      if (!existOrder) {
+        throw new ValidationException(ErrorCode.O001, HttpStatus.NOT_FOUND);
+      }
+
+      //-----------------------------------------------------
+      // Không cho phép người dùng hủy đơn hàng đã được xác nhận
+      //----------------------------------------------------------
+      if (
+        [RoleEnum.USER, RoleEnum.STORE].includes(payload.role) &&
+        existOrder.status !== OrderStatusEnum.PENDING
+      ) {
+        throw new ValidationException(ErrorCode.OD003);
+      }
+      const currentStatus = existOrder.status;
+      const nextStatus = reqDto.status;
+
+      if (!allowedTransitions[currentStatus].includes(nextStatus)) {
+        throw new ValidationException(
+          ErrorCode.O002,
+          HttpStatus.BAD_REQUEST,
+          `Invalid status transition from ${currentStatus} to ${nextStatus}`,
+        );
+      }
+
+      const [updatedOrder] = await tx
+        .update(orders)
+        .set({
+          status: reqDto.status,
+          ...(reqDto.status === OrderStatusEnum.ACCEPTED && {
+            acceptedAt: new Date(),
+          }),
+          ...(reqDto.status === OrderStatusEnum.CANCELED && {
+            canceledAt: new Date(),
+          }),
+          ...(reqDto.status === OrderStatusEnum.DELIVERED && {
+            completedAt: new Date(),
+          }),
+        })
+        .where(eq(orders.id, orderId))
+        .returning();
+
+      //-------------------------------------------------
+      // láy fcm token  by storeId
+      //-------------------------------------------------
+      const validStoreFcmToken = await this.storesService.getValidStoreFcmTokenByStoreId(
+        existOrder.storeId,
+      );
+      //-------------------------------------------------
+      // Gửi thông báo FCM  cho người dùng về việc hủy đơn hàng
+      //-------------------------------------------------
+      const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(existOrder.userId);
+
+      switch (reqDto.status) {
+        case OrderStatusEnum.CANCELED: {
+          await this.managerDoCancelOrder(updatedOrder, tx);
+          await this.emitter.emitAsync('order.canceled', {
+            updatedOrder: updatedOrder,
+            role: payload.role,
+          });
+          const mergeFcmTokens = [validUserFcmToken?.fcmToken, validStoreFcmToken?.fcmToken].filter(
+            (token) => token,
+          ); // Lọc các token hợp lệ
+          if (mergeFcmTokens.length > 0) {
+            this.notifyOrderStatus(
+              mergeFcmTokens,
+              updatedOrder.status,
+              updatedOrder.type,
+              updatedOrder.code,
+            );
+          }
+          break;
+        }
+        default: {
+          const mergeFcmTokens = [validUserFcmToken?.fcmToken].filter((token) => token); // Lọc các token hợp lệ
+          if (mergeFcmTokens.length > 0) {
+            this.notifyOrderStatus(
+              mergeFcmTokens,
+              updatedOrder.status,
+              updatedOrder.type,
+              updatedOrder.code,
+            );
+          }
+          await this.emitter.emitAsync('order.updated_status', updatedOrder);
+          break;
+        }
+      }
+      return updatedOrder;
+    });
+  }
+
+  private async getStoreServiceFeeOverridePct(
+    storeId: number | null | undefined,
+    tx: Transaction,
+  ): Promise<number | null> {
+    if (storeId == null) {
+      return null;
+    }
+
+    const store = await tx
+      .select({
+        storeServiceFee: stores.storeServiceFee,
+      })
+      .from(stores)
+      .where(eq(stores.id, storeId))
+      .limit(1)
+      .then((res) => res[0]);
+
+    if (store?.storeServiceFee === undefined || store?.storeServiceFee === null) {
+      return null;
+    }
+
+    return Number(store.storeServiceFee);
+  }
+
+  private computeStoreServiceFee(
+    totalProduct: number,
+    storeServiceFeePct: number,
+    orderType: OrderTypeEnum,
+  ): number {
+    if (orderType !== OrderTypeEnum.FOOD) {
+      return 0;
+    }
+
+    const calculated = totalProduct * (storeServiceFeePct / 100);
+    return _.round(Math.max(calculated, 0));
+  }
+
+  private async calculateStoreServiceFee(
+    totalProduct: number,
+    storeServiceFeePct: number,
+    orderType: OrderTypeEnum,
+    storeId: number | null | undefined,
+    tx: Transaction,
+  ): Promise<number> {
+    const overrideStoreServiceFeePct = await this.getStoreServiceFeeOverridePct(storeId, tx);
+    const effectivePct =
+      overrideStoreServiceFeePct !== null && overrideStoreServiceFeePct !== undefined
+        ? overrideStoreServiceFeePct
+        : storeServiceFeePct;
+
+    const calculatedStoreServiceFee = this.computeStoreServiceFee(
+      totalProduct,
+      effectivePct,
+      orderType,
+    );
+
+    console.log('🧪 Fake store service fee log', {
+      totalProduct,
+      baseStoreServiceFeePct: storeServiceFeePct,
+      overrideStoreServiceFeePct,
+      effectiveStoreServiceFeePct: effectivePct,
+      calculatedStoreServiceFee,
+    });
+
+    return calculatedStoreServiceFee;
+  }
+
+  async debugStoreServiceFee(
+    storeId: number | null,
+    totalProduct: number,
+    baseStoreServiceFeePct: number,
+  ) {
+    return this.db.transaction(async (tx) => {
+      const overrideStoreServiceFeePct = await this.getStoreServiceFeeOverridePct(storeId, tx);
+      const effectivePct =
+        overrideStoreServiceFeePct !== null && overrideStoreServiceFeePct !== undefined
+          ? overrideStoreServiceFeePct
+          : baseStoreServiceFeePct;
+
+      const calculated = this.computeStoreServiceFee(
+        totalProduct,
+        effectivePct,
+        OrderTypeEnum.FOOD,
+      );
+
+      return {
+        totalProduct,
+        baseStoreServiceFeePct,
+        overrideStoreServiceFeePct,
+        effectiveStoreServiceFeePct: effectivePct,
+        calculatedStoreServiceFee: calculated,
+      };
+    });
+  }
+
+  async assignOrderToShipper(orderId: number, payload: JwtPayloadType) {
+    console.log('Assigning order to shipper:', orderId, payload);
+    return this.db.transaction(async (tx) => {
+      //--------------------------------------------
+      // Kiểm tra xem đơn hàng có tồn tại không
+      //--------------------------------------------
+      // Khóa đơn hàng bằng SELECT FOR UPDATE
+      const result = await tx.execute(
+        sql`
+          SELECT id,
+                 status,
+                 deliver_id AS "deliverId",
+                 total_delivery::DOUBLE PRECISION    AS "totalDelivery",
+                 income_deliver::DOUBLE PRECISION    AS "incomeDeliver",
+                 user_service_fee::DOUBLE PRECISION  AS "userServiceFee",
+                 store_service_fee::DOUBLE PRECISION AS "storeServiceFee",
+                 night_fee::DOUBLE PRECISION         AS "nightFee",
+                 rain_fee::DOUBLE PRECISION          AS "rainFee",
+                 total_product_tax::DOUBLE PRECISION AS "totalProductTax"
+          FROM orders
+          WHERE id = ${orderId}
+            FOR
+          UPDATE
+        `,
+      );
+      const existOrder = result.rows[0] as Order;
+      if (!existOrder) {
+        throw new ValidationException(ErrorCode.OD001);
+      }
+      //--------------------------------------------
+      // Kiểm tra xem đơn hàng đã được giao chưa
+      //--------------------------------------------
+      if (existOrder.status !== OrderStatusEnum.PENDING) {
+        throw new ValidationException(ErrorCode.OD005);
+      }
+      //--------------------------------------------
+      // Kiểm tra xem người giao hàng có tồn tại không
+      //--------------------------------------------
+      const existDeliver = await this.deliversService.existById(payload.id);
+      if (!existDeliver) {
+        throw new ValidationException(ErrorCode.D001);
+      }
+      //--------------------------------------------
+      // Tổng point mà người giao hàng sẽ bị trừ khi nhận đơn
+      //--------------------------------------------
+      const subtractPoint = await this.calculateSubtractPoint(existOrder);
+      if (this.configService.get('app.nodeEnv', { infer: true }) === Environment.DEVELOPMENT) {
+        console.group('🚚 Delivery Calculation');
+        console.log('📦 totalDelivery   :', existOrder.totalDelivery);
+        console.log('💸 incomeDeliver   :', existOrder.incomeDeliver || 0);
+        console.log('🧾 userServiceFee  :', existOrder.userServiceFee || 0);
+        console.log('🏪 storeServiceFee :', existOrder.storeServiceFee || 0);
+        console.log('🌙 nightFee       :', existOrder.nightFee || 0);
+        console.log('🌧️ rainFee        :', existOrder.rainFee || 0);
+        console.log('💰 totalProductTax :', existOrder.totalProductTax || 0);
+        console.log('➖ subtractPoint    :', subtractPoint);
+        console.log('🎯 currentPoint     :', existDeliver.point);
+        console.groupEnd();
+      }
+
+      //--------------------------------------------
+      // Kiểm tra xem người giao hàng có đủ điểm để nhận đơn không
+      //--------------------------------------------
+      if (existDeliver.point < subtractPoint) {
+        throw new ValidationException(ErrorCode.D005);
+      }
+
+      await this.deliversService.subtractPoint(payload.id, subtractPoint, tx);
+      const [updateOrder] = await tx
+        .update(orders)
+        .set({
+          status: OrderStatusEnum.ACCEPTED,
+          acceptedAt: new Date(),
+          deliverId: payload.id,
+        })
+        .where(eq(orders.id, orderId))
+        .returning();
+
+      const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(
+        updateOrder.userId,
+      );
+
+      console.log('validUserFcmToken', validUserFcmToken);
+      if (validUserFcmToken.fcmToken) {
+        console.log('Sending FCM notification to user:', validUserFcmToken.fcmToken);
+        await this.notifyAboutAssignOrder([validUserFcmToken.fcmToken], updateOrder.code);
+      }
+      this.emitter.emit('order.accepted', orderId);
+      return updateOrder;
+    });
+  }
+
+  private async notifyAboutAssignOrder(fcmTokens: string[], code: string) {
+    if (fcmTokens.length === 0) {
+      return;
+    }
+    try {
+      await this.admin.messaging().sendEachForMulticast(
+        buildMulticastMessage({
+          tokens: fcmTokens,
+          title: 'Đơn hàng đã được nhận',
+          body: `Đơn hàng sẽ được giao trong thời gian sớm nhất. Mã đơn hàng: ${code}`,
+        }),
+      );
+    } catch (error) {
+      this.logger.error('Error sending FCM notification', error);
+    }
+  }
+
+  async updateOrderStatusByDeliver(orderId: number, status: OrderStatusEnum, reason: string) {
+    //--------------------------------------------
+    // Kiểm tra xem đơn hàng có tồn tại không
+    //--------------------------------------------
+    const existOrder = await this.findById(orderId);
+    if (!existOrder) {
+      throw new ValidationException(ErrorCode.OD001);
+    }
+
+    if (existOrder.status === OrderStatusEnum.PENDING || existOrder.status === status) {
+      throw new ValidationException(ErrorCode.OD002);
+    }
+    const currentStatus = existOrder.status;
+    const nextStatus = status;
+    if (!allowedTransitions[currentStatus].includes(nextStatus)) {
+      throw new ValidationException(
+        ErrorCode.O002,
+        HttpStatus.BAD_REQUEST,
+        `Invalid status transition from ${currentStatus} to ${nextStatus}`,
+      );
+    }
+
+    //--------------------------------------------
+    // Kiểm tra xem người giao hàng có tồn tại không
+    //--------------------------------------------
+    const existDeliver = await this.deliversService.findById(existOrder.deliverId);
+    if (!existDeliver) {
+      throw new ValidationException(ErrorCode.D001);
+    }
+    const updatedOrder = await this.db.transaction(async (tx) => {
+      const [updatedOrder] = await tx
+        .update(orders)
+        .set({
+          status: status,
+          ...(status === OrderStatusEnum.ACCEPTED && {
+            acceptedAt: new Date(),
+          }),
+          ...(status === OrderStatusEnum.CANCELED && {
+            canceledAt: new Date(),
+          }),
+          ...(status === OrderStatusEnum.DELIVERED && {
+            completedAt: new Date(),
+          }),
+        })
+        .where(eq(orders.id, orderId))
+        .returning();
+
+      //-------------------------------------------------
+      // Gửi thông báo FCM  cho người dùng về việc hủy đơn hàng
+      //-------------------------------------------------
+      const validUserFcmToken = await this.usersService.getValidUserFcmTokenById(existOrder.userId);
+      switch (status) {
+        case OrderStatusEnum.CANCELED: {
+          //--------------------------------------------
+          // Kiểm tra xem lý do hủy đơn hàng có tồn tại không
+          //--------------------------------------------
+          await this.doCancelOrder(updatedOrder, existDeliver, reason, tx);
+          await this.emitter.emitAsync('order.canceled', {
+            updatedOrder: updatedOrder,
+            role: RoleEnum.DELIVER,
+          });
+          //-------------------------------------------------
+          // láy fcm token  by storeId
+          //-------------------------------------------------
+          const validStoreFcmToken = await this.storesService.getValidStoreFcmTokenByStoreId(
+            existOrder.storeId,
+          );
+          console.log('validUserFcmToken', validUserFcmToken);
+          const mergeFcmTokens = [validUserFcmToken?.fcmToken, validStoreFcmToken?.fcmToken].filter(
+            (token) => token,
+          ); // Lọc các token hợp lệ
+          if (mergeFcmTokens.length > 0) {
+            this.notifyOrderStatus(
+              mergeFcmTokens,
+              updatedOrder.status,
+              updatedOrder.type,
+              updatedOrder.code,
+            );
+          }
+          break;
+        }
+        case OrderStatusEnum.DELIVERED: {
+          await this.doCompleteOrder(updatedOrder, existDeliver, tx);
+          const mergeFcmTokens = [validUserFcmToken?.fcmToken].filter((token) => token); // Lọc các token hợp lệ
+          if (mergeFcmTokens.length > 0) {
+            this.notifyOrderStatus(
+              mergeFcmTokens,
+              updatedOrder.status,
+              updatedOrder.type,
+              updatedOrder.code,
+            );
+          }
+          await this.emitter.emitAsync('order.updated_status', updatedOrder);
+          break;
+        }
+        default: {
+          const mergeFcmTokens = [validUserFcmToken?.fcmToken].filter((token) => token); // Lọc các token hợp lệ
+          if (mergeFcmTokens.length > 0) {
+            this.notifyOrderStatus(
+              mergeFcmTokens,
+              updatedOrder.status,
+              updatedOrder.type,
+              updatedOrder.code,
+            );
+          }
+          await this.emitter.emitAsync('order.updated_status', updatedOrder);
+          break;
+        }
+      }
+      return updatedOrder;
+    });
+
+    const MAX_CANCEL_ORDER_PER_DAY = 3;
+    const cancelOrderCountInDay = await this.getCancelOrderCountInDay(existDeliver.id);
+
+    if (
+      updatedOrder.status === OrderStatusEnum.CANCELED &&
+      cancelOrderCountInDay > MAX_CANCEL_ORDER_PER_DAY
+    ) {
+      await this.lockDeliver(existDeliver.id);
+      await this.emitter.emitAsync('deliver.locked', existDeliver);
+    }
+    const cancelOrderCount = MAX_CANCEL_ORDER_PER_DAY - cancelOrderCountInDay;
+
+    return {
+      ...updatedOrder,
+      cancelOrderCount: cancelOrderCount,
+    };
+  }
+
+  private async getCancelOrderCountInDay(deliverId: number): Promise<number> {
+    return await this.db
+      .select({
+        count: count(reasonDeliverCancelOrders.id),
+      })
+      .from(reasonDeliverCancelOrders)
+      .where(
+        and(
+          eq(reasonDeliverCancelOrders.deliverId, deliverId),
+          between(
+            reasonDeliverCancelOrders.createdAt,
+            startOfDay(new Date()),
+            endOfDay(new Date()),
+          ),
+        ),
+      )
+      .then((res) => res[0]?.count ?? 0);
+  }
+
+  private async calculateSubtractPoint(order: Order, refundPoint: number = 0): Promise<number> {
+    const value =
+      order.totalDelivery +
+      order.nightFee +
+      order.rainFee -
+      order.incomeDeliver +
+      order.userServiceFee +
+      order.storeServiceFee +
+      order.totalProductTax +
+      refundPoint; // Hoàn lại điểm cho người giao hàng
+
+    return _.round(Math.max(value, 0));
+  }
+
+  // hoàn lượt sale
+  private async refundSale(orderId: number, tx: Transaction) {
+    const orderDetail = await tx
+      .select()
+      .from(orderDetails)
+      .where(eq(orderDetails.orderId, orderId));
+
+    for (const detail of orderDetail) {
+      if (detail.isSale) {
+        // cộng lại số lượng sản phẩm đã bán
+        await tx
+          .update(products)
+          .set({
+            quantity: increment(products.quantity, detail.quantity),
+          })
+          .where(eq(products.id, detail.productId));
+      }
+    }
+  }
+
+  private async managerDoCancelOrder(existOrder: Order, tx: Transaction) {
+    // hoàn lượt voucher
+    await this.vouchersService.refundVoucherUsage(existOrder.id, existOrder.userId, tx);
+
+    // hoàn xu cho người dùng
+    if (existOrder.coinUsed > 0) {
+      await this.usersService.refundCoin(existOrder.userId, existOrder.coinUsed, tx);
+    }
+    // await this.refundSale(existOrder.id, tx);
+    // hoàn lại số lượt giảm giá nếu có
+    if (existOrder.deliverId) {
+      const existDeliver = await this.deliversService.findById(existOrder.deliverId);
+      if (!existDeliver) {
+        throw new ValidationException(ErrorCode.D001);
+      }
+      //-------------------------------------------------
+      // Cộng lại điểm cho người giao hàng
+      //-------------------------------------------------
+
+      const subtractPoint = await this.calculateSubtractPoint(existOrder);
+
+      // hoàn điểm cho shipper
+      await this.deliversService.addPoint(existOrder.deliverId, subtractPoint, tx);
+    }
+  }
+
+  private notifyOrderStatus(
+    tokens: string[],
+    status: OrderStatusEnum,
+    type: OrderTypeEnum,
+    orderCode: string,
+  ) {
+    if (tokens.length === 0) return;
+    const { title, message } = getOrderNotificationContent(status, type, orderCode);
+    this.admin
+      .messaging()
+      .sendEachForMulticast(
+        buildMulticastMessage({
+          tokens,
+          title,
+          body: message,
+        }),
+      )
+      .catch((error) => {
+        this.logger.error('Error sending FCM notification', error);
+      });
+  }
+
+  // private notifyOrderCanceled(tokens: string[]) {
+  //   if (tokens.length === 0) {
+  //     return;
+  //   }
+  //   this.admin
+  //     .messaging()
+  //     .sendEachForMulticast(
+  //       buildMulticastMessage({
+  //         tokens: tokens,
+  //         title: 'Đơn hàng đã bị hủy',
+  //         body: 'Đơn hàng của bạn đã bị hủy. Vui lòng kiểm tra lại.',
+  //       }),
+  //     )
+  //     .catch((error) => {
+  //       this.logger.error('Error sending FCM notification', error);
+  //     });
+  // }
+
+  //Thực hiện hủy đơn hàng
+  private async doCancelOrder(
+    existOrder: Order,
+    existDeliver: Deliver,
+    reason: string,
+    tx: Transaction,
+  ) {
+    if (!reason) {
+      throw new ValidationException(ErrorCode.OD003);
+    }
+
+    // const [refund] = await tx
+    //   .select({
+    //     refundPoint: sql`coalesce
+    //       (sum(vouchers.value), 0)`.mapWith(Number),
+    //   })
+    //   .from(orders)
+    //   .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
+    //   .leftJoin(
+    //     vouchers,
+    //     and(
+    //       eq(vouchers.id, vouchersOnOrders.voucherId),
+    //       inArray(vouchers.type, [VouchersTypeEnum.ADMIN, VouchersTypeEnum.MANAGEMENT]),
+    //     ),
+    //   )
+    //   .where(eq(orders.id, existOrder.id))
+    //   .groupBy(orders.id);
+    //---------------------------------------------------
+    // Hoàn lại điểm cho người giao hàng
+    //---------------------------------------------------
+    const subtractPoint = await this.calculateSubtractPoint(existOrder);
+    await this.deliversService.addPoint(existOrder.deliverId, subtractPoint, tx);
+    //--------------------------------------------------
+    // Hoàn xu cho người dùng
+    //--------------------------------------------------
+    if (existOrder.coinUsed > 0) {
+      // không cần check user đã tônt tại vì đã check ở hàm create
+      await this.usersService.refundCoin(existOrder.userId, existOrder.coinUsed, tx);
+    }
+    //--------------------------------------
+    // Hoàn lại lượt sale
+    //---------------------------------
+    // await this.refundSale(existOrder.id, tx);
+
+    await tx.insert(reasonDeliverCancelOrders).values({
+      orderId: existOrder.id,
+      reason: reason,
+      type: CanceledReasonEnum.CANCELED,
+      deliverId: existDeliver.id,
+    });
+  }
+
+  private async lockDeliver(deliverId: number) {
+    await this.db
+      .update(delivers)
+      .set({
+        status: false,
+        activated: false,
+      })
+      .where(eq(delivers.id, deliverId));
+  }
+
+  // Thực hiện khi hoàn thành đơn hàng
+  private async doCompleteOrder(existOrder: Order, existDeliver: Deliver, tx: Transaction) {
+    const [refund] = await tx
+      .select({
+        refundPoint: sql`coalesce
+          (sum(vouchers.value), 0)`.mapWith(Number),
+      })
+      .from(orders)
+      .leftJoin(vouchersOnOrders, eq(orders.id, vouchersOnOrders.orderId))
+      .leftJoin(
+        vouchers,
+        and(
+          eq(vouchers.id, vouchersOnOrders.voucherId),
+          inArray(vouchers.type, [VouchersTypeEnum.ADMIN, VouchersTypeEnum.MANAGEMENT]),
+        ),
+      )
+      .where(eq(orders.id, existOrder.id))
+      .groupBy(orders.id);
+
+    if (this.configService.get('app.nodeEnv', { infer: true }) === Environment.DEVELOPMENT) {
+      console.group('♻️ Refund Point Issued');
+      console.log('🚚 Deliver ID   :', existDeliver.id);
+      console.log('💰 Refund Point :', refund.refundPoint);
+      console.groupEnd();
+    }
+    //---------------------------------------------------
+    // Hoàn lại điểm cho người giao hàng
+    //---------------------------------------------------
+    const totalRefundPoint =
+      existOrder.coinUsed + Math.min(refund.refundPoint, existOrder.totalDelivery);
+    await this.deliversService.addPoint(existDeliver.id, totalRefundPoint, tx);
+  }
+
+  async getOrdersByDateRange(from: Date, to: Date, areaId?: number) {
+    return this.db.query.orders.findMany({
+      where: and(
+        ...(areaId ? [eq(orders.areaId, areaId)] : []),
+        ...(from && to ? [gte(orders.createdAt, from), lte(orders.createdAt, to)] : []),
+      ),
+      orderBy: desc(orders.createdAt),
+      with: {
+        user: true,
+        deliver: true,
+      },
+    });
+  }
+
+  async countOrdersByStatus(reqDto: CountOrderReqDto, payload: JwtPayloadType) {
+    // ✅ OPTIMIZED: Fetch storeIds once if user is STORE role
+    let storeIds: number[] = [];
+    if (payload.role === RoleEnum.STORE) {
+      storeIds = await this.db
+        .select({ id: stores.id })
+        .from(stores)
+        .where(eq(stores.userId, payload.id))
+        .then((res) => res.map((r) => r.id));
+
+      // Early return if store owner has no stores
+      if (storeIds.length === 0) {
+        return {
+          totalOrders: 0,
+          totalOrdersPending: 0,
+          totalOrdersAccepted: 0,
+          totalOrdersDelivering: 0,
+          totalOrdersDelivered: 0,
+          totalOrdersCancelled: 0,
+        };
+      }
+    }
+
+    // Date range
+    const now = DateTime.now();
+
+    const fromDate = DateTime.fromJSDate(reqDto.from ?? now.toJSDate())
+      .setZone('Asia/Ho_Chi_Minh')
+      .startOf('day')
+      .toJSDate();
+
+    const toDate = DateTime.fromJSDate(reqDto.to ?? now.toJSDate())
+      .setZone('Asia/Ho_Chi_Minh')
+      .endOf('day')
+      .toJSDate();
+
+    // ✅ OPTIMIZED: Use pre-fetched storeIds instead of subquery
+    const statusCounts = await this.db
+      .select({ status: orders.status, count: count(orders.id) })
+      .from(orders)
+      .where(
+        and(
+          between(orders.createdAt, fromDate, toDate),
+          ...(reqDto.q ? [ilike(orders.code, `%${reqDto.q}%`)] : []),
+          ...(reqDto.areaId ? [eq(orders.areaId, reqDto.areaId)] : []),
+          ...(reqDto.type ? [eq(orders.type, reqDto.type)] : []),
+          ...(payload.role === RoleEnum.MANAGEMENT ? [eq(orders.areaId, payload.areaId)] : []),
+          ...(payload.role === RoleEnum.STORE && storeIds.length > 0
+            ? [inArray(orders.storeId, storeIds)]
+            : []),
+        ),
+      )
+      .groupBy(orders.status);
+
+    const totalsOrders = Object.fromEntries(
+      statusCounts.map(({ status, count }) => [status, count]),
+    );
+    const allCount = Object.values(totalsOrders).reduce((sum, val) => sum + val, 0);
+
+    const totalOrdersForPaginated: TOTAL_ORDERS_FOR_PAGINATED = {
+      totalOrders: allCount,
+      totalOrdersPending: totalsOrders[OrderStatusEnum.PENDING] ?? 0,
+      totalOrdersAccepted: totalsOrders[OrderStatusEnum.ACCEPTED] ?? 0,
+      totalOrdersDelivering: totalsOrders[OrderStatusEnum.DELIVERING] ?? 0,
+      totalOrdersDelivered: totalsOrders[OrderStatusEnum.DELIVERED] ?? 0,
+      totalOrdersCancelled: totalsOrders[OrderStatusEnum.CANCELED] ?? 0,
+    };
+
+    return totalOrdersForPaginated;
+  }
+
+  async isRated(orderId: number) {
+    return this.db
+      .select({
+        isRated: orders.isRated,
+      })
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .then((res) => res[0]?.isRated ?? false);
+  }
+  private async buildFileName(prefix: string): Promise<string> {
+    const uniqueId = uuidv4();
+    return `${prefix}_${uniqueId}.jpeg`;
+  }
+  async updateImages(orderId: number, images: Express.Multer.File[]) {
+    const order = await this.existById(orderId);
+    if (!order) {
+      throw new ValidationException(ErrorCode.O001);
+    }
+
+    //------------------------------------------------------------
+    //- Nếu không gửi ảnh mới => giữ nguyên ảnh cũ
+    //------------------------------------------------------------
+    let normalizedPaths: string[] = order.images || [];
+
+    if (images?.length > 0) {
+      const uploadedPaths: string[] = [];
+
+      for (const file of images) {
+        const fileName = await this.buildFileName('order');
+        const fullImagePath = join(this.basePath, fileName);
+
+        await sharp(file.buffer).rotate().jpeg({ quality: 80 }).toFile(fullImagePath);
+
+        uploadedPaths.push(normalizeImagePath(fullImagePath));
+      }
+
+      //------------------------------------------------------------
+      //- Xoá ảnh cũ (nếu muốn xoá hết khi cập nhật mới)
+      //------------------------------------------------------------
+      if (order.images?.length > 0) {
+        for (const oldImg of order.images) {
+          deleteIfExists(oldImg, this.basePath);
+        }
+      }
+
+      normalizedPaths = uploadedPaths;
+    }
+
+    //------------------------------------------------------------
+    //- Update DB
+    //------------------------------------------------------------
+    const updatedOrder = await this.db
+      .update(orders)
+      .set({
+        images: normalizedPaths,
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    return updatedOrder[0];
+  }
+
+  /**
+   * ✅ OPTIMIZED: Batch fetch products for multiple items in a single query
+   * Eliminates N+1 query problem in createOrderDetails()
+   *
+   * @param productIds - Array of product IDs to fetch
+   * @param tx - Transaction instance
+   * @returns Map<productId, product> for O(1) lookup
+   */
+  private async batchFetchProducts(
+    productIds: number[],
+    tx: Transaction,
+  ): Promise<Map<number, ProductSummary>> {
+    // Early return if no products
+    if (!productIds || productIds.length === 0) {
+      return new Map<number, ProductSummary>();
+    }
+
+    // ✅ Single query to fetch all products
+    const allProducts = await tx
+      .select({
+        id: products.id,
+        startDate: products.startDate,
+        endDate: products.endDate,
+        usedSaleQuantity: products.usedSaleQuantity,
+        quantity: products.quantity,
+        salePrice: products.salePrice,
+        price: products.price,
+        limitedFlashSaleQuantity: products.limitedFlashSaleQuantity,
+      })
+      .from(products)
+      .where(inArray(products.id, productIds));
+
+    // Build Map for O(1) lookup
+    const productsMap = new Map<number, ProductSummary>();
+    for (const product of allProducts) {
+      productsMap.set(product.id, product);
+    }
+
+    return productsMap;
+  }
+
+  /**
+   * ✅ OPTIMIZED: Batch fetch user purchased quantities for multiple products
+   * Eliminates N+1 query problem in createOrderDetails()
+   *
+   * @param productIds - Array of product IDs
+   * @param userId - User ID to check purchases for
+   * @param tx - Transaction instance
+   * @returns Map<productId, totalQuantity> for O(1) lookup
+   */
+  private async batchFetchUserPurchasedQuantities(
+    productIds: number[],
+    userId: number,
+    tx: Transaction,
+  ): Promise<Map<number, number>> {
+    // Early return if no products
+    if (!productIds || productIds.length === 0) {
+      return new Map();
+    }
+
+    // ✅ Single query to fetch all user purchased quantities
+    const purchases = await tx
+      .select({
+        productId: orderDetails.productId,
+        totalQuantity: sql<number>`SUM(${orderDetails.quantity})`.as('totalQuantity'),
+      })
+      .from(orderDetails)
+      .where(
+        and(
+          eq(orderDetails.userId, userId),
+          inArray(orderDetails.productId, productIds),
+          eq(orderDetails.isSale, true),
+        ),
+      )
+      .groupBy(orderDetails.productId);
+
+    // Build Map for O(1) lookup
+    const purchasesMap = new Map<number, number>();
+    for (const purchase of purchases) {
+      if (purchase.productId !== null) {
+        purchasesMap.set(purchase.productId, Number(purchase.totalQuantity) || 0);
+      }
+    }
+
+    return purchasesMap;
+  }
+
+  private async batchFetchProductOptionGroups(
+    productIds: number[],
+    tx: Transaction,
+  ): Promise<Map<number, OptionGroupWithOptions[]>> {
+    if (!productIds || productIds.length === 0) {
+      return new Map<number, OptionGroupWithOptions[]>();
+    }
+
+    const groups = await tx.query.optionGroups.findMany({
+      where: inArray(optionGroups.productId, productIds),
+      with: {
+        options: true,
+      },
+    });
+
+    const map = new Map<number, OptionGroupWithOptions[]>();
+
+    for (const group of groups) {
+      const productId = group.productId;
+      if (typeof productId !== 'number') {
+        continue;
+      }
+      if (!map.has(productId)) {
+        map.set(productId, []);
+      }
+      map.get(productId)!.push(group as OptionGroupWithOptions);
+    }
+
+    return map;
+  }
+}

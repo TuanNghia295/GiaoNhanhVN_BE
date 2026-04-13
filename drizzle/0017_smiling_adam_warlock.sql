@@ -1,0 +1,1 @@
+ALTER TABLE "order_details" ADD COLUMN "is_sale" boolean DEFAULT false;

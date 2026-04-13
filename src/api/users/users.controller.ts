@@ -1,0 +1,188 @@
+import { AuthService } from '@/api/auth/auth.service';
+import { LoginReqDto } from '@/api/auth/dto/login.req.dto';
+import { LoginResDto } from '@/api/auth/dto/login.res.dto';
+import { JwtPayloadType } from '@/api/auth/types/jwt-payload.type';
+import { ConvertUserToStoreFunctionReqDto } from '@/api/store-requests/dto/convert-user-to-store-function.req.dto';
+import { AddCoinReqDto } from '@/api/users/dto/add-coin.req.dto';
+import { ChangePasswordReqDto } from '@/api/users/dto/change-password.req.dto';
+import { CreateUserReqDto } from '@/api/users/dto/create-user.req.dto';
+import { LockUserReqDto } from '@/api/users/dto/lock-user.req.dto';
+import { PageUserReqDto } from '@/api/users/dto/page-user.req.dto';
+import { UpdateUserReqDto } from '@/api/users/dto/update-user.req.dto';
+import { UserResDto } from '@/api/users/dto/user.res.dto';
+import { UsersService } from '@/api/users/users.service';
+import { RoleEnum } from '@/database/schemas';
+import { CurrentUser } from '@/decorators/current-user.decorator';
+import { ApiAuth, ApiPublic } from '@/decorators/http.decorators';
+import { Roles } from '@/decorators/role.decorator';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Patch,
+  Post,
+  Query,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { UpdateImageReqDto } from '../delivers/dto/update-image.req.dto';
+
+@Controller('users')
+export class UsersController {
+  constructor(
+    private readonly authService: AuthService,
+    private readonly usersService: UsersService,
+  ) {}
+
+  @ApiPublic({
+    type: LoginResDto,
+    summary: 'Đăng nhập [USER]',
+  })
+  @Post('login')
+  async login(@Body() reqDto: LoginReqDto): Promise<LoginResDto> {
+    return await this.authService.loginUser(reqDto);
+  }
+
+  @Roles(RoleEnum.USER)
+  @ApiAuth({
+    summary: 'Đăng xuất (user)',
+  })
+  @Patch('logout')
+  async logout(@CurrentUser() payload: JwtPayloadType) {
+    return await this.usersService.logout(payload.id);
+  }
+
+  @ApiPublic({
+    type: LoginResDto,
+    summary: 'Đăng nhập [USER]',
+  })
+  @Post('login/firebase')
+  async loginFirebase(@Body('idToken') idToken: string) {
+    return this.authService.verifyFirebaseIdToken(idToken);
+  }
+
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'Tạo mới người dùng (ADMIN, MANAGEMENT)',
+    type: UserResDto,
+  })
+  @Post()
+  async create(
+    @CurrentUser() payload: JwtPayloadType,
+    @Body() reqDto: CreateUserReqDto,
+  ): Promise<UserResDto> {
+    return await this.usersService.create(reqDto, payload);
+  }
+
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'Lấy danh sách người dùng [ADMIN]',
+    type: UserResDto,
+  })
+  @Get()
+  async getPageUsers(@CurrentUser() payload: JwtPayloadType, @Query() reqDto: PageUserReqDto) {
+    return await this.usersService.getPageUsers(reqDto, payload);
+  }
+
+  // api chuyển đổi chức năng user tthanhf cửa hàng
+  // chỉ có user mới đc đăng ký cửa hàng
+
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'Chuyển đổi chức năng user thành cửa hàng [MANAGEMENT, ADMIN]',
+  })
+  @Post('convert-function')
+  async convertUserToStoreFunction(@Body() reqDto: ConvertUserToStoreFunctionReqDto) {
+    return await this.usersService.convertUserToStoreFunction(reqDto);
+  }
+
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'Khóa/Mở khóa tài khoản người dùng [ADMIN]',
+    type: UserResDto,
+  })
+  @Patch('locked')
+  async lockUser(@Body() reqDto: LockUserReqDto): Promise<UserResDto> {
+    return await this.usersService.lockUser(reqDto);
+  }
+
+  @Roles(RoleEnum.USER)
+  @ApiAuth({
+    summary: 'Lấy thông tin người dùng khi đăng nhập [USER]',
+    type: UserResDto,
+  })
+  @Get('info')
+  async getInfo(@CurrentUser() payload: JwtPayloadType) {
+    return await this.usersService.getUserById(payload.id);
+  }
+
+  @Roles(RoleEnum.USER)
+  @ApiAuth({
+    summary: 'Cập nhật thông tin người dùng [USER]',
+    type: UserResDto,
+  })
+  @Patch()
+  async update(@CurrentUser() payload: JwtPayloadType, @Body() reqDto: UpdateUserReqDto) {
+    return await this.usersService.update(payload, reqDto);
+  }
+
+  @Roles(RoleEnum.USER)
+  @ApiAuth({
+    summary: 'Cập nhật ảnh đại diện người dùng [USER])',
+    type: UserResDto,
+  })
+  @UseInterceptors(
+    FileInterceptor('image', {
+      fileFilter: (req, file, callback) => {
+        const fileTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+        if (fileTypes.includes(file.mimetype)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Invalid file type'), false);
+        }
+      },
+      storage: memoryStorage(),
+    }),
+  )
+  @Patch('image')
+  async updateImage(
+    @CurrentUser() payload: JwtPayloadType,
+    @Body() _dto: UpdateImageReqDto,
+    @UploadedFile() image: Express.Multer.File,
+  ) {
+    return await this.usersService.updateImage(payload, image);
+  }
+
+  // api reset password
+  @Roles(RoleEnum.USER)
+  @ApiAuth({
+    summary: 'Cập nhật mật khẩu người dùng [USER]',
+    type: UserResDto,
+  })
+  @Patch('password')
+  async changePassword(
+    @CurrentUser() payload: JwtPayloadType,
+    @Body() reqDto: ChangePasswordReqDto,
+  ) {
+    return await this.usersService.changePassword(payload, reqDto);
+  }
+
+  @Roles(RoleEnum.MANAGEMENT)
+  @ApiAuth({
+    summary: 'Thêm điểm cho người dùng [ADMIN, MANAGEMENT]',
+    type: UserResDto,
+  })
+  @Patch('add-coin')
+  async addPoint(@CurrentUser() payload: JwtPayloadType, @Body() reqDto: AddCoinReqDto) {
+    return this.usersService.incrementCoin(reqDto.userId, reqDto.coin, payload);
+  }
+
+  @ApiPublic()
+  @Delete()
+  async deleteById(@Query('userId') userId: number) {
+    return await this.usersService.deleteById(userId);
+  }
+}

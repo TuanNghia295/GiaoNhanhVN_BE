@@ -1,0 +1,1 @@
+ALTER TABLE "products" ADD COLUMN "user_used" integer[] DEFAULT '{}';

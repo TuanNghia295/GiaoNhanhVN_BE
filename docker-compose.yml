@@ -1,0 +1,22 @@
+services:
+  api-giao-nhanh:
+    container_name: api
+    restart: unless-stopped # khi container dừng thì tự động khởi động lại
+    ports:
+      - "8000:8000" # ánh xạ cổng 8000 của máy chủ với cổng 8000 của container
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - /home/2412_be_giaonhanhvn/uploads:/app/uploads
+    networks:
+      - giao-nhanh-network
+
+networks:
+  giao-nhanh-network:
+    driver: bridge
+
+volumes:
+  giao-nhanh-uploads:

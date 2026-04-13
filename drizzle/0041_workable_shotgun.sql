@@ -1,0 +1,1 @@
+ALTER TABLE "products" ADD COLUMN "limited_flash_sale_quantity" integer DEFAULT 0;

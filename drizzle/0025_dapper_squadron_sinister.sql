@@ -1,0 +1,1 @@
+ALTER TABLE "store_menus" ADD COLUMN "index" integer;

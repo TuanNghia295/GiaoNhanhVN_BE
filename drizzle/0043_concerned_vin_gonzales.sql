@@ -1,0 +1,1 @@
+ALTER TABLE "stores" ADD COLUMN "store_service_fee" numeric(15, 2);

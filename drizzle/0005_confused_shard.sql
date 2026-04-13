@@ -1,0 +1,1 @@
+ALTER TABLE "service_fees" ALTER COLUMN "deliver_percent" SET DATA TYPE numeric(5, 2);
